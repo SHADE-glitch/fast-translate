@@ -41,7 +41,6 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 const Clipboard = St.Clipboard.get_default();
 const CLIPBOARD_TYPE = St.ClipboardType.CLIPBOARD;
 
-const SHELL_KEYBINDINGS_SCHEMA = "org.gnome.shell.keybindings";
 const SHORTCUT_SETTING_KEY = "keybinding-translate-clipboard";
 const TIMEOUT_MS = 500;
 // Same-text re-trigger suppression window (µs). After a floating window is
@@ -166,6 +165,11 @@ var FastTranslate = GObject.registerClass(
             this._safetyTimeoutId = null;
             this._lastTriggeredText = null;
             this._lastTriggeredTime = null;
+            this._lastClipboardTime = null;
+            this._lastClipboardText = null;
+            // Tracks whether the global keybinding is currently registered, so
+            // _unbindShortcut() never asks mutter to remove one that isn't there.
+            this._shortcutBound = false;
 
             /* Icon indicator */
             let box = new St.BoxLayout();
@@ -233,7 +237,6 @@ var FastTranslate = GObject.registerClass(
 
             /* Init */
             this._settingsChanged();
-            this._set_icon_indicator();
             this._settingsChangedId = this._settings.connect('changed', (_settings, key) => {
                 this._settingsChanged(key);
             });
@@ -445,7 +448,6 @@ var FastTranslate = GObject.registerClass(
             this._formality = this._getValue('formality');
             this._url = this._getValue('url');
             this._apikey = this._getValue('apikey');
-            this._keybinding_translate_clipboard = this._getValue(SHORTCUT_SETTING_KEY);
             this._notifications = this._getValue('notifications');
             this._darktheme = this._getValue('darktheme');
 
@@ -473,6 +475,9 @@ var FastTranslate = GObject.registerClass(
         }
 
         _bindShortcut() {
+            if (this._shortcutBound) {
+                return;
+            }
             Main.wm.addKeybinding(
                 SHORTCUT_SETTING_KEY,
                 this._settings,
@@ -499,10 +504,15 @@ var FastTranslate = GObject.registerClass(
                     });
                 }
             );
+            this._shortcutBound = true;
         }
 
         _unbindShortcut() {
+            if (!this._shortcutBound) {
+                return;
+            }
             Main.wm.removeKeybinding(SHORTCUT_SETTING_KEY);
+            this._shortcutBound = false;
         }
 
         _translateText(fromOrTo, fromText, callback) {
@@ -1530,7 +1540,6 @@ export default class FastTranslateExtension extends Extension {
 
 const FLOAT_GOOGLE_CHAR_LIMIT = 5000;
 const FLOAT_DEEPL_CHAR_LIMIT = 5000;
-console.log('[fast-translate@local] module loaded build-v26');
 
 class FloatingTranslationWindow {
     constructor(sourceText, targetText, sourceLang, targetLang, onDestroy, onCopyClicked, settings, opts) {

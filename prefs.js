@@ -26,7 +26,6 @@ import Gtk from "gi://Gtk?version=4.0";
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import Gdk from "gi://Gdk?version=4.0";
-import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import { ExtensionPreferences, gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 

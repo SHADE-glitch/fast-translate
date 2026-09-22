@@ -1,0 +1,450 @@
+/* Modern styling for Translate Assistant */
+
+.translate-container {
+    padding: 8px;
+    spacing: 10px;
+    min-height: 580px;
+}
+
+/* Language Selection Header */
+.translate-lang-row {
+    spacing: 12px;
+    margin-bottom: 4px;
+}
+
+.translate-lang-label {
+    font-weight: bold;
+    font-size: 16px;
+    color: #e0e0e0;
+    padding: 12px 24px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    min-width: 96px;
+    text-align: center;
+}
+
+.translate-swap-button {
+    font-size: 16px;
+    border-radius: 40px;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 16px;
+    transition-duration: 0.2s;
+}
+
+.translate-swap-button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.translate-swap-button:active {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Entry Wrappers and Scrollable Text Areas */
+.translate-entry-wrapper {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
+    spacing: 12px;
+}
+
+.translate-scroll {
+    min-height: 160px;
+    max-height: 320px;
+    width: 500px;
+}
+
+.translate-entry {
+    background-color: transparent;
+    border: none;
+    padding: 4px;
+    font-size: 16px;
+    color: #ffffff;
+    min-height: 150px;
+}
+
+.translate-entry.read-only {
+    color: #dfdfdf;
+}
+
+/* Action buttons at the bottom of entries */
+.translate-actions-row {
+    spacing: 12px;
+}
+
+.translate-action-btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #eeeeee;
+    transition-duration: 0.15s;
+}
+
+.translate-action-btn:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.translate-action-btn:active {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+.translate-btn-icon {
+    icon-size: 28px;
+}
+
+/* Middle translate button row */
+.translate-middle-row {
+    margin: 8px 0;
+    spacing: 12px;
+}
+
+.translate-submit-btn {
+    font-weight: bold;
+    font-size: 16px;
+    padding: 12px 40px;
+    border-radius: 12px;
+    background-color: #3584e4; /* GNOME Accent Blue */
+    color: #ffffff;
+    transition-duration: 0.2s;
+}
+
+.translate-submit-btn:hover {
+    background-color: #1b6acb;
+}
+
+.translate-submit-btn:active {
+    background-color: #1051a2;
+}
+
+.translate-error-label {
+    color: #ff7b72; /* Soft warning red */
+    font-size: 14px;
+    margin-top: 8px;
+    text-align: center;
+}
+
+/* Tooltips */
+.translate-tooltip {
+    background-color: #242424;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 10px 18px;
+    color: #e0e0e0;
+    font-size: 14px;
+    font-weight: normal;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Language Button States */
+.translate-lang-label:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+.translate-lang-label:active {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+.translate-lang-label:focus {
+    box-shadow: none;
+    border: none;
+}
+
+/* Selector Panel Styles */
+.translate-selector-scroll {
+    /* Fill the same vertical space as the hidden input+middle+output rows */
+    min-height: 510px;
+    max-height: 510px;
+}
+
+.translate-selector-box {
+    spacing: 12px;
+    padding: 8px 0;
+}
+
+.translate-lang-selector-row {
+    spacing: 12px;
+}
+
+.translate-lang-selector-btn {
+    padding: 12px 18px;
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #e0e0e0;
+    font-size: 16px;
+    transition-duration: 0.15s;
+    text-align: left;
+}
+
+.translate-lang-selector-btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+}
+
+.translate-lang-selector-btn:active {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+.translate-lang-selector-btn:focus {
+    box-shadow: none;
+    border: none;
+}
+
+.translate-lang-selector-btn.selected {
+    background-color: #3584e4;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+/* Floating Window Styles */
+.translate-floating-overlay {
+    background-color: transparent;
+}
+
+.translate-floating-window {
+    background-color: #1e1e1e;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 24px;
+    spacing: 16px;
+    width: 650px;
+    box-shadow: none;
+}
+
+.translate-floating-header {
+    spacing: 16px;
+}
+
+.translate-floating-title {
+    font-weight: bold;
+    font-size: 16px;
+    color: #ffffff;
+}
+
+.translate-floating-close-btn {
+    padding: 6px;
+    border-radius: 8px;
+    background-color: transparent;
+    color: #888888;
+    transition-duration: 0.15s;
+}
+
+.translate-floating-close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #ffffff;
+}
+
+.translate-floating-close-btn:active {
+    background-color: rgba(255, 255, 255, 0.20);
+}
+
+.translate-floating-close-btn:focus {
+    box-shadow: none;
+    border: none;
+}
+
+.translate-floating-divider {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.translate-floating-text-src {
+    font-size: 14px;
+    color: #b0b0b0;
+}
+
+.translate-floating-text-dest {
+    font-size: 16px;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.translate-floating-actions {
+    spacing: 12px;
+    margin-top: 8px;
+}
+
+.translate-floating-swap-btn {
+    padding: 6px;
+    border-radius: 8px;
+    background-color: transparent;
+    color: #ffffff;
+    font-size: 16px;
+    transition-duration: 0.15s;
+}
+
+.translate-floating-swap-btn:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #ffffff;
+}
+
+.translate-floating-src-scroll {
+    /* max-height set dynamically to 25% of monitor height in JS */
+}
+
+.translate-floating-dest-scroll {
+    /* max-height set dynamically to 40% of monitor height in JS */
+}
+
+.translate-floating-warning {
+    color: #f5c15c;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: left;
+}
+
+.translate-floating-autocopy-box {
+    spacing: 8px;
+}
+
+.translate-floating-autocopy-label {
+    font-size: 16px;
+    color: #e0e0e0;
+}
+
+.translate-floating-toggle-btn {
+    padding: 6px;
+    border-radius: 8px;
+    background-color: transparent;
+    color: #888888;
+}
+
+.translate-floating-toggle-btn.active {
+    color: #3584e4;
+}
+
+.translate-floating-toggle-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+
+
+/* =========================================================
+ * Fast Translate - Fixed dark theme
+ * Only affects Fast Translate UI.
+ * ========================================================= */
+
+.translate-menu-item-container {
+    background-color: #303030;
+    color: #ffffff;
+    border-radius: 12px;
+}
+
+.translate-container {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+/* Language buttons */
+.translate-lang-label {
+    background-color: #3a3a3a;
+    color: #ffffff;
+}
+
+.translate-lang-label:hover {
+    background-color: #454545;
+    color: #ffffff;
+}
+
+.translate-lang-label:active {
+    background-color: #4d4d4d;
+}
+
+/* Swap button */
+.translate-swap-button {
+    background-color: #3a3a3a;
+    color: #ffffff;
+}
+
+.translate-swap-button:hover {
+    background-color: #454545;
+}
+
+.translate-swap-button:active {
+    background-color: #4d4d4d;
+}
+
+/* Text areas */
+.translate-entry-wrapper {
+    background-color: #383838;
+    border: 1px solid #4a4a4a;
+    color: #ffffff;
+}
+
+.translate-entry {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+.translate-entry.read-only {
+    color: #eeeeee;
+}
+
+/* Action buttons */
+.translate-action-btn {
+    background-color: #424242;
+    color: #ffffff;
+}
+
+.translate-action-btn:hover {
+    background-color: #4d4d4d;
+    color: #ffffff;
+}
+
+.translate-action-btn:active {
+    background-color: #575757;
+}
+
+/* Translate button */
+.translate-submit-btn {
+    background-color: #3584e4;
+    color: #ffffff;
+}
+
+.translate-submit-btn:hover {
+    background-color: #4b91e8;
+}
+
+.translate-submit-btn:active {
+    background-color: #2d73c7;
+}
+
+/* Language selector */
+.translate-lang-selector-btn {
+    background-color: #3a3a3a;
+    color: #ffffff;
+}
+
+.translate-lang-selector-btn:hover {
+    background-color: #454545;
+    color: #ffffff;
+}
+
+.translate-lang-selector-btn:active {
+    background-color: #4d4d4d;
+}
+
+.translate-lang-selector-btn.selected {
+    background-color: #3584e4;
+    color: #ffffff;
+}
+
+/* PopupMenu item containing the translation UI */
+.popup-menu .popup-menu-item.translate-menu-item-container {
+    background-color: #303030;
+    color: #ffffff;
+    border-radius: 12px;
+}
+
+.popup-menu .popup-menu-item.translate-menu-item-container:hover,
+.popup-menu .popup-menu-item.translate-menu-item-container:focus,
+.popup-menu .popup-menu-item.translate-menu-item-container:active {
+    background-color: #303030;
+    color: #ffffff;
+}
+
+/* Remove Yaru theme shadow from popup menu */
+.popup-menu-content {
+    box-shadow: none;
+}

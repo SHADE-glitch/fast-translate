@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="fast-translate@tazztone.github.io">
+    <enum id="org.gnome.shell.extensions.fast-translate.source-lang">
+        <value value="0" nick="Auto (AUTO)"/>
+        <value value="1" nick="Bulgarian (BG)"/>
+        <value value="2" nick="Czech (CS)"/>
+        <value value="3" nick="Danish (DA)"/>
+        <value value="4" nick="German (DE)"/>
+        <value value="5" nick="Greek (EL)"/>
+        <value value="6" nick="English (EN)"/>
+        <value value="7" nick="Spanish (ES)"/>
+        <value value="8" nick="Estonian (ET)"/>
+        <value value="9" nick="Finnish (FI)"/>
+        <value value="10" nick="French (FR)"/>
+        <value value="11" nick="Hungarian (HU)"/>
+        <value value="12" nick="Indonesian (ID)"/>
+        <value value="13" nick="Italian (IT)"/>
+        <value value="14" nick="Japanese (JA)"/>
+        <value value="15" nick="Lithuanian (LT)"/>
+        <value value="16" nick="Latvian (LV)"/>
+        <value value="17" nick="Dutch (NL)"/>
+        <value value="18" nick="Polish (PL)"/>
+        <value value="19" nick="Portuguese (PT)"/>
+        <value value="20" nick="Romanian (RO)"/>
+        <value value="21" nick="Russian (RU)"/>
+        <value value="22" nick="Slovak (SK)"/>
+        <value value="23" nick="Slovenian (SL)"/>
+        <value value="24" nick="Swedish (SV)"/>
+        <value value="25" nick="Turkish (TR)"/>
+        <value value="26" nick="Chinese (ZH)"/>
+    </enum>
+    <enum id="org.gnome.shell.extensions.fast-translate.target-lang">
+        <value value="0" nick="Bulgarian (BG)"/>
+        <value value="1" nick="Czech (CS)"/>
+        <value value="2" nick="Danish (DA)"/>
+        <value value="3" nick="German (DE)"/>
+        <value value="4" nick="Greek (EL)"/>
+        <value value="5" nick="English British (EN-GB)"/>
+        <value value="6" nick="English American (EN-US)"/>
+        <value value="7" nick="Spanish (ES)"/>
+        <value value="8" nick="Estonian (ET)"/>
+        <value value="9" nick="Finnish (FI)"/>
+        <value value="10" nick="French (FR)"/>
+        <value value="11" nick="Hungarian (HU)"/>
+        <value value="12" nick="Indonesian (ID)"/>
+        <value value="13" nick="Italian (IT)"/>
+        <value value="14" nick="Japanese (JA)"/>
+        <value value="15" nick="Lithuanian (LT)"/>
+        <value value="16" nick="Latvian (LV)"/>
+        <value value="17" nick="Dutch (NL)"/>
+        <value value="18" nick="Polish (PL)"/>
+        <value value="19" nick="Portuguese (PT-PT)"/>
+        <value value="20" nick="Portuguese Brazilian (PT-BR)"/>
+        <value value="21" nick="Romanian (RO)"/>
+        <value value="22" nick="Russian (RU)"/>
+        <value value="23" nick="Slovak (SK)"/>
+        <value value="24" nick="Slovenian (SL)"/>
+        <value value="25" nick="Swedish (SV)"/>
+        <value value="26" nick="Turkish (TR)"/>
+        <value value="27" nick="Chinese (ZH)"/>
+    </enum>
+    <enum id="org.gnome.shell.extensions.fast-translate.formality">
+        <value value="0" nick="default"/>
+        <value value="1" nick="more"/>
+        <value value="2" nick="less"/>
+    </enum>
+    <enum id="org.gnome.shell.extensions.fast-translate.translation-service">
+        <value value="0" nick="DeepL"/>
+        <value value="1" nick="Google Translate"/>
+    </enum>
+
+    <schema path="/org/gnome/shell/extensions/fast-translate/" id="org.gnome.shell.extensions.fast-translate">
+        <key name="translation-service" enum="org.gnome.shell.extensions.fast-translate.translation-service">
+            <default>'Google Translate'</default>
+            <summary>Translation service</summary>
+            <description>The translation service to use (DeepL or Google Translate)</description>
+        </key>
+        <key name="source-lang" enum="org.gnome.shell.extensions.fast-translate.source-lang">
+            <default>'Auto (AUTO)'</default>
+            <summary>Source language</summary>
+            <description>Language of the text to be translated</description>
+        </key>
+        <key name="target-lang" enum="org.gnome.shell.extensions.fast-translate.target-lang">
+            <default>'Spanish (ES)'</default>
+            <summary>Target language</summary>
+            <description>The language into which the text should be translated</description>
+        </key>
+         <key name="split-sentences" type="b">
+            <default>true</default>
+            <summary>Split sentences</summary>
+            <description>Sets whether the translation engine should first split the input into sentences</description>
+        </key>
+         <key name="preserve-formatting" type="b">
+            <default>true</default>
+            <summary>Preserve formatting</summary>
+            <description>Sets whether the translation engine should respect the original formatting, even if it would usually correct some aspects</description>
+        </key>
+        <key name="formality" enum="org.gnome.shell.extensions.fast-translate.formality">
+            <default>'default'</default>
+            <summary>Formality</summary>
+            <description>Sets whether the translated text should lean towards formal or informal language</description>
+        </key>
+        <key name="url" type="s">
+            <default>"https://api-free.deepl.com/v2/translate"</default>
+            <summary>Url</summary>
+            <description>The url of DeepL</description>
+        </key>
+        <key name="apikey" type="s">
+            <default>""</default>
+            <summary>DeepL API key</summary>
+            <description>Set DeepL API key</description>
+        </key>
+        <key name="keybinding-translate-clipboard" type="as">
+            <default><![CDATA[['<Super>t']]]></default>
+            <summary>Shortcut</summary>
+            <description>Shortcut to translate the content of the clipboard</description>
+        </key>
+        <key name="notifications" type="b">
+            <default>false</default>
+            <summary>Show notifications</summary>
+            <description>Show notifications on translation</description>
+        </key>
+        <key name="darktheme" type="b">
+            <default>false</default>
+            <summary>Dark theme</summary>
+            <description>Enable dark theme otherwise light theme</description>
+        </key>
+         <key name="auto-paste" type="b">
+            <default>false</default>
+            <summary>Auto paste</summary>
+            <description>Paste automatically the content of the clipboard in the input text box</description>
+        </key>
+         <key name="auto-copy" type="b">
+            <default>false</default>
+            <summary>Auto copy</summary>
+            <description>Copy automatically the content of the output box in the clipboard</description>
+        </key>
+          <key name="floating-auto-copy" type="b">
+             <default>false</default>
+             <summary>Floating Auto Copy</summary>
+             <description>Copy automatically the content of the floating translation window to the clipboard</description>
+         </key>
+         <key name="floating-background-mode" type="b">
+            <default>false</default>
+            <summary>Background Mode</summary>
+            <description>Translate in background on double-copy instead of showing the floating window</description>
+         </key>
+         <key name="floating-background-toast" type="b">
+            <default>true</default>
+            <summary>Show Notification in Background Mode</summary>
+            <description>Display a notification when background translation finishes</description>
+         </key>
+         <key name="auto-translate" type="b">
+            <default>false</default>
+            <summary>Auto translate</summary>
+            <description>Translate automatically the content of the input box and the set the result in the output box</description>
+        </key>
+        <key name="show-panel-icon" type="b">
+            <default>true</default>
+            <summary>Show panel icon</summary>
+            <description>Show the extension icon in the top panel; when disabled, translation via double-copy (Ctrl+C Ctrl+C) and shortcuts still works</description>
+        </key>
+        <key name="shortcut-enabled" type="b">
+            <default>true</default>
+            <summary>Enable keyboard shortcut</summary>
+            <description>Enable or disable the Super+T keyboard shortcut for clipboard translation</description>
+        </key>
+    </schema>
+</schemalist>

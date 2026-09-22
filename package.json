@@ -1,0 +1,8 @@
+{
+  "name": "fast-translate",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node test/unit.test.js && gjs -m test/prefs-validator.js"
+  }
+}

@@ -1,205 +1,114 @@
-<!-- start project-info -->
-<!--
-project_title: Fast Translate
-github_project: https://github.com/tazztone/fast-translate
-license: MIT
-icon: icons/fast-translate-icon.svg
-homepage: https://github.com/tazztone/fast-translate
-license-badge: True
-contributors-badge: True
-lastcommit-badge: True
---->
+<p align="right"><a href="README.md"><b>English</b></a> | <a href="README.zh-CN.md">简体中文</a></p>
 
-<!-- end project-info -->
+# Fast Translate — Local Maintenance Fork
 
-<!-- start badges -->
+Instant translation from a double copy — Google Translate and DeepL in your GNOME Shell.
 
-![License MIT](https://img.shields.io/badge/license-MIT-green)
-![Contributors](https://img.shields.io/github/contributors-anon/tazztone/fast-translate)
-![Last commit](https://img.shields.io/github/last-commit/tazztone/fast-translate)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-tazztone-yellow?logo=buy-me-a-coffee)](https://buymeacoffee.com/tazztone)
-<!-- end badges -->
+![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-45--50-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
 
-<!-- start description -->
-<h1 align="center">Welcome to <span id="project_title">Fast Translate for GNOME Shell</span> 👋</h1>
-<p>
-<a href="https://github.com/tazztone/fast-translate" id="homepage" rel="nofollow">
-<img align="right" height="128" id="icon" src="icons/fast-translate-icon.svg" width="128"/>
-</a>
-</p>
+## About
 
-> [!NOTE]
-> This project is a modernized fork of the original [translate-assistant](https://github.com/atareao/translate-assistant) extension by [Lorenzo Carbonell (atareao)](https://github.com/atareao).
+This repository is a **personal maintenance fork** of **Fast Translate**, which is itself a modernized fork of the original [**translate-assistant**](https://github.com/atareao/translate-assistant) by [Lorenzo Carbonell (atareao)](https://github.com/atareao).
 
-<span id="project_title">Fast Translate for GNOME Shell</span> is a GNOME Shell extension that brings **Google Translate and DeepL-powered translation** directly into your desktop — translate text from a panel popup or trigger instant clipboard translation with a double-copy shortcut.
+Fork lineage:
 
-## ✨ Features
+```
+atareao/translate-assistant  →  tazztone/fast-translate  →  this fork (fast-translate@local)
+```
 
-- **Panel menu translator** — a clean popover accessible from the GNOME top bar lets you type or paste text and translate it instantly.
-- **Inline language selector** — switch source and target languages directly inside the popup using a flag-emoji grid, no settings window needed.
-- **Double-copy translation** — press the copy shortcut (`Ctrl+C` `Ctrl+C`) twice in rapid succession to trigger instant translation. Choose between displaying the result in a floating window, or running silently in the background to auto-copy the translation directly to your clipboard for immediate pasting (`Ctrl+V`).
-- **Configurable shortcut** — the clipboard-translate keybinding can be customised in the extension preferences.
-- **Multiple Backends** — choose between Google Translate (works instantly out-of-the-box, no key required) and DeepL (Free & Pro tiers).
+It is **not** affiliated with or endorsed by either upstream author. This fork narrows the extension to a single, focused workflow — **translate the text you just copied** — and hardens it: an LRU cache, a request watchdog, precise self-echo suppression, and a fix for DeepL regional source codes.
 
-<!-- end description -->
+## Features
 
-<!-- start prerequisites -->
+- **Double-copy instant translation** — copy text normally, then press `Ctrl+C` again within ~500 ms to translate it. No menus, no window switching.
+- **Floating translation window** — a draggable, re-centering popup showing the source and target languages, with **swap** and **copy** buttons and optional auto-copy.
+- **Background mode** — translate silently and write the result straight to the clipboard, ready to paste, with an optional desktop toast notification.
+- **Two backends** — **Google Translate** (no API key, works out of the box) and **DeepL** (Free and Pro tiers).
+- **Inline language selection** — a flag-emoji grid in the preferences.
+- **Robustness** — an LRU translation cache (50 entries), a 12-second request watchdog, a native `St.Spinner` loading state, friendly network-error messages, and precise self-echo suppression so your own copies are never mistaken for new input.
+
+## Screenshots
+
+![Floating translation window triggered by the double-copy shortcut](screenshots/CTRLCC.webp)
 
 ## Prerequisites
 
 | Requirement | Details |
 |---|---|
 | GNOME Shell | 45 – 50 |
-| DeepL API key | (Optional) [Free or Pro](https://www.deepl.com/pro-api) — only needed if choosing DeepL as your active provider |
+| DeepL API key | Optional — only needed if you choose DeepL as your provider ([Free or Pro](https://www.deepl.com/pro-api)) |
 
-<!-- end prerequisites -->
+## Installation
 
-<!-- start installing -->
+```bash
+git clone <your-fork-url> ~/.local/share/gnome-shell/extensions/fast-translate@local
+cd ~/.local/share/gnome-shell/extensions/fast-translate@local
+bash scripts/pack.sh      # compile schemas + translations and pack safely
+```
 
-## Installing <span id="project_title">Fast Translate for GNOME Shell</span>
+Or install in place and enable it:
 
-### From GNOME Extensions (recommended)
+```bash
+gnome-extensions enable fast-translate@local
+```
 
-1. Visit the [Fast Translate page on extensions.gnome.org](https://extensions.gnome.org/extension/5124/translate-assistant/). *(Note: The extension will be submitted under Fast Translate)*
-2. Toggle the switch to **On** — the browser integration installs and enables the extension automatically.
+On Wayland you must log out and back in for GNOME Shell to load the extension.
 
-<!-- end installing -->
+> [!WARNING]
+> Never run `gnome-extensions install` or `gnome-extensions pack` from inside the repository directory — the installer follows symlinks and can wipe the source tree. Use `scripts/pack.sh`, which packs via a temporary directory.
 
-<!-- start using -->
+## Usage
 
-## Using <span id="project_title">Fast Translate for GNOME Shell</span>
+Copy any text, then press `Ctrl+C` a second time within ~500 ms.
 
-Once enabled, the extension icon appears in the GNOME top bar. Click it to open the translation popup, type or paste text, choose your languages, and hit **Translate**.
+- **Floating window mode (default):** a popup appears with the translation — it does not steal focus or dim the screen.
+- **Background mode:** the translation runs silently and replaces your clipboard contents; paste with `Ctrl+V`. An optional toast confirms completion.
 
-![Panel popup showing the translation interface](./screenshots/main.webp)
+The panel icon exposes a single **Settings** entry.
 
-### Double-copy clipboard translation
-
-Copy any text normally, then press `Ctrl+C` a second time within ~500 ms. Depending on your preferences:
-
-- **Default mode**: A floating window appears with the translated result — no focus stealing, no screen dimming.
-- **Background mode**: The translation runs silently in the background and automatically updates your clipboard, allowing you to instantly paste (`Ctrl+V`) the translated text without distraction. An optional desktop toast notification is shown on completion.
-
-![Floating window triggered by the double-copy shortcut](./screenshots/CTRLCC.webp)
-
-### Preferences
+## Preferences
 
 Open **GNOME Settings → Extensions → Fast Translate → Settings** to configure:
 
-- Active translation service (Google Translate or DeepL)
-- DeepL API key & URL (automatically hidden when Google Translate is selected)
+- Active service (Google Translate or DeepL)
+- DeepL API key and URL (hidden when Google Translate is selected)
 - Default source and target languages
-- Clipboard-translate keybinding
-- Auto-translate behavior
-- Dark/light theme icons and notifications
-- **Double-copy Background Mode** (enable silent clipboard-to-clipboard translation)
-- **Show Notification in Background Mode** (enable/disable completion toasts)
+- Double-copy behavior, including background mode and the completion toast
+- Formatting and theme options
 
-<!-- end using -->
+## Changes vs upstream
 
-<!-- start contributing -->
+This fork removes the original panel-menu translator and the configurable global keybinding, keeping only the double-copy workflow, and adds reliability work:
 
-## Contributing to <span id="project_title">Translate Assistant for GNOME Shell</span>
+- **Removed:** the panel-menu translation UI (input/output fields, translate button, error label, language-selector popover) and the global keybinding (`shortcut-enabled`) along with the auto-paste / auto-translate / auto-copy panel automation.
+- **Added:** an LRU translation cache (max 50 entries), a 12-second request watchdog with re-entrant-enable guard and request-generation cancellation, precise self-echo suppression via the last internal copy text, a native `St.Spinner` loading indicator (copy button disarmed while loading), and friendly transport/HTTP error messages.
+- **Refactor:** the Google and DeepL request builders were extracted into the pure, testable `translation-helper.js`.
+- **Fixed:** DeepL rejects regional source codes such as `EN-US` / `PT-BR` with a 400 — they are now normalized (`EN-US` → `EN`, `PT-BR` → `PT`) after a language swap.
+- **Preferences:** the "Panel Menu Automation" group was removed and the remaining groups reorganized.
+- **Tests:** unit tests cover the new pure helpers; the evaluation test now asserts the panel UI and shortcut are gone.
+
+## Contributing
 
 1. Fork this repository.
 2. Create a branch: `git checkout -b <branch_name>`.
-3. Make your changes and commit them: `git commit -m '<commit_message>'`
-4. Push to the original branch: `git push origin <branch_name>`
-5. Create a pull request.
+3. Commit your changes: `git commit -m '<commit_message>'`.
+4. Push the branch and open a pull request.
 
-See the GitHub docs on [creating a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) for help.
+Run the test suite with `npm test` (unit tests via Node, plus a GJS preferences-layout validator).
 
-<!-- end contributing -->
+## Credits & Attribution
 
-<!-- start contributors -->
+This extension is a fork of the original **Translate Assistant** by **Lorenzo Carbonell Cerezo (atareao)**, later modernized as **Fast Translate** by **tazztone**.
 
-## 👤 Contributors ✨
+- **Original upstream:** [atareao/translate-assistant](https://github.com/atareao/translate-assistant) by Lorenzo Carbonell Cerezo — license **MIT**
+- **Modernized upstream:** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) — license **MIT**
+- **Original contributors:** Philipp Kiemle (daPhipz), Fabrício Müller (fabricio8800), Heimen Stoffels (Vistaus), Lorenzo Carbonell (atareao)
+- **Features introduced upstream (before this fork):** Google Translate default backend, the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, the inline flag-emoji grid, high-DPI scaling and integration tests.
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+## License
 
-<!-- end contributors -->
+Licensed under the **MIT License** — see [LICENSE](LICENSE).
 
-<!-- start table-contributors -->
-
-<table id="contributors">
-    <tr id="info_avatar">
-        <td id="daPhipz" align="center">
-            <a href="https://github.com/daPhipz">
-                <img src="https://avatars3.githubusercontent.com/u/30795174?v=4" width="100px"/>
-            </a>
-        </td>
-        <td id="fabricio8800" align="center">
-            <a href="https://github.com/fabricio8800">
-                <img src="https://avatars3.githubusercontent.com/u/7343464?v=4" width="100px"/>
-            </a>
-        </td>
-        <td id="Vistaus" align="center">
-            <a href="https://github.com/Vistaus">
-                <img src="https://avatars3.githubusercontent.com/u/1716229?v=4" width="100px"/>
-            </a>
-        </td>
-        <td id="atareao" align="center">
-            <a href="https://github.com/atareao">
-                <img src="https://avatars3.githubusercontent.com/u/298055?v=4" width="100px"/>
-            </a>
-        </td>
-    </tr>
-    <tr id="info_name">
-        <td id="daPhipz" align="center">
-            <a href="https://github.com/daPhipz">
-                <strong>Philipp Kiemle</strong>
-            </a>
-        </td>
-        <td id="fabricio8800" align="center">
-            <a href="https://github.com/fabricio8800">
-                <strong>Fabrício Müller</strong>
-            </a>
-        </td>
-        <td id="Vistaus" align="center">
-            <a href="https://github.com/Vistaus">
-                <strong>Heimen Stoffels</strong>
-            </a>
-        </td>
-        <td id="atareao" align="center">
-            <a href="https://github.com/atareao">
-                <strong>Lorenzo Carbonell</strong>
-            </a>
-        </td>
-    </tr>
-    <tr id="info_commit">
-        <td id="daPhipz" align="center">
-            <a href="/commits?author=daPhipz">
-                <span id="role">💻</span>
-            </a>
-        </td>
-        <td id="fabricio8800" align="center">
-            <a href="/commits?author=fabricio8800">
-                <span id="role">💻</span>
-            </a>
-        </td>
-        <td id="Vistaus" align="center">
-            <a href="/commits?author=Vistaus">
-                <span id="role">💻</span>
-            </a>
-        </td>
-        <td id="atareao" align="center">
-            <a href="/commits?author=atareao">
-                <span id="role">💻</span>
-            </a>
-        </td>
-    </tr>
-</table>
-
-<!-- end table-contributors -->
-
----
-
-## 📄 License
-
-[MIT](./LICENSE) © Lorenzo Carbonell Cerezo (atareao) & contributors
-
----
-
-## 🤝 Credits & Attribution
-
-This project is a fork of the original [atareao/translate-assistant](https://github.com/atareao/translate-assistant) extension by Lorenzo Carbonell Cerezo, licensed under the MIT License. Significant features (including Google Translate default backend, Ctrl+C+C double-copy instant translation, background mode, inline flag-emoji grid selection, high-DPI scaling, and integration tests) were added in this fork.
+© Lorenzo Carbonell Cerezo (atareao) and contributors.

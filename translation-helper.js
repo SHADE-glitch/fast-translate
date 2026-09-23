@@ -108,4 +108,78 @@ export function parseLanguageName(description) {
     return description;
 }
 
+/**
+ * Builds a Google Translate (auth-free) request. Pure: byte-identical to the
+ * previously inline logic in extension.js.
+ * @param {string} sourceLang - Source code ('AUTO' allowed)
+ * @param {string} targetLang - Target code
+ * @param {string} fromText - Text to translate
+ * @returns {{url: string, body: string, contentType: string}}
+ */
+export function buildGoogleRequest(sourceLang, targetLang, fromText) {
+    const sl = sourceLang === 'AUTO' ? 'auto' : String(sourceLang).toLowerCase();
+    const tl = String(targetLang).toLowerCase();
+    return {
+        url: `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t`,
+        body: buildRequestQuery({ q: fromText }),
+        contentType: 'application/x-www-form-urlencoded',
+    };
+}
+
+/**
+ * Maps a GSettings formality value to the DeepL API value.
+ * Returns undefined when the parameter must be omitted (default/unset).
+ * @param {string} formality - 'default' | 'more' | 'less' | API value
+ * @returns {string|undefined}
+ */
+export function mapDeepLFormality(formality) {
+    if (!formality || formality === 'default') return undefined;
+    if (formality === 'more') return 'prefer_more';
+    if (formality === 'less') return 'prefer_less';
+    return formality;
+}
+
+/**
+ * Normalizes a language code for DeepL source_lang. DeepL accepts regional
+ * variants (EN-US, PT-BR, …) as *target* languages only; as a *source* it
+ * rejects them with 400 "Value for 'source_lang' not supported". Since a
+ * language swap can promote a target code into the source slot, strip the
+ * regional suffix (EN-US -> EN, PT-BR -> PT).
+ * @param {string} code - The source language code
+ * @returns {string} The DeepL-compatible source code
+ */
+export function normalizeDeepLSourceLang(code) {
+    if (!code) return code;
+    const dash = String(code).indexOf('-');
+    return dash === -1 ? code : String(code).slice(0, dash);
+}
+/**
+ * Builds a DeepL request body object (caller JSON.stringifies it).
+ * Pure: field-for-field identical to the previously inline logic.
+ * @param {Object} opts
+ * @param {string} opts.fromText - Text to translate
+ * @param {string} opts.sourceLang - Source code ('AUTO' allowed)
+ * @param {string} opts.targetLang - Target code
+ * @param {boolean|string} opts.splitSentences - GSettings split-sentences value
+ * @param {boolean} opts.preserveFormatting - GSettings preserve-formatting value
+ * @param {string} opts.formality - GSettings formality value
+ * @returns {Object} The request body object
+ */
+export function buildDeepLRequestBody({ fromText, sourceLang, targetLang, splitSentences, preserveFormatting, formality }) {
+    const bodyObj = {
+        text: [fromText],
+        target_lang: targetLang,
+        split_sentences: splitSentences ? "1" : "0",
+        preserve_formatting: !!preserveFormatting,
+    };
+    if (sourceLang && sourceLang !== 'AUTO') {
+        bodyObj.source_lang = normalizeDeepLSourceLang(sourceLang);
+    }
+    const mapped = mapDeepLFormality(formality);
+    if (mapped !== undefined) {
+        bodyObj.formality = mapped;
+    }
+    return bodyObj;
+}
+
 

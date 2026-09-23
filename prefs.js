@@ -164,34 +164,7 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         settings.bind('preserve-formatting', preserveRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         formattingGroup.add(preserveRow);
 
-        // Group 4: Panel Menu Automation
-        const autoGroup = new Adw.PreferencesGroup({
-            title: _('Panel Menu Automation'),
-        });
-        preferencesPage.add(autoGroup);
-
-        const autoPasteRow = new Adw.SwitchRow({
-            title: _('Auto Paste from clipboard'),
-            subtitle: _('Automatically paste clipboard contents into the input box when the panel popup opens'),
-        });
-        settings.bind('auto-paste', autoPasteRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        autoGroup.add(autoPasteRow);
-
-        const autoTranslateRow = new Adw.SwitchRow({
-            title: _('Auto Translate'),
-            subtitle: _('Translate automatically while typing in the input box'),
-        });
-        settings.bind('auto-translate', autoTranslateRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        autoGroup.add(autoTranslateRow);
-
-        const autoCopyRow = new Adw.SwitchRow({
-            title: _('Auto Copy to clipboard'),
-            subtitle: _('Automatically copy translation results to the clipboard when translation completes'),
-        });
-        settings.bind('auto-copy', autoCopyRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        autoGroup.add(autoCopyRow);
-
-        // Group 5: Double-Copy Instant Translation
+        // Group 4: Double-Copy Instant Translation
         const doubleCopyGroup = new Adw.PreferencesGroup({
             title: _('Double-Copy Instant Translation'),
         });
@@ -220,22 +193,22 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
 
         backgroundModeRow.bind_property('active', backgroundToastRow, 'sensitive', GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE);
 
-        // Group 6: System and Shortcuts Integration
+        // Group 5: System Integration
         const systemGroup = new Adw.PreferencesGroup({
-            title: _('System and Shortcuts Integration'),
+            title: _('System Integration'),
         });
         preferencesPage.add(systemGroup);
 
         const notificationsRow = new Adw.SwitchRow({
             title: _('Show Notifications'),
-            subtitle: _('Show a system notification when a panel translation completes'),
+            subtitle: _('Show a system notification when a translation completes'),
         });
         settings.bind('notifications', notificationsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         systemGroup.add(notificationsRow);
 
         const showIconRow = new Adw.SwitchRow({
             title: _('Show Panel Icon'),
-            subtitle: _('Show the extension icon in the top panel (translation via double-copy and shortcuts still works when hidden)'),
+            subtitle: _('Show the extension icon in the top panel (double-copy translation still works when hidden)'),
         });
         settings.bind('show-panel-icon', showIconRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         systemGroup.add(showIconRow);
@@ -246,53 +219,6 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         });
         settings.bind('darktheme', darkthemeRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         systemGroup.add(darkthemeRow);
-
-        const shortcutRow = new Adw.ActionRow({
-            title: _('Clipboard Translation Shortcut'),
-            subtitle: _('Key combination to instantly translate clipboard contents (opens panel menu with result)'),
-        });
-        const shortcutLabel = new Gtk.Label({
-            valign: Gtk.Align.CENTER,
-            css_classes: ['dim-label'],
-        });
-        shortcutRow.add_suffix(shortcutLabel);
-
-        const updateShortcutLabel = () => {
-            const shortcut = settings.get_strv('keybinding-translate-clipboard')[0] || '';
-            if (shortcut) {
-                const [, keyval, mods] = Gtk.accelerator_parse(shortcut);
-                shortcutLabel.label = Gtk.accelerator_get_label(keyval, mods);
-            } else {
-                shortcutLabel.label = _('None');
-            }
-        };
-        updateShortcutLabel();
-
-        const controller = new Gtk.EventControllerKey();
-        shortcutRow.add_controller(controller);
-        controller.connect('key-pressed', (controller, keyval, keycode, state) => {
-            const mask = state & Gtk.accelerator_get_default_mod_mask();
-            
-            if (keyval === Gdk.KEY_Escape || keyval === Gdk.KEY_BackSpace) {
-                settings.set_strv('keybinding-translate-clipboard', []);
-                updateShortcutLabel();
-                return true;
-            }
-            
-            // We only accept shortcuts with modifiers (e.g. Ctrl, Super, Alt) or function keys
-            if (mask === 0 && (keyval < Gdk.KEY_F1 || keyval > Gdk.KEY_F12)) {
-                return false;
-            }
-            
-            const accelName = Gtk.accelerator_name(keyval, mask);
-            if (accelName) {
-                settings.set_strv('keybinding-translate-clipboard', [accelName]);
-                updateShortcutLabel();
-                return true;
-            }
-            return false;
-        });
-        systemGroup.add(shortcutRow);
 
 
         // ----------------- ABOUT PAGE -----------------
@@ -367,12 +293,6 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
             apiGroup.visible = isDeepL;
             formattingGroup.visible = isDeepL;
             formalityRow.visible = isDeepL;
-
-            if (isDeepL) {
-                autoTranslateRow.subtitle = _('Translate automatically while typing in the input box');
-            } else {
-                autoTranslateRow.subtitle = _('Translate automatically while typing in the input box. Warning: Your IP address may get banned for API abuse.');
-            }
         }
         updateServiceVisibility();
     }

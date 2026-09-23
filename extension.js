@@ -29,11 +29,10 @@ import GObject from "gi://GObject";
 import GLib from "gi://GLib";
 import Pango from "gi://Pango";
 import Meta from "gi://Meta";
-import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, buildRequestQuery, formatLanguageLabel, parseLanguageName, getFlagEmoji } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody } from "./translation-helper.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -41,8 +40,19 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 const Clipboard = St.Clipboard.get_default();
 const CLIPBOARD_TYPE = St.ClipboardType.CLIPBOARD;
 
-const SHORTCUT_SETTING_KEY = "keybinding-translate-clipboard";
 const TIMEOUT_MS = 500;
+// In-memory LRU cap for translation results. Repeated translations of the
+// same text (shortcut re-press, double-copy, language swap) are common;
+// without a cache every one costs a network round-trip and quota.
+const TRANSLATION_CACHE_MAX = 50;
+// Watchdog delay for translation requests. Soup.Session already times out at
+// 10s; this only fires when the Soup layer itself hangs without a callback,
+// turning a stuck "Cancel" button / "Translating…" placeholder into an
+// explicit timeout error and cancelling the underlying request.
+const SAFETY_TIMEOUT_MS = 12000;
+// Per-service single-request character limits (shown, never silent).
+const FLOAT_GOOGLE_CHAR_LIMIT = 5000;
+const FLOAT_DEEPL_CHAR_LIMIT = 5000;
 // Same-text re-trigger suppression window (µs). After a floating window is
 // triggered, repeated double-copies of the SAME text are ignored for this long.
 const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
@@ -153,23 +163,27 @@ var FastTranslate = GObject.registerClass(
 
             this._destroyed = false;
             this._httpSession = new Soup.Session({ timeout: 10 });
-            this._cancellable = null;
-            this._tooltips = [];
             this.FloatingTranslationWindow = FloatingTranslationWindow;
 
             this._settingsChangedId = null;
-            this._clipboardTimeoutId = null;
             this._selectionOwnerChangedId = null;
             this._isInternalCopy = false;
+            this._lastInternalCopyText = null;
             this._internalCopyTimeoutId = null;
             this._safetyTimeoutId = null;
             this._lastTriggeredText = null;
             this._lastTriggeredTime = null;
             this._lastClipboardTime = null;
             this._lastClipboardText = null;
-            // Tracks whether the global keybinding is currently registered, so
-            // _unbindShortcut() never asks mutter to remove one that isn't there.
-            this._shortcutBound = false;
+            // LRU cache of translation results (key -> translated text).
+            // Memory-only; cleared on destroy. See _makeCacheKey().
+            this._translationCache = new Map();
+            // Cancellable of the latest floating-window request (see
+            // _translateTextIndependent). Destroyed/cancelled on disable.
+            this._floatingCancellable = null;
+            // Generation counter for floating requests; lets a superseded
+            // request's failure stay silent (the newer request owns the UI).
+            this._floatingReqSeq = 0;
 
             /* Icon indicator */
             let box = new St.BoxLayout();
@@ -180,55 +194,9 @@ var FastTranslate = GObject.registerClass(
             this._source_lang = this._get_country_code(this._getValue('source-lang'));
             this._target_lang = this._get_country_code(this._getValue('target-lang'));
 
-            /* Translation block */
-            this.menu.addMenuItem(this._menuTranslationBlock());
-
-            /* Separator */
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-            /* Toggles at the bottom */
-            this.autoPasteSwitch = new PopupMenu.PopupSwitchMenuItem(
-                _('Auto Paste from clipboard'), this._getValue("auto-paste"), {});
-            this.autoPasteSwitch.activate = function(event) { this.toggle(); };
-            this.menu.addMenuItem(this.autoPasteSwitch);
-            this.autoPasteSwitch.connect('toggled', (item, state) => {
-                this._settings.set_boolean('auto-paste', state);
-                this._set_icon_indicator();
-            });
-
-            this.autoTranslateSwitch = new PopupMenu.PopupSwitchMenuItem(
-                _('Auto Translate'), this._getValue("auto-translate"), {});
-            this.autoTranslateSwitch.activate = function(event) { this.toggle(); };
-            this.menu.addMenuItem(this.autoTranslateSwitch);
-            this.autoTranslateSwitch.connect('toggled', (item, state) => {
-                this._settings.set_boolean('auto-translate', state);
-            });
-
-            this.autoCopySwitch = new PopupMenu.PopupSwitchMenuItem(
-                _('Auto Copy to clipboard'), this._getValue("auto-copy"), {});
-            this.autoCopySwitch.activate = function(event) { this.toggle(); };
-            this.menu.addMenuItem(this.autoCopySwitch);
-            this.autoCopySwitch.connect('toggled', (item, state) => {
-                this._settings.set_boolean('auto-copy', state);
-            });
-
-            this.shortcutSwitch = new PopupMenu.PopupSwitchMenuItem(
-                _('Enable Keyboard Shortcut (Super+T)'), this._getValue("shortcut-enabled"), {});
-            this.shortcutSwitch.activate = function(event) { this.toggle(); };
-            this.menu.addMenuItem(this.shortcutSwitch);
-            this.shortcutSwitch.connect('toggled', (item, state) => {
-                this._settings.set_boolean('shortcut-enabled', state);
-                if (state) {
-                    this._bindShortcut();
-                } else {
-                    this._unbindShortcut();
-                }
-            });
-
-            /* Separator */
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-            /* Settings */
+            /* The panel menu keeps a single Settings entry. Translation
+            happens exclusively via double-copy (Ctrl+C Ctrl+C), which opens
+            the floating window; there is no shortcut and no panel UI. */
             this.settingsMenuItem = new PopupMenu.PopupMenuItem(_("Settings"));
             this.settingsMenuItem.connect('activate', () => {
                 this._extension.openPreferences();
@@ -242,48 +210,6 @@ var FastTranslate = GObject.registerClass(
             });
 
             this._setupListener();
-
-            this._addTooltip(this.autoPasteSwitch, _("Automatically paste clipboard text when menu opens"));
-            this._addTooltip(this.autoTranslateSwitch, _("Translate input text automatically while typing"));
-            this._addTooltip(this.autoCopySwitch, _("Copy translation results to clipboard automatically"));
-            this._addTooltip(this.settingsMenuItem, _("Open extension preferences"));
-
-            this.menu.connect('open-state-changed', (menu, isOpen) => {
-                if (this._destroyed) {
-                    return;
-                }
-                if (this._tooltips) {
-                    this._tooltips.forEach(t => t._hide());
-                }
-                if (!isOpen) {
-                    this._toggleLanguageSelector(true, false);
-                } else {
-                    if (this.autoPasteSwitch.state === true) {
-                        Clipboard.get_text(CLIPBOARD_TYPE, (_, clipboardText) => {
-                            if (this._destroyed) {
-                                return;
-                            }
-                            if (clipboardText) {
-                                this.inputEntry.get_clutter_text().set_text(clipboardText);
-                            }
-                        });
-                    }
-                    // Give keyboard focus to the input box so the user can type immediately
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        if (this._destroyed) {
-                            return GLib.SOURCE_REMOVE;
-                        }
-                        global.stage.set_key_focus(this.inputEntry.get_clutter_text());
-                        return GLib.SOURCE_REMOVE;
-                    });
-                }
-            });
-        }
-
-        _addTooltip(actor, text) {
-            let t = new Tooltip(actor, text);
-            this._tooltips.push(t);
-            return t;
         }
 
         _setupListener() {
@@ -292,7 +218,9 @@ var FastTranslate = GObject.registerClass(
                 const selection = metaDisplay.get_selection();
                 this._setupSelectionTracking(selection);
             } else {
-                this._setupTimeout();
+                // No selection tracking available: double-copy detection needs
+                // owner-changed signals, so floating translation stays inert.
+                // (The old polling fallback only fed the removed panel menu.)
             }
         }
 
@@ -303,54 +231,11 @@ var FastTranslate = GObject.registerClass(
             });
         }
 
-        _translateIfAutoPaste(knownText) {
-            if (this.autoPasteSwitch.state !== true) {
-                return;
-            }
-
-            const apply = (fromText) => {
-                if (this._destroyed) {
-                    return;
-                }
-                if (fromText && fromText !== "") {
-                    this.inputEntry.get_clutter_text().set_text(fromText);
-                    if (this.autoTranslateSwitch.state === true) {
-                        this._translateText(true, fromText, (toText) => {
-                            if (this._destroyed) {
-                                return;
-                            }
-                            this.outputEntry.get_clutter_text().set_text(toText);
-                            if (this.autoCopySwitch.state === true) {
-                                this._copyToClipboard(toText);
-                            }
-                        });
-                    }
-                }
-            };
-
-            // Reuse the text the selection handler already read instead of paying a
-            // second clipboard IPC round-trip on every Ctrl+C. Only read here when no
-            // text was supplied (the polling fallback path).
-            if (typeof knownText === 'string') {
-                apply(knownText);
-            } else {
-                Clipboard.get_text(CLIPBOARD_TYPE, (_, fromText) => apply(fromText));
-            }
-        }
-
         _onSelectionChange(_a, selectionType, _b) {
             if (selectionType !== Meta.SelectionType.SELECTION_CLIPBOARD) return;
             // Plan B: sequence guard — two rapid get_text callbacks can return
             // out of order and swallow a double-C. Stale callbacks bail out here.
             const seq = (this._clipboardSeq = (this._clipboardSeq || 0) + 1);
-            if (this._isInternalCopy) {
-                this._isInternalCopy = false;
-                if (this._internalCopyTimeoutId) {
-                    GLib.Source.remove(this._internalCopyTimeoutId);
-                    this._internalCopyTimeoutId = null;
-                }
-                return;
-            }
 
             let now = GLib.get_monotonic_time();
 
@@ -360,6 +245,19 @@ var FastTranslate = GObject.registerClass(
                 }
                 if (seq !== this._clipboardSeq) return; // superseded by a newer selection event
                 if (!text || text.trim() === '') return;
+
+                // Precise self-echo suppression: swallow only the exact text
+                // we wrote via _copyToClipboard. A different text arriving
+                // inside the window is a real user copy and must not be
+                // swallowed (the old flag-only check ate it).
+                if (this._isInternalCopy && text === this._lastInternalCopyText) {
+                    this._isInternalCopy = false;
+                    if (this._internalCopyTimeoutId) {
+                        GLib.Source.remove(this._internalCopyTimeoutId);
+                        this._internalCopyTimeoutId = null;
+                    }
+                    return;
+                }
 
                 if (this._lastClipboardTime && this._lastClipboardText !== null) {
                     let diff = now - this._lastClipboardTime;
@@ -394,31 +292,7 @@ var FastTranslate = GObject.registerClass(
 
                 this._lastClipboardTime = now;
                 this._lastClipboardText = text;
-                this._translateIfAutoPaste(text);
             });
-        }
-
-        _setupTimeout(reiterate) {
-            reiterate = typeof reiterate === 'boolean' ? reiterate : true;
-
-            this._clipboardTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TIMEOUT_MS, () => {
-                this._translateIfAutoPaste();
-
-                if (reiterate === false) {
-                    this._clipboardTimeoutId = null;
-                }
-
-                return reiterate;
-            });
-        }
-
-        _clearClipboardTimeout() {
-            if (!this._clipboardTimeoutId) {
-                return;
-            }
-
-            GLib.Source.remove(this._clipboardTimeoutId);
-            this._clipboardTimeoutId = null;
         }
 
         _disconnectSelectionListener() {
@@ -439,7 +313,7 @@ var FastTranslate = GObject.registerClass(
             this._settingsChangedId = null;
         }
 
-        _loadPreferences(changedKey) {
+        _loadPreferences() {
             this._translation_service = this._settings.get_enum('translation-service');
             this._source_lang = this._get_country_code(this._getValue('source-lang'));
             this._target_lang = this._get_country_code(this._getValue('target-lang'));
@@ -454,249 +328,38 @@ var FastTranslate = GObject.registerClass(
             this._showPanelIcon = this._getValue('show-panel-icon');
             this.visible = this._showPanelIcon;
 
-            this.autoPasteSwitch.setToggleState(this._getValue('auto-paste'));
-            this.autoTranslateSwitch.setToggleState(this._getValue('auto-translate'));
-            this.autoCopySwitch.setToggleState(this._getValue('auto-copy'));
-            if (this.shortcutSwitch) {
-                this.shortcutSwitch.setToggleState(this._getValue('shortcut-enabled'));
-            }
-
             this._set_icon_indicator();
-            // Only touch the global keybinding when it can actually have changed.
-            // Rebinding on every settings write (each menu toggle writes one) is
-            // wasted work: mutter already tracks the keybinding setting itself.
-            if (changedKey === undefined || changedKey === 'shortcut-enabled' ||
-                changedKey === SHORTCUT_SETTING_KEY) {
-                this._unbindShortcut();
-                if (this._getValue('shortcut-enabled')) {
-                    this._bindShortcut();
-                }
-            }
+            // No keybinding anymore: translation happens exclusively via
+            // double-copy (Ctrl+C Ctrl+C). Nothing else to rebind here.
         }
 
-        _bindShortcut() {
-            if (this._shortcutBound) {
-                return;
-            }
-            Main.wm.addKeybinding(
-                SHORTCUT_SETTING_KEY,
-                this._settings,
-                Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
-                Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-                () => {
-                    if (this._destroyed) {
-                        return;
-                    }
-                    // Show the menu immediately instead of waiting for the clipboard
-                    // round-trip: that read is an async IPC hop, and gating menu.open()
-                    // on it delayed the popup and left it closed entirely when the
-                    // clipboard was empty. Text and translation fill in below.
-                    this.menu.open();
-                    Clipboard.get_text(CLIPBOARD_TYPE, (_, fromText) => {
-                        if (this._destroyed) {
-                            return;
-                        }
-                        if (fromText && fromText !== "") {
-                            const requestText = this._truncateForCharLimit(fromText);
-                            this.inputEntry.get_clutter_text().set_text(requestText);
-                            this._triggerTranslation();
-                        }
-                    });
-                }
-            );
-            this._shortcutBound = true;
+        _makeCacheKey(service, sourceLang, targetLang, fromText, extra) {
+            // DeepL-affecting options must be part of the key so a formality/
+            // endpoint change never reads back a stale translation.
+            return `${service}|${sourceLang}|${targetLang}|${extra || ''}|${fromText}`;
         }
 
-        _unbindShortcut() {
-            if (!this._shortcutBound) {
-                return;
+        _cacheGet(key) {
+            if (!this._translationCache) return undefined;
+            const hit = this._translationCache.get(key);
+            if (hit !== undefined) {
+                // Refresh recency for LRU order.
+                this._translationCache.delete(key);
+                this._translationCache.set(key, hit);
             }
-            Main.wm.removeKeybinding(SHORTCUT_SETTING_KEY);
-            this._shortcutBound = false;
+            return hit;
         }
 
-        _translateText(fromOrTo, fromText, callback) {
-            if (fromText && fromText !== "") {
-                if (this.errorLabel) {
-                    this.errorLabel.text = "";
-                }
-                
-                if (this._cancellable) this._cancellable.cancel();
-                this._cancellable = new Gio.Cancellable();
-                // Identity of THIS request. The cancelled request's callback fires
-                // asynchronously afterwards, so it must not touch shared state that
-                // now belongs to the newer request.
-                const myCancellable = this._cancellable;
-                if (this.translateBtn) {
-                    this.translateBtn.label = _("Cancel");
-                }
-
-                const targetLang = fromOrTo === true ? this._target_lang : this._source_lang;
-                const sourceLang = fromOrTo === true ? this._source_lang : this._target_lang;
-
-                let message;
-                if (this._translation_service === 1) {
-                    // Google Translate (Auth-Free)
-                    const sl = sourceLang === 'AUTO' ? 'auto' : sourceLang.toLowerCase();
-                    const tl = targetLang.toLowerCase();
-                    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t`;
-
-                    const bodyObj = { q: fromText };
-                    const body = buildRequestQuery(bodyObj);
-                    const bytes = new GLib.Bytes(body);
-
-                    try {
-                        message = Soup.Message.new('POST', url);
-                        if (!message) {
-                            throw new Error(_("Invalid URL"));
-                        }
-                    } catch (e) {
-                        this._showError(`${_("Error")}: ${e.message}`);
-                        this._cancellable = null;
-                        if (this.translateBtn) {
-                            this.translateBtn.label = _("Translate");
-                        }
-                        return;
-                    }
-
-                    message.set_request_body_from_bytes('application/x-www-form-urlencoded', bytes);
-                    message.request_headers.replace('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-                } else {
-                    // DeepL
-                    const bodyObj = {
-                        text: [fromText],
-                        target_lang: targetLang,
-                        split_sentences: this._split_sentences ? "1" : "0",
-                        preserve_formatting: !!this._preserve_formatting,
-                    };
-
-                    if (sourceLang && sourceLang !== 'AUTO') {
-                        bodyObj.source_lang = sourceLang;
-                    }
-
-                    if (this._formality && this._formality !== 'default') {
-                        if (this._formality === 'more') {
-                            bodyObj.formality = 'prefer_more';
-                        } else if (this._formality === 'less') {
-                            bodyObj.formality = 'prefer_less';
-                        } else {
-                            bodyObj.formality = this._formality;
-                        }
-                    }
-
-                    const body = JSON.stringify(bodyObj);
-                    const bytes = new GLib.Bytes(body);
-
-                    try {
-                        if (!this._isSafeDeepLUrl(this._url)) {
-                            throw new Error(_("DeepL URL must use HTTPS"));
-                        }
-                        message = Soup.Message.new('POST', this._url);
-                        if (!message) {
-                            throw new Error(_("Invalid URL"));
-                        }
-                    } catch (e) {
-                        this._showError(`${_("Error")}: ${e.message}`);
-                        this._cancellable = null;
-                        if (this.translateBtn) {
-                            this.translateBtn.label = _("Translate");
-                        }
-                        return;
-                    }
-
-                    message.request_headers.replace('Authorization', `DeepL-Auth-Key ${this._apikey}`);
-                    message.set_request_body_from_bytes('application/json', bytes);
-                }
-                
-                if (this._destroyed || !this._httpSession) {
-                    this._cancellable = null;
-                    if (this.translateBtn) {
-                        this.translateBtn.label = _("Translate");
-                    }
-                    return;
-                }
-
-                this._httpSession.send_and_read_async(
-                    message,
-                    GLib.PRIORITY_DEFAULT,
-                    myCancellable,
-                    (session, result) => {
-                        let resBytes;
-                        try {
-                            resBytes = session.send_and_read_finish(result);
-                        } catch (e) {
-                            if (this._destroyed) {
-                                return;
-                            }
-                            // Superseded by a newer request: leave its cancellable,
-                            // button label and error label alone.
-                            if (this._cancellable !== myCancellable) {
-                                return;
-                            }
-                            this._cancellable = null;
-                            if (this.translateBtn) {
-                                this.translateBtn.label = _("Translate");
-                            }
-                            if (e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED) || e.code === Gio.IOErrorEnum.CANCELLED) {
-                                this._showError(_("Cancelled"));
-                            } else {
-                                this._showError(`Error: ${e.message || e}`);
-                            }
-                            return;
-                        }
-
-                        if (this._destroyed) {
-                            return;
-                        }
-                        if (this._cancellable !== myCancellable) {
-                            return;
-                        }
-                        this._cancellable = null;
-                        if (this.translateBtn) {
-                            this.translateBtn.label = _("Translate");
-                        }
-                        try {
-                            if (message.status_code === 200) {
-                                let decoder = new TextDecoder("utf-8");
-                                let response = decoder.decode(resBytes.get_data());
-                                let json = JSON.parse(response);
-                                
-                                let toText = "";
-                                if (this._translation_service === 1) {
-                                    toText = (json && json[0]) ? json[0].map(part => part[0]).join('') : "";
-                                } else {
-                                    let translations = json.translations;
-                                    toText = (translations && translations.length > 0) ? translations[0].text : "";
-                                }
-                                
-                                if (this._notifications) {
-                                    Main.notify("Fast Translate", _("Translated"));
-                                }
-                                callback(toText);
-                            } else if (this._translation_service === 1 && (message.status_code === 403 || message.status_code === 429)) {
-                                this._showError(_("Rate-limited or blocked by Google Translate. Please try again later."));
-                            } else if (message.status_code === 403) {
-                                let errMsg = _("Auth failed (403): check API key and URL in settings");
-                                try {
-                                    let decoder = new TextDecoder("utf-8");
-                                    let body = JSON.parse(decoder.decode(resBytes.get_data()));
-                                    if (body && body.message) errMsg += `\n${body.message}`;
-                                } catch (_e) {}
-                                this._showError(errMsg);
-                            } else {
-                                let errMsg = `Error: ${message.status_code}`;
-                                try {
-                                    let decoder = new TextDecoder("utf-8");
-                                    let body = JSON.parse(decoder.decode(resBytes.get_data()));
-                                    if (body && body.message) errMsg += `\n${body.message}`;
-                                } catch (_e) {}
-                                this._showError(errMsg);
-                            }
-                        } catch (e) {
-                            this._showError(`Error: ${e.message || e}`);
-                        }
-                    }
-                );
+        _cacheSet(key, value) {
+            if (!this._translationCache || !value) return;
+            if (this._translationCache.has(key)) {
+                this._translationCache.delete(key);
+            }
+            this._translationCache.set(key, value);
+            while (this._translationCache.size > TRANSLATION_CACHE_MAX) {
+                // Evict the oldest (first-inserted) entry.
+                const oldest = this._translationCache.keys().next().value;
+                this._translationCache.delete(oldest);
             }
         }
 
@@ -759,21 +422,41 @@ var FastTranslate = GObject.registerClass(
                         {
                             onSwap: () => {
                                 if (this._destroyed) return;
+                                // Reverse-translate the current RESULT: after the
+                                // swap the old target text becomes the new
+                                // source. Rebuilding via _triggerFloatingTranslation
+                                // reuses the placeholder/safety/identity machinery
+                                // instead of duplicating it here.
+                                const w = this._floatingWindow;
+                                let backText = null;
+                                try {
+                                    const cur = w ? w._currentTarget : null;
+                                    if (cur && cur !== PLACEHOLDER && cur.trim() !== "") {
+                                        backText = cur;
+                                    }
+                                } catch (_e) {}
                                 const oldTargetLang = this._target_lang;
                                 this._target_lang = this._source_lang;
                                 this._source_lang = oldTargetLang;
-                                const w = this._floatingWindow;
-                                if (w) {
-                                    try {
-                                        w.refreshLangs(this._source_lang, this._target_lang);
-                                        w.setTargetText(PLACEHOLDER);
-                                    } catch (_e) {}
+                                if (backText) {
+                                    this._triggerFloatingTranslation(backText);
+                                } else {
+                                    // No result yet: keep the old behavior (swap
+                                    // labels, keep translating the original).
+                                    if (w) {
+                                        try {
+                                            w.refreshLangs(this._source_lang, this._target_lang);
+                                            w.setTargetText(PLACEHOLDER);
+                                            w.setLoading(true);
+                                        } catch (_e) {}
+                                    }
+                                    reTranslate();
                                 }
-                                reTranslate();
                             },
                             charLimit,
                             serviceName,
                             srcLength: fromText.length,
+                            loading: true,
                         }
                     );
                 } catch (e) {
@@ -785,8 +468,11 @@ var FastTranslate = GObject.registerClass(
                 this._floatingWindow = win;
                 if (win) {
                     try {
-                        // Safety net: Soup errors surface via _showError without a
-                        // callback, so never leave the placeholder stuck forever.
+                        // Safety net: display backstop so the placeholder is never
+                        // stuck forever. Request cancellation lives on the
+                        // per-request watchdog in _translateTextIndependent;
+                        // this timer only replaces still-pending placeholder
+                        // text (its message matches the watchdog outcome).
                         // Drop any timer from a previous trigger first: otherwise the
                         // stale source stays alive and its callback nulls the new id,
                         // leaving destroy() unable to remove the live timer.
@@ -794,11 +480,11 @@ var FastTranslate = GObject.registerClass(
                             GLib.Source.remove(this._safetyTimeoutId);
                             this._safetyTimeoutId = null;
                         }
-                        this._safetyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 12000, () => {
+                        this._safetyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SAFETY_TIMEOUT_MS, () => {
                             this._safetyTimeoutId = null;
                             try {
                                 if (win._currentTarget === PLACEHOLDER && this._floatingWindow === win) {
-                                    win.setTargetText(_('Translation failed — please try again.'));
+                                    win.setTargetText(_('Request timed out. Please check your connection and try again.'));
                                 }
                             } catch (_e) {}
                             return GLib.SOURCE_REMOVE;
@@ -859,15 +545,21 @@ var FastTranslate = GObject.registerClass(
                 try { callback("", msg); } catch (_e) {}
             };
 
+            const indepCacheExtra = this._translation_service === 1
+                ? ''
+                : `${this._split_sentences}|${!!this._preserve_formatting}|${this._formality}|${this._url}`;
+            const indepCacheKey = this._makeCacheKey(
+                this._translation_service, this._source_lang, this._target_lang, fromText, indepCacheExtra);
+            const indepCached = this._cacheGet(indepCacheKey);
+            if (indepCached !== undefined) {
+                try { callback(indepCached); } catch (_e) {}
+                return;
+            }
+
             let message;
             if (this._translation_service === 1) {
                 // Google Translate (Auth-Free)
-                const sl = this._source_lang === 'AUTO' ? 'auto' : this._source_lang.toLowerCase();
-                const tl = this._target_lang.toLowerCase();
-                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t`;
-
-                const bodyObj = { q: fromText };
-                const body = buildRequestQuery(bodyObj);
+                const { url, body, contentType } = buildGoogleRequest(this._source_lang, this._target_lang, fromText);
                 const bytes = new GLib.Bytes(body);
 
                 try {
@@ -878,30 +570,18 @@ var FastTranslate = GObject.registerClass(
                     return;
                 }
 
-                message.set_request_body_from_bytes('application/x-www-form-urlencoded', bytes);
+                message.set_request_body_from_bytes(contentType, bytes);
                 message.request_headers.replace('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
             } else {
                 // DeepL
-                const bodyObj = {
-                    text: [fromText],
-                    target_lang: this._target_lang,
-                    split_sentences: this._split_sentences ? "1" : "0",
-                    preserve_formatting: !!this._preserve_formatting,
-                };
-
-                if (this._source_lang && this._source_lang !== 'AUTO') {
-                    bodyObj.source_lang = this._source_lang;
-                }
-
-                if (this._formality && this._formality !== 'default') {
-                    if (this._formality === 'more') {
-                        bodyObj.formality = 'prefer_more';
-                    } else if (this._formality === 'less') {
-                        bodyObj.formality = 'prefer_less';
-                    } else {
-                        bodyObj.formality = this._formality;
-                    }
-                }
+                const bodyObj = buildDeepLRequestBody({
+                    fromText,
+                    sourceLang: this._source_lang,
+                    targetLang: this._target_lang,
+                    splitSentences: this._split_sentences,
+                    preserveFormatting: this._preserve_formatting,
+                    formality: this._formality,
+                });
 
                 const body = JSON.stringify(bodyObj);
                 const bytes = new GLib.Bytes(body);
@@ -923,17 +603,62 @@ var FastTranslate = GObject.registerClass(
             
             if (this._destroyed || !this._httpSession) return;
 
+            // Pre-empt any older floating request (rapid re-trigger, swap
+            // re-translate): its quota is saved, and its failure paths below
+            // stay silent via the generation check so they cannot overwrite
+            // the newer request's UI with "Cancelled" or a stale error.
+            // Success callbacks are deliberately left alone (existing
+            // auto-copy-on-close semantics).
+            if (this._floatingCancellable) {
+                try { this._floatingCancellable.cancel(); } catch (_e) {}
+                this._floatingCancellable = null;
+            }
+            this._floatingReqSeq = (this._floatingReqSeq || 0) + 1;
+            const myFloatingSeq = this._floatingReqSeq;
+            // Failures of a superseded request carry no value: the newer
+            // request owns the UI and will report its own outcome.
+            const failIfCurrent = (msg) => {
+                if (myFloatingSeq !== this._floatingReqSeq) return;
+                fail(msg);
+            };
+            // Per-request cancellable so the watchdog below can cancel a hung
+            // request without aborting the shared session (which would also
+            // kill a concurrent panel request).
+            const myFloatingCancellable = new Gio.Cancellable();
+            this._floatingCancellable = myFloatingCancellable;
+            // Tracks this request's lifecycle for the watchdog. Once timedOut
+            // is set, the late callback stays silent so it cannot overwrite
+            // the timeout message with "Cancelled".
+            const floatState = { settled: false, timedOut: false };
+            const floatWatchdogId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SAFETY_TIMEOUT_MS, () => {
+                if (floatState.settled || floatState.timedOut) return GLib.SOURCE_REMOVE;
+                floatState.timedOut = true;
+                try { myFloatingCancellable.cancel(); } catch (_e) {}
+                if (this._floatingCancellable === myFloatingCancellable) {
+                    this._floatingCancellable = null;
+                }
+                return GLib.SOURCE_REMOVE;
+            });
+
             this._httpSession.send_and_read_async(
                 message,
                 GLib.PRIORITY_DEFAULT,
-                null,
+                myFloatingCancellable,
                 (session, result) => {
+                    floatState.settled = true;
+                    try { GLib.Source.remove(floatWatchdogId); } catch (_e) {}
+                    if (this._floatingCancellable === myFloatingCancellable) {
+                        this._floatingCancellable = null;
+                    }
+                    // Watchdog already reported a timeout for this request:
+                    // stay silent instead of overwriting it with "Cancelled".
+                    if (floatState.timedOut) return;
                     let resBytes;
                     try {
                         resBytes = session.send_and_read_finish(result);
                     } catch (e) {
                         if (this._destroyed) return;
-                        fail(`Error: ${e.message || e}`);
+                        failIfCurrent(this._friendlyTransportError(e) || `Error: ${e.message || e}`);
                         return;
                     }
 
@@ -951,31 +676,120 @@ var FastTranslate = GObject.registerClass(
                                 let translations = json.translations;
                                 toText = (translations && translations.length > 0) ? translations[0].text : "";
                             }
+                            if (toText && toText.trim() !== "") {
+                                this._cacheSet(indepCacheKey, toText);
+                            }
                             callback(toText);
                         } else if (this._translation_service === 1 && (message.status_code === 403 || message.status_code === 429)) {
-                            fail(_("Rate-limited or blocked by Google Translate. Please try again later."));
-                        } else if (message.status_code === 403) {
-                            let errMsg = _("Auth failed (403): check API key and URL in settings");
-                            try {
-                                let decoder = new TextDecoder("utf-8");
-                                let body = JSON.parse(decoder.decode(resBytes.get_data()));
-                                if (body && body.message) errMsg += `\n${body.message}`;
-                            } catch (_e) {}
-                            fail(errMsg);
+                            failIfCurrent(_("Rate-limited or blocked by Google Translate. Please try again later."));
                         } else {
-                            let errMsg = `Error: ${message.status_code}`;
+                            let bodyMsg = "";
                             try {
-                                let decoder = new TextDecoder("utf-8");
-                                let body = JSON.parse(decoder.decode(resBytes.get_data()));
-                                if (body && body.message) errMsg += `\n${body.message}`;
+                                bodyMsg = this._extractBodyMessage(resBytes);
                             } catch (_e) {}
-                            fail(errMsg);
+                            failIfCurrent(this._httpStatusMessage(message.status_code, bodyMsg));
                         }
                     } catch (e) {
-                        fail(`Error: ${e.message || e}`);
+                        failIfCurrent(`Error: ${e.message || e}`);
                     }
                 }
             );
+        }
+
+        _extractBodyMessage(resBytes) {
+            let decoder = new TextDecoder("utf-8");
+            let body = JSON.parse(decoder.decode(resBytes.get_data()));
+            return (body && body.message) ? body.message : "";
+        }
+
+        _httpStatusMessage(statusCode, bodyMessage) {
+            const extra = bodyMessage ? `\n${bodyMessage}` : "";
+            if (this._translation_service === 1 && (statusCode === 403 || statusCode === 429)) {
+                return _("Rate-limited or blocked by Google Translate. Please try again later.");
+            }
+            if (statusCode === 429) {
+                return _("Rate-limited (429): too many requests. Please wait a moment and try again.") + extra;
+            }
+            if (statusCode === 401) {
+                return _("Auth failed (401): check API key and URL in settings") + extra;
+            }
+            if (statusCode === 403) {
+                return _("Auth failed (403): check API key and URL in settings") + extra;
+            }
+            if (statusCode === 400) {
+                let msg = _("Bad request (400).") + extra;
+                if ((bodyMessage || "").toLowerCase().includes("source_lang")) {
+                    msg += " " + _("Hint: DeepL does not accept regional codes (e.g. EN-US) as the source language.");
+                }
+                return msg;
+            }
+            if (statusCode === 408) {
+                return _("Request timed out (408). Please check your connection and try again.") + extra;
+            }
+            if (statusCode >= 500 && statusCode < 600) {
+                return _("Translation service unavailable. Please try again later.") + ` (${statusCode})` + extra;
+            }
+            return `Error: ${statusCode}` + extra;
+        }
+
+        _friendlyTransportError(e) {
+            // Map Soup/Gio transport failures to actionable messages.
+            // Returns null when unrecognized (caller falls back to generic text).
+            try {
+                if (e && typeof e.matches === "function" && typeof Gio !== "undefined" && Gio.IOErrorEnum) {
+                    const IO = Gio.IOErrorEnum;
+                    try {
+                        if (IO.TIMED_OUT !== undefined && e.matches(IO, IO.TIMED_OUT)) {
+                            return _("Request timed out. Please check your connection and try again.");
+                        }
+                    } catch (_e) {}
+                    const unreachable = [IO.HOST_NOT_FOUND, IO.HOST_UNREACHABLE,
+                        IO.NETWORK_UNREACHABLE, IO.CONNECTION_REFUSED];
+                    for (const code of unreachable) {
+                        if (code === undefined) continue;
+                        try {
+                            if (e.matches(IO, code)) {
+                                return _("Network error: cannot reach the translation service. Please check your connection.");
+                            }
+                        } catch (_e) {}
+                    }
+                    const proxyCodes = [IO.PROXY_FAILED, IO.PROXY_AUTH_FAILED,
+                        IO.PROXY_NEED_AUTH, IO.PROXY_NOT_ALLOWED];
+                    for (const code of proxyCodes) {
+                        if (code === undefined) continue;
+                        try {
+                            if (e.matches(IO, code)) {
+                                return _("Proxy error: cannot reach the translation service through the configured proxy.");
+                            }
+                        } catch (_e) {}
+                    }
+                    try {
+                        if (IO.TLS_FAILED !== undefined && e.matches(IO, IO.TLS_FAILED)) {
+                            return _("Secure connection failed (TLS/certificate). Please check your network or proxy settings.");
+                        }
+                    } catch (_e) {}
+                }
+            } catch (_e) {}
+            const raw = (e && (e.message || e)) || "";
+            const m = String(raw).toLowerCase();
+            if (!m) return null;
+            if (m.includes("cancel")) return _("Cancelled");
+            if (m.includes("timed out") || m.includes("timeout")) {
+                return _("Request timed out. Please check your connection and try again.");
+            }
+            if (m.includes("proxy")) {
+                return _("Proxy error: cannot reach the translation service through the configured proxy.");
+            }
+            if (m.includes("ssl") || m.includes("tls") || m.includes("certificate")) {
+                return _("Secure connection failed (TLS/certificate). Please check your network or proxy settings.");
+            }
+            if (m.includes("resolve") || m.includes("dns") || m.includes("host_not_found")
+                || m.includes("network is unreachable") || m.includes("network unreachable")
+                || m.includes("unreachable") || m.includes("connection refused")
+                || m.includes("no route to host") || m.includes("offline")) {
+                return _("Network error: cannot reach the translation service. Please check your connection.");
+            }
+            return null;
         }
 
         _showError(messageText) {
@@ -992,6 +806,7 @@ var FastTranslate = GObject.registerClass(
 
         _copyToClipboard(inText) {
             this._isInternalCopy = true;
+            this._lastInternalCopyText = inText;
             if (this._internalCopyTimeoutId) {
                 GLib.Source.remove(this._internalCopyTimeoutId);
             }
@@ -1004,310 +819,8 @@ var FastTranslate = GObject.registerClass(
             Clipboard.set_text(CLIPBOARD_TYPE, inText);
         }
 
-        _menuTranslationBlock() {
-            let container = new St.BoxLayout({
-                vertical: true,
-                style_class: 'translate-container'
-            });
-            this.translationBlockContainer = container;
-
-            // 1. Language Row
-            let langRow = new St.BoxLayout({
-                vertical: false,
-                style_class: 'translate-lang-row',
-                x_align: Clutter.ActorAlign.CENTER
-            });
-             this.sourceLabel = new St.Button({
-                label: formatLanguageLabel(this._source_lang),
-                style_class: 'translate-lang-label',
-                reactive: true
-            });
-            this.sourceLabel.connect('clicked', () => {
-                const isVisible = !!this.sourceSelector;
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    if (this._destroyed) {
-                        return GLib.SOURCE_REMOVE;
-                    }
-                    this._toggleLanguageSelector(true, !isVisible);
-                    return GLib.SOURCE_REMOVE;
-                });
-            });
-            this.swapBtn = new St.Button({
-                label: '⇄',
-                style_class: 'translate-swap-button',
-                reactive: true
-            });
-            this.swapBtn.connect('clicked', () => {
-                if (this.sourceSelector || this.targetSelector) {
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        if (this._destroyed) {
-                            return GLib.SOURCE_REMOVE;
-                        }
-                        this._toggleLanguageSelector(true, false);
-                        return GLib.SOURCE_REMOVE;
-                    });
-                }
-                const oldTargetLang = this._target_lang;
-                this._target_lang = this._source_lang;
-                this._source_lang = oldTargetLang;
-                this.sourceLabel.label = formatLanguageLabel(this._source_lang);
-                this.targetLabel.label = formatLanguageLabel(this._target_lang);
-                
-                // Swap text in entry boxes
-                let inText = this.inputEntry.get_clutter_text().get_text();
-                let outText = this.outputEntry.get_clutter_text().get_text();
-                this.inputEntry.get_clutter_text().set_text(outText);
-                this.outputEntry.get_clutter_text().set_text(inText);
-            });
-            this.targetLabel = new St.Button({
-                label: formatLanguageLabel(this._target_lang),
-                style_class: 'translate-lang-label',
-                reactive: true
-            });
-            this.targetLabel.connect('clicked', () => {
-                const isVisible = !!this.targetSelector;
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    if (this._destroyed) {
-                        return GLib.SOURCE_REMOVE;
-                    }
-                    this._toggleLanguageSelector(false, !isVisible);
-                    return GLib.SOURCE_REMOVE;
-                });
-            });
-            langRow.add_child(this.sourceLabel);
-            langRow.add_child(this.swapBtn);
-            langRow.add_child(this.targetLabel);
-            container.add_child(langRow);
-
-            // 2. Input Box
-            let inputWrapper = new St.BoxLayout({
-                vertical: true,
-                style_class: 'translate-entry-wrapper'
-            });
-            this.inputWrapper = inputWrapper;
-            this.inputEntry = new St.Entry({
-                name: 'inputEntry',
-                style_class: 'translate-entry',
-                hint_text: _('Type or paste text...'),
-                can_focus: true,
-                track_hover: true,
-                reactive: true
-            });
-            this.inputEntry.get_clutter_text().set_line_wrap(true);
-            this.inputEntry.get_clutter_text().set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
-            this.inputEntry.get_clutter_text().set_single_line_mode(false);
-            this.inputEntry.get_clutter_text().set_activatable(true);
-            
-            let inputScroll = new St.ScrollView({
-                style_class: 'translate-scroll',
-                hscrollbar_policy: St.PolicyType.NEVER,
-                vscrollbar_policy: St.PolicyType.AUTOMATIC
-            });
-            let inputScrollBox = new St.BoxLayout({
-                vertical: true,
-                x_expand: true,
-                y_expand: true
-            });
-            this.inputEntry.x_expand = true;
-            this.inputEntry.y_expand = true;
-            this.inputEntry.x_align = Clutter.ActorAlign.FILL;
-            this.inputEntry.y_align = Clutter.ActorAlign.FILL;
-            // Clicking anywhere in the entry grabs keyboard focus
-            this.inputEntry.connect('button-press-event', () => {
-                global.stage.set_key_focus(this.inputEntry.get_clutter_text());
-                return Clutter.EVENT_PROPAGATE;
-            });
-            inputScrollBox.add_child(this.inputEntry);
-            inputScroll.add_child(inputScrollBox);
-            inputWrapper.add_child(inputScroll);
-            
-            // Input Action Row (Paste / Clear)
-            let inputActions = new St.BoxLayout({
-                vertical: false,
-                style_class: 'translate-actions-row'
-            });
-            this.pasteBtn = new St.Button({
-                style_class: 'translate-action-btn',
-                reactive: true
-            });
-            this.pasteBtn.set_child(new St.Icon({
-                icon_name: 'edit-paste-symbolic',
-                style_class: 'translate-btn-icon'
-            }));
-            this.pasteBtn.connect('clicked', () => {
-                Clipboard.get_text(CLIPBOARD_TYPE, (_, inText) => {
-                    if (this._destroyed) {
-                        return;
-                    }
-                    if (inText && inText !== "") {
-                        this.inputEntry.get_clutter_text().set_text(inText);
-                        if (this.autoTranslateSwitch.state === true) {
-                            this._triggerTranslation();
-                        }
-                    }
-                });
-            });
-            this.clearBtn = new St.Button({
-                style_class: 'translate-action-btn',
-                reactive: true
-            });
-            this.clearBtn.set_child(new St.Icon({
-                icon_name: 'edit-clear-symbolic',
-                style_class: 'translate-btn-icon'
-            }));
-            this.clearBtn.connect('clicked', () => {
-                this.inputEntry.get_clutter_text().set_text("");
-                this.outputEntry.get_clutter_text().set_text("");
-                if (this.errorLabel) {
-                    this.errorLabel.text = "";
-                }
-            });
-            inputActions.add_child(this.pasteBtn);
-            inputActions.add_child(this.clearBtn);
-            inputWrapper.add_child(inputActions);
-            
-            container.add_child(inputWrapper);
-
-            // 3. Middle Action Row (Translate Button & Error Label)
-            let middleRow = new St.BoxLayout({
-                vertical: true,
-                style_class: 'translate-middle-row',
-                x_align: Clutter.ActorAlign.CENTER
-            });
-            this.middleRow = middleRow;
-            this.translateBtn = new St.Button({
-                label: _("Translate"),
-                style_class: 'translate-submit-btn',
-                reactive: true
-            });
-            this.translateBtn.connect('clicked', () => {
-                if (this._cancellable) {
-                    this._cancellable.cancel();
-                } else {
-                    this._triggerTranslation();
-                }
-            });
-            middleRow.add_child(this.translateBtn);
-
-            this.errorLabel = new St.Label({
-                style_class: 'translate-error-label',
-                text: '',
-                x_align: Clutter.ActorAlign.CENTER
-            });
-            middleRow.add_child(this.errorLabel);
-
-            container.add_child(middleRow);
-
-            // 4. Output Box
-            let outputWrapper = new St.BoxLayout({
-                vertical: true,
-                style_class: 'translate-entry-wrapper'
-            });
-            this.outputWrapper = outputWrapper;
-            this.outputEntry = new St.Entry({
-                name: 'outputEntry',
-                style_class: 'translate-entry read-only',
-                hint_text: _('Translation will appear here...'),
-                can_focus: true,
-                track_hover: true,
-                reactive: true
-            });
-            this.outputEntry.get_clutter_text().set_line_wrap(true);
-            this.outputEntry.get_clutter_text().set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
-            this.outputEntry.get_clutter_text().set_single_line_mode(false);
-            this.outputEntry.get_clutter_text().set_activatable(true);
-            this.outputEntry.get_clutter_text().set_editable(false);
-            
-            let outputScroll = new St.ScrollView({
-                style_class: 'translate-scroll',
-                hscrollbar_policy: St.PolicyType.NEVER,
-                vscrollbar_policy: St.PolicyType.AUTOMATIC
-            });
-            let outputScrollBox = new St.BoxLayout({
-                vertical: true,
-                x_expand: true,
-                y_expand: true
-            });
-            this.outputEntry.x_expand = true;
-            this.outputEntry.y_expand = true;
-            this.outputEntry.x_align = Clutter.ActorAlign.FILL;
-            this.outputEntry.y_align = Clutter.ActorAlign.FILL;
-            outputScrollBox.add_child(this.outputEntry);
-            outputScroll.add_child(outputScrollBox);
-            outputWrapper.add_child(outputScroll);
-
-            // Output Action Row (Copy)
-            let outputActions = new St.BoxLayout({
-                vertical: false,
-                style_class: 'translate-actions-row'
-            });
-            this.copyBtn = new St.Button({
-                style_class: 'translate-action-btn',
-                reactive: true
-            });
-            this.copyBtn.set_child(new St.Icon({
-                icon_name: 'edit-copy-symbolic',
-                style_class: 'translate-btn-icon'
-            }));
-            this.copyBtn.connect('clicked', () => {
-                let outText = this.outputEntry.get_clutter_text().get_text();
-                if (outText && outText !== "") {
-                    this._copyToClipboard(outText);
-                }
-            });
-            outputActions.add_child(this.copyBtn);
-            outputWrapper.add_child(outputActions);
-
-            container.add_child(outputWrapper);
-
-            // Bind tooltips
-            this._addTooltip(this.swapBtn, _("Swap languages"));
-            this._addTooltip(this.pasteBtn, _("Paste from clipboard"));
-            this._addTooltip(this.clearBtn, _("Clear text"));
-            this._addTooltip(this.copyBtn, _("Copy translation to clipboard"));
-            this._addTooltip(this.translateBtn, () => {
-                return this.translateBtn.label === _("Cancel") ? _("Cancel translation") : _("Translate text");
-            });
-            this._addTooltip(this.sourceLabel, () => {
-                return _("Source language: ") + (this.sourceLabel.label || _("Auto"));
-            });
-            this._addTooltip(this.targetLabel, () => {
-                return _("Target language: ") + (this.targetLabel.label || "");
-            });
-
-            let menuItem = new PopupMenu.PopupBaseMenuItem({
-                reactive: true,
-                can_focus: true
-            });
-            menuItem.activate = () => {};
-            menuItem.actor.track_hover = false;
-            menuItem.actor.style_class = 'translate-menu-item-container';
-            menuItem.add_child(container);
-            return menuItem;
-        }
-
-        _triggerTranslation() {
-            let fromText = this.inputEntry.get_clutter_text().get_text();
-            if (!fromText || fromText.trim() === "") {
-                return;
-            }
-            const requestText = this._truncateForCharLimit(fromText);
-            this._translateText(true, requestText, (toText) => {
-                this.outputEntry.get_clutter_text().set_text(toText);
-                if (this.autoCopySwitch.state === true) {
-                    this._copyToClipboard(toText);
-                }
-            });
-        }
-
         _getValue(keyName) {
             return this._settings.get_value(keyName).deep_unpack();
-        }
-
-        _truncateForCharLimit(text) {
-            if (!text) return text;
-            const limit = this._translation_service === 1 ? FLOAT_GOOGLE_CHAR_LIMIT : FLOAT_DEEPL_CHAR_LIMIT;
-            return (limit > 0 && text.length > limit) ? text.slice(0, limit) : text;
         }
 
         _isSafeDeepLUrl(url) {
@@ -1316,10 +829,8 @@ var FastTranslate = GObject.registerClass(
         }
 
         _set_icon_indicator() {
-            let active = this.autoPasteSwitch.state;
             let themeString = (this._darktheme ? 'dark' : 'light');
-            let statusString = (active ? 'active' : 'paused');
-            let iconString = `fast-translate-${statusString}-${themeString}`;
+            let iconString = `fast-translate-active-${themeString}`;
             let icon = this._get_icon(iconString);
             if (icon) this.icon.set_gicon(icon);
         }
@@ -1336,115 +847,8 @@ var FastTranslate = GObject.registerClass(
             return Gio.Icon.new_for_string(fileIcon.get_path());
         }
 
-        _settingsChanged(changedKey) {
-            this._loadPreferences(changedKey);
-            if (this.sourceLabel) {
-                this.sourceLabel.label = formatLanguageLabel(this._source_lang);
-            }
-            if (this.targetLabel) {
-                this.targetLabel.label = formatLanguageLabel(this._target_lang);
-            }
-        }
-
-        _toggleLanguageSelector(isSource, show) {
-            if (show) {
-                // Hide input, middle row, and output
-                this.inputWrapper.visible = false;
-                this.middleRow.visible = false;
-                this.outputWrapper.visible = false;
-                
-                // Hide other selectors
-                if (this.sourceSelector) {
-                    this.sourceSelector.destroy();
-                    this.sourceSelector = null;
-                }
-                if (this.targetSelector) {
-                    this.targetSelector.destroy();
-                    this.targetSelector = null;
-                }
-                
-                // Create new selector scroll view
-                const keyName = isSource ? 'source-lang' : 'target-lang';
-                const key = this._settings.settings_schema.get_key(keyName);
-                const enums = key.get_range().deep_unpack()[1].deep_unpack();
-                const selectedIndex = this._settings.get_enum(keyName);
-                
-                let selectorScroll = new St.ScrollView({
-                    style_class: 'translate-scroll translate-selector-scroll',
-                    hscrollbar_policy: St.PolicyType.NEVER,
-                    vscrollbar_policy: St.PolicyType.AUTOMATIC
-                });
-                
-                let scrollBox = new St.BoxLayout({
-                    vertical: true,
-                    x_expand: true,
-                    style_class: 'translate-selector-box'
-                });
-                
-                let colCount = 2;
-                let row = null;
-                enums.forEach((enumStr, index) => {
-                    if (index % colCount === 0) {
-                        row = new St.BoxLayout({
-                            vertical: false,
-                            x_expand: true,
-                            style_class: 'translate-lang-selector-row'
-                        });
-                        scrollBox.add_child(row);
-                    }
-                    
-                    const code = parseCountryCode(enumStr);
-                    const flag = getFlagEmoji(code);
-                    const name = parseLanguageName(enumStr);
-                    const buttonText = flag ? `${flag} ${name}` : name;
-                    
-                    let isSelected = (index === selectedIndex);
-                    let btn = new St.Button({
-                        label: buttonText,
-                        style_class: isSelected ? 'translate-lang-selector-btn selected' : 'translate-lang-selector-btn',
-                        x_expand: true,
-                        reactive: true
-                    });
-                    
-                    btn.connect('clicked', () => {
-                        this._settings.set_enum(keyName, index);
-                        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                            if (this._destroyed) {
-                                return GLib.SOURCE_REMOVE;
-                            }
-                            this._toggleLanguageSelector(isSource, false);
-                            this._triggerTranslation();
-                            return GLib.SOURCE_REMOVE;
-                        });
-                    });
-                    
-                    row.add_child(btn);
-                });
-                
-                selectorScroll.add_child(scrollBox);
-                this.translationBlockContainer.add_child(selectorScroll);
-                
-                if (isSource) {
-                    this.sourceSelector = selectorScroll;
-                } else {
-                    this.targetSelector = selectorScroll;
-                }
-            } else {
-                // Destroy selectors
-                if (this.sourceSelector) {
-                    this.sourceSelector.destroy();
-                    this.sourceSelector = null;
-                }
-                if (this.targetSelector) {
-                    this.targetSelector.destroy();
-                    this.targetSelector = null;
-                }
-                
-                // Restore input, middle row, and output
-                this.inputWrapper.visible = true;
-                this.middleRow.visible = true;
-                this.outputWrapper.visible = true;
-            }
+        _settingsChanged() {
+            this._loadPreferences();
         }
 
         destroy() {
@@ -1453,25 +857,15 @@ var FastTranslate = GObject.registerClass(
                 this._floatingWindow.destroy();
                 this._floatingWindow = null;
             }
-            if (this.sourceSelector) {
-                this.sourceSelector.destroy();
-                this.sourceSelector = null;
-            }
-            if (this.targetSelector) {
-                this.targetSelector.destroy();
-                this.targetSelector = null;
-            }
-            if (this._tooltips) {
-                this._tooltips.forEach(t => t.destroy());
-                this._tooltips = null;
-            }
             this._disconnectSettings();
-            this._unbindShortcut();
-            this._clearClipboardTimeout();
             this._disconnectSelectionListener();
-            if (this._cancellable) {
-                this._cancellable.cancel();
-                this._cancellable = null;
+            if (this._floatingCancellable) {
+                try { this._floatingCancellable.cancel(); } catch (_e) {}
+                this._floatingCancellable = null;
+            }
+            if (this._translationCache) {
+                this._translationCache.clear();
+                this._translationCache = null;
             }
             if (this._safetyTimeoutId) {
                 GLib.Source.remove(this._safetyTimeoutId);
@@ -1500,6 +894,14 @@ export default class FastTranslateExtension extends Extension {
         // GDM autologin fix: do not block shell startup on this extension.
         // Defer heavy construction to next idle so Registering display with GDM
         // is not delayed past the fallback-greeter timeout (~12s).
+        // Guard against re-entrant enable without disable: never leak a
+        // previously scheduled idle source.
+        try {
+            if (this._deferredEnableId) {
+                GLib.Source.remove(this._deferredEnableId);
+                this._deferredEnableId = null;
+            }
+        } catch (_e) {}
         this._indicator = null;
         this._deferredEnableId = null;
         try {
@@ -1537,9 +939,6 @@ export default class FastTranslateExtension extends Extension {
         }
     }
 }
-
-const FLOAT_GOOGLE_CHAR_LIMIT = 5000;
-const FLOAT_DEEPL_CHAR_LIMIT = 5000;
 
 class FloatingTranslationWindow {
     constructor(sourceText, targetText, sourceLang, targetLang, onDestroy, onCopyClicked, settings, opts) {
@@ -1583,6 +982,19 @@ class FloatingTranslationWindow {
         });
         this._title = title;
         header.add_child(title);
+
+        // Native activity indicator for the loading state. Guarded: on a
+        // Shell without St.Spinner this stays null and the window degrades
+        // to the placeholder text alone.
+        this._spinner = null;
+        try {
+            if (typeof St.Spinner === 'function') {
+                this._spinner = new St.Spinner({ width: 16, height: 16 });
+                header.add_child(this._spinner);
+            }
+        } catch (_e) {
+            this._spinner = null;
+        }
 
         let closeBtn = new St.Button({
             style_class: 'translate-floating-close-btn',
@@ -1713,6 +1125,7 @@ class FloatingTranslationWindow {
         }));
         
         copyBtn.connect('clicked', () => {
+            if (this._loading) return; // belt and braces: button is non-reactive while loading
             const cur = this._currentTarget;
             if (onCopyClicked) {
                 onCopyClicked(cur);
@@ -1722,6 +1135,7 @@ class FloatingTranslationWindow {
             this.destroy();
         });
         actions.add_child(copyBtn);
+        this._copyBtn = copyBtn;
 
         if (this._onSwap) {
             this._swapBtn = new St.Button({
@@ -1778,6 +1192,14 @@ class FloatingTranslationWindow {
         }
 
         this.actor.add_child(actions);
+        this._loading = false;
+        this._copyBtn = null;
+
+        // Enter the loading state only when the caller says so (the live
+        // trigger opens with a placeholder; tests may pass real text).
+        if (opts?.loading === true) {
+            this.setLoading(true);
+        }
 
         // Center on primary monitor
         let monitor = Main.layoutManager.primaryMonitor;
@@ -1826,8 +1248,31 @@ class FloatingTranslationWindow {
         }
     }
 
+    setLoading(isLoading) {
+        this._loading = !!isLoading;
+        try {
+            if (this._winDestroyed) return;
+            if (this._spinner) {
+                this._spinner.visible = this._loading;
+                try {
+                    if (this._loading) this._spinner.start();
+                    else this._spinner.stop();
+                } catch (_e) {}
+            }
+            // While loading, _currentTarget is still the placeholder: copying
+            // it would put "Translating…" on the clipboard, so disarm the
+            // button (plus a handler-level guard for good measure).
+            if (this._copyBtn) {
+                this._copyBtn.reactive = !this._loading;
+                this._copyBtn.opacity = this._loading ? 110 : 255;
+            }
+        } catch (_e) {}
+    }
+
     setTargetText(text) {
         this._currentTarget = text;
+        // Any explicit target text (result or error) ends the loading state.
+        this.setLoading(false);
         try {
             if (this._winDestroyed || !this._destLabel) return;
             this._destLabel.set_text(text);
@@ -1980,6 +1425,10 @@ class FloatingTranslationWindow {
     destroy() {
         if (this._winDestroyed) return; // idempotent: guard before setting the flag
         this._winDestroyed = true;
+        // Stop the spinner timeline so it cannot outlive the actors.
+        try { if (this._spinner) this._spinner.stop(); } catch (_e) {}
+        this._spinner = null;
+        this._copyBtn = null;
         this._destLabel = null;
         this._srcLabel = null;
         this._srcScroll = null;

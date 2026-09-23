@@ -7,6 +7,7 @@
 ![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-45--50-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
+[![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/fast-translate)
 
 ## 项目说明
 
@@ -43,7 +44,7 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 ## 安装
 
 ```bash
-git clone <你的仓库地址> ~/.local/share/gnome-shell/extensions/fast-translate@local
+git clone https://github.com/SHADE-glitch/fast-translate.git ~/.local/share/gnome-shell/extensions/fast-translate@local
 cd ~/.local/share/gnome-shell/extensions/fast-translate@local
 bash scripts/pack.sh      # 编译 schema 与翻译并安全打包
 ```
@@ -58,6 +59,13 @@ gnome-extensions enable fast-translate@local
 
 > [!WARNING]
 > 切勿在仓库目录内运行 `gnome-extensions install` 或 `gnome-extensions pack` —— 安装工具会跟随符号链接并可能清空源码目录。请使用 `scripts/pack.sh`，它通过临时目录打包。
+
+### 卸载
+
+```bash
+gnome-extensions disable fast-translate@local
+rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
+```
 
 ## 使用
 
@@ -111,4 +119,4 @@ gnome-extensions enable fast-translate@local
 
 本项目采用 **MIT 许可证** —— 见 [LICENSE](LICENSE)。
 
-© Lorenzo Carbonell Cerezo（atareao）及贡献者。
+© Lorenzo Carbonell Cerezo（atareao）、tazztone 及贡献者；分支修改 © SHADE-glitch。

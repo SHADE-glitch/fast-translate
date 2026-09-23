@@ -7,6 +7,7 @@ Instant translation from a double copy — Google Translate and DeepL in your GN
 ![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-45--50-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
+[![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/fast-translate)
 
 ## About
 
@@ -43,7 +44,7 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 ## Installation
 
 ```bash
-git clone <your-fork-url> ~/.local/share/gnome-shell/extensions/fast-translate@local
+git clone https://github.com/SHADE-glitch/fast-translate.git ~/.local/share/gnome-shell/extensions/fast-translate@local
 cd ~/.local/share/gnome-shell/extensions/fast-translate@local
 bash scripts/pack.sh      # compile schemas + translations and pack safely
 ```
@@ -58,6 +59,13 @@ On Wayland you must log out and back in for GNOME Shell to load the extension.
 
 > [!WARNING]
 > Never run `gnome-extensions install` or `gnome-extensions pack` from inside the repository directory — the installer follows symlinks and can wipe the source tree. Use `scripts/pack.sh`, which packs via a temporary directory.
+
+### Uninstall
+
+```bash
+gnome-extensions disable fast-translate@local
+rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
+```
 
 ## Usage
 
@@ -111,4 +119,4 @@ This extension is a fork of the original **Translate Assistant** by **Lorenzo Ca
 
 Licensed under the **MIT License** — see [LICENSE](LICENSE).
 
-© Lorenzo Carbonell Cerezo (atareao) and contributors.
+© Lorenzo Carbonell Cerezo (atareao), tazztone, and contributors; fork modifications © SHADE-glitch.

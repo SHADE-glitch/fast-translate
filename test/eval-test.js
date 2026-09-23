@@ -175,6 +175,14 @@ global.testRunnerPromise = (async () => {
                 return { success: false, error: "Floating window was not created after double copy translation completed!" };
             }
 
+            // Transient Esc binding must be live exactly while the window is open
+            if (indicator._escBound !== true) {
+                Clipboard.get_text = originalClipboardGetText;
+                Clipboard.set_text = originalClipboardSetText;
+                indicator._translateTextIndependent = originalTranslateTextIndependent;
+                return { success: false, error: "Transient Esc binding was not registered while window open!" };
+            }
+
             // Verify contents of the floating window
             let floatWin = indicator._floatingWindow;
             if (!floatWin.actor || !floatWin.overlay) {
@@ -233,11 +241,24 @@ global.testRunnerPromise = (async () => {
                 return { success: false, error: "Copy button did not copy targetText! Got: " + copiedText };
             }
 
+            // Copy-button dismissal is animated: wait out the fade
+            await new Promise(resolve => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 400, () => {
+                    resolve();
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
             if (indicator._floatingWindow) {
                 Clipboard.get_text = originalClipboardGetText;
                 Clipboard.set_text = originalClipboardSetText;
                 indicator._translateTextIndependent = originalTranslateTextIndependent;
                 return { success: false, error: "Floating window was not destroyed after clicking Copy button!" };
+            }
+            if (indicator._escBound !== false) {
+                Clipboard.get_text = originalClipboardGetText;
+                Clipboard.set_text = originalClipboardSetText;
+                indicator._translateTextIndependent = originalTranslateTextIndependent;
+                return { success: false, error: "Transient Esc binding was not removed after window closed!" };
             }
 
             // Test 8b: Auto Copy functionality for Double-copy
@@ -543,8 +564,15 @@ global.testRunnerPromise = (async () => {
             indicator._translateTextIndependent = originalTranslateTextIndependent;
         }
 
-        // Test 4: FloatingTranslationWindow layout, centering, and overlay click-to-close
+        // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
+            const GLib = imports.gi.GLib;
+            const sleep = (ms) => new Promise(resolve => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                    resolve();
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
             let FloatingTranslationWindow = indicator.FloatingTranslationWindow;
             let win = new FloatingTranslationWindow("Input text", "Output text", "EN", "FR", () => {
                 indicator._floatingWindow = null;
@@ -560,15 +588,21 @@ global.testRunnerPromise = (async () => {
                 return { success: false, error: "Actor style class is incorrect" };
             }
 
-            // Simulate allocation event to trigger centering logic
+            // Simulate allocation event to trigger centering logic, then wait
+            // for the settle chain (height caps + recenter run on idle).
             win.actor.notify('allocation');
+            await sleep(600);
 
             let monitor = Main.layoutManager.primaryMonitor;
             let expectedX = monitor.x + (monitor.width - win.actor.get_width()) / 2;
             let expectedY = monitor.y + (monitor.height - win.actor.get_height()) / 2;
-            if (win.actor.x !== expectedX || win.actor.y !== expectedY) {
+            // Capture geometry BEFORE destroy: the mismatch branch destroys
+            // first, which nulls actor and would mask Expected vs Got.
+            let gotX = win.actor.x;
+            let gotY = win.actor.y;
+            if (Math.abs(gotX - expectedX) > 2 || Math.abs(gotY - expectedY) > 2) {
                 win.destroy();
-                return { success: false, error: "FloatingTranslationWindow was not centered correctly! Expected: " + expectedX + "," + expectedY + " Got: " + win.actor.x + "," + win.actor.y };
+                return { success: false, error: "FloatingTranslationWindow was not centered correctly! Expected: " + expectedX + "," + expectedY + " Got: " + gotX + "," + gotY };
             }
 
             // Verify click on backdrop overlay destroys the window
@@ -577,13 +611,61 @@ global.testRunnerPromise = (async () => {
             // Set win to a property so we can track it or destroy it
             indicator._floatingWindow = win;
 
-            // Trigger the overlay's button-press-event handler directly
-            win.overlay.emit('button-press-event', 0);
+            // Trigger the overlay's press handler directly (emitting a forged
+            // ClutterEvent is rejected by the type system; the handler itself
+            // ignores its arguments).
+            // (dismissal is animated: wait out the fade before asserting)
+            win._overlayPressHandler(win.overlay, null);
+            await sleep(400);
 
             if (indicator._floatingWindow) {
                 indicator._floatingWindow.destroy();
                 indicator._floatingWindow = null;
                 return { success: false, error: "Overlay click did not destroy FloatingTranslationWindow!" };
+            }
+
+            // Verify Esc on the stage destroys the window (no focus/modal needed)
+            let win2 = new FloatingTranslationWindow("Input text", "Output text", "EN", "FR", () => {
+                indicator._floatingWindow = null;
+            });
+            indicator._floatingWindow = win2;
+            if (win2._keyPressId === null || win2._keyPressId === undefined) {
+                win2.destroy();
+                indicator._floatingWindow = null;
+                return { success: false, error: "Stage Esc listener was not installed!" };
+            }
+            const Clutter = imports.gi.Clutter;
+            const escEvent = {
+                type: () => Clutter.EventType.KEY_PRESS,
+                get_key_symbol: () => Clutter.KEY_Escape,
+            };
+            // A non-key event must be ignored
+            win2._keyPressHandler(global.stage, {
+                type: () => Clutter.EventType.BUTTON_PRESS,
+                get_key_symbol: () => 0,
+            });
+            if (!indicator._floatingWindow) {
+                return { success: false, error: "Non-key captured-event wrongly dismissed the window!" };
+            }
+            // Invoke the window's stage handler directly: emitting a forged
+            // event through global.stage would also hit Shell's own handlers.
+            const ret = win2._keyPressHandler(global.stage, escEvent);
+            if (ret !== Clutter.EVENT_PROPAGATE) {
+                win2.destroy();
+                indicator._floatingWindow = null;
+                return { success: false, error: "Esc handler must propagate the event to the focused app!" };
+            }
+            await sleep(400);
+            if (indicator._floatingWindow) {
+                indicator._floatingWindow.destroy();
+                indicator._floatingWindow = null;
+                return { success: false, error: "Esc did not destroy FloatingTranslationWindow!" };
+            }
+            // Listener must have been disconnected in destroy(): the id is
+            // cleared, so a later Esc can no longer reach this instance.
+            // (Calling the nulled field itself would throw by design.)
+            if (win2._keyPressId !== null) {
+                return { success: false, error: "Stage Esc listener was not disconnected on destroy!" };
             }
         } catch (e) {
             if (indicator._floatingWindow) {

@@ -115,6 +115,11 @@
             <summary>Shortcut</summary>
             <description>Shortcut to translate the content of the clipboard</description>
         </key>
+        <key name="keybinding-close-floating-window" type="as">
+            <default><![CDATA[['Escape']]]></default>
+            <summary>Close floating window</summary>
+            <description>Shortcut to close the floating translation window. Registered only while the window is open; clear it (via dconf) to disable.</description>
+        </key>
         <key name="notifications" type="b">
             <default>false</default>
             <summary>Show notifications</summary>

@@ -223,8 +223,8 @@
 }
 
 .translate-floating-close-btn {
-    padding: 6px;
-    border-radius: 8px;
+    padding: 10px;
+    border-radius: 10px;
     background-color: transparent;
     color: #888888;
     transition-duration: 0.15s;

@@ -29,6 +29,7 @@ import GObject from "gi://GObject";
 import GLib from "gi://GLib";
 import Pango from "gi://Pango";
 import Meta from "gi://Meta";
+import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
@@ -41,6 +42,10 @@ const Clipboard = St.Clipboard.get_default();
 const CLIPBOARD_TYPE = St.ClipboardType.CLIPBOARD;
 
 const TIMEOUT_MS = 500;
+// GSettings key for the transient floating-window dismiss accelerator.
+// Unlike the removed Super+T shortcut, this binding lives only while the
+// floating window is open (bound on open, unbound on destroy).
+const CLOSE_SHORTCUT_SETTING_KEY = "keybinding-close-floating-window";
 // In-memory LRU cap for translation results. Repeated translations of the
 // same text (shortcut re-press, double-copy, language swap) are common;
 // without a cache every one costs a network round-trip and quota.
@@ -184,6 +189,8 @@ var FastTranslate = GObject.registerClass(
             // Generation counter for floating requests; lets a superseded
             // request's failure stay silent (the newer request owns the UI).
             this._floatingReqSeq = 0;
+            // Transient Esc binding flag; see _bindEsc/_unbindEsc.
+            this._escBound = false;
 
             /* Icon indicator */
             let box = new St.BoxLayout();
@@ -304,6 +311,44 @@ var FastTranslate = GObject.registerClass(
             this._selectionOwnerChangedId = null;
         }
 
+        _bindEsc() {
+            // Guarded flag (same pattern as the old shortcut code): never ask
+            // mutter to add twice or remove what isn't there.
+            if (this._escBound) {
+                return;
+            }
+            try {
+                Main.wm.addKeybinding(
+                    CLOSE_SHORTCUT_SETTING_KEY,
+                    this._settings,
+                    Meta.KeyBindingFlags.NONE,
+                    Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+                    () => {
+                        if (this._destroyed) {
+                            return;
+                        }
+                        const w = this._floatingWindow;
+                        if (w) {
+                            try { w._dismiss(); } catch (_e) {}
+                        }
+                    }
+                );
+                this._escBound = true;
+            } catch (_e) {
+                this._escBound = false;
+            }
+        }
+
+        _unbindEsc() {
+            if (!this._escBound) {
+                return;
+            }
+            try {
+                Main.wm.removeKeybinding(CLOSE_SHORTCUT_SETTING_KEY);
+            } catch (_e) {}
+            this._escBound = false;
+        }
+
         _disconnectSettings() {
             if (!this._settingsChangedId) {
                 return;
@@ -410,10 +455,12 @@ var FastTranslate = GObject.registerClass(
                         this._target_lang,
                         () => {
                             // Only clear the slot if it still points at THIS window —
-                            // a newer trigger may have replaced it already.
+                            // a newer trigger may have replaced it already. The
+                            // transient Esc binding dies with the window too.
                             if (this._floatingWindow === win) {
                                 this._floatingWindow = null;
                             }
+                            this._unbindEsc();
                         },
                         (text) => {
                             this._copyToClipboard(text);
@@ -467,6 +514,12 @@ var FastTranslate = GObject.registerClass(
                 }
                 this._floatingWindow = win;
                 if (win) {
+                    // Transient Esc binding: registered at Mutter level (which
+                    // Clutter event delivery cannot swallow), alive only while
+                    // this window is open. The captured-event listener inside
+                    // the window stays as a backup; whichever fires first wins
+                    // (dismiss is idempotent).
+                    this._bindEsc();
                     try {
                         // Safety net: display backstop so the placeholder is never
                         // stuck forever. Request cancellation lives on the
@@ -859,6 +912,7 @@ var FastTranslate = GObject.registerClass(
             }
             this._disconnectSettings();
             this._disconnectSelectionListener();
+            this._unbindEsc();
             if (this._floatingCancellable) {
                 try { this._floatingCancellable.cancel(); } catch (_e) {}
                 this._floatingCancellable = null;
@@ -956,10 +1010,11 @@ class FloatingTranslationWindow {
             height: global.stage.height
         });
 
-        this.overlay.connect('button-press-event', () => {
-            this.destroy();
+        this._overlayPressHandler = () => {
+            this._dismiss();
             return Clutter.EVENT_STOP;
-        });
+        };
+        this.overlay.connect('button-press-event', this._overlayPressHandler);
 
         this.actor = new St.BoxLayout({
             style_class: 'translate-floating-window',
@@ -1004,7 +1059,7 @@ class FloatingTranslationWindow {
             icon_name: 'window-close-symbolic',
             style_class: 'translate-btn-icon'
         }));
-        closeBtn.connect('clicked', () => this.destroy());
+        closeBtn.connect('clicked', () => this._dismiss());
         header.add_child(closeBtn);
         this.actor.add_child(header);
 
@@ -1132,7 +1187,7 @@ class FloatingTranslationWindow {
             } else {
                 St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, cur);
             }
-            this.destroy();
+            this._dismiss();
         });
         actions.add_child(copyBtn);
         this._copyBtn = copyBtn;
@@ -1237,14 +1292,78 @@ class FloatingTranslationWindow {
         //     as long as the popup is open (windowManager.js gates keybindings
         //     on Main.actionMode), and confined pointer events to the grab
         //     actor's subtree so the card's buttons stopped responding.
-        // The popup is dismissed with the mouse: click the backdrop, the close
-        // button, or the copy button.
+        // The popup is dismissed with Esc, or with the mouse: click the
+        // backdrop, the close button, or the copy button.
         try {
             Main.uiGroup.add_child(this.overlay);
             Main.uiGroup.add_child(this.actor);
         } catch (e) {
             this.destroy();
             throw e;
+        }
+
+        // Esc-to-close without focus or modal grab (see NOTE above).
+        // Bubble-phase 'key-press-event' on the stage never fires for Esc
+        // (verified in production logs: the listener attaches fine, but the
+        // key is consumed before it bubbles up). So hook the capture phase
+        // instead: 'captured-event' runs before delivery to any actor.
+        // Always PROPAGATE so the focused app still receives the key.
+        // Stored as a field so tests can invoke it without emitting forged
+        // events through Shell's own stage handlers.
+        this._keyPressId = null;
+        this._keyPressHandler = (_stage, event) => {
+            try {
+                if (!this._winDestroyed && event && typeof event.type === 'function'
+                    && event.type() === Clutter.EventType.KEY_PRESS
+                    && typeof event.get_key_symbol === 'function'
+                    && event.get_key_symbol() === Clutter.KEY_Escape) {
+                    this._dismiss();
+                }
+            } catch (_e) {}
+            return Clutter.EVENT_PROPAGATE;
+        };
+        try {
+            this._keyPressId = global.stage.connect('captured-event', this._keyPressHandler);
+        } catch (_e) {
+            this._keyPressId = null;
+        }
+
+        // Gentle open animation (transform-only: layout/centering/measure
+        // paths are unaffected).
+        try {
+            this.actor.set_pivot_point(0.5, 0.5);
+            this.actor.set_scale(0.96, 0.96);
+            this.actor.opacity = 0;
+            this.actor.ease({
+                opacity: 255,
+                scale_x: 1.0,
+                scale_y: 1.0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        } catch (_e) {
+            try { this.actor.opacity = 255; } catch (_e2) {}
+        }
+    }
+
+    _dismiss() {
+        // Animated dismissal for user-initiated closes. Internal paths
+        // (trigger rebuild, indicator disable) keep using instant destroy().
+        try {
+            if (this._winDestroyed || this._dismissing) return;
+            this._dismissing = true;
+            if (!this.actor) {
+                this.destroy();
+                return;
+            }
+            this.actor.ease({
+                opacity: 0,
+                duration: 120,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onComplete: () => this.destroy(),
+            });
+        } catch (_e) {
+            this.destroy();
         }
     }
 
@@ -1425,6 +1544,17 @@ class FloatingTranslationWindow {
     destroy() {
         if (this._winDestroyed) return; // idempotent: guard before setting the flag
         this._winDestroyed = true;
+        // Disconnect the Esc listener: the stage outlives the window, so a
+        // leaked connection would keep this instance alive and react to Esc
+        // presses long after dismissal.
+        try {
+            if (this._keyPressId !== null && this._keyPressId !== undefined) {
+                global.stage.disconnect(this._keyPressId);
+            }
+        } catch (_e) {}
+        this._keyPressId = null;
+        this._keyPressHandler = null;
+        this._overlayPressHandler = null;
         // Stop the spinner timeline so it cannot outlive the actors.
         try { if (this._spinner) this._spinner.stop(); } catch (_e) {}
         this._spinner = null;

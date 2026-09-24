@@ -8,7 +8,7 @@ echo "📦 Deploying extension to local GNOME directory..."
 EXT_DIR="$HOME/.local/share/gnome-shell/extensions/fast-translate@local"
 mkdir -p "$EXT_DIR"
 if [ "$(realpath "$EXT_DIR")" != "$(realpath .)" ]; then
-    cp -rf extension.js prefs.js translation-helper.js metadata.json stylesheet.css icons schemas "$EXT_DIR/"
+    cp -rf extension.js prefs.js translation-helper.js metadata.json stylesheet-base.css stylesheet-light.css stylesheet-dark.css icons schemas "$EXT_DIR/"
 else
     echo "ℹ️  Extension directory is already linked to project directory."
 fi

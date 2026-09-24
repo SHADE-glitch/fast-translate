@@ -1,0 +1,117 @@
+@import url("stylesheet-base.css");
+
+/* Fast Translate — LIGHT palette for the floating translation window.
+ *
+ * Loaded by the shell when Main.getStyleVariant() === 'light'
+ * (extensionSystem.js _loadExtensionStylesheet picks stylesheet-<variant>.css,
+ * and reloads it on St.Settings notify::color-scheme).
+ *
+ * Every literal below is a Yaru token read out of
+ * /usr/share/gnome-shell/theme/Yaru/gnome-shell-theme.gresource
+ * (Yaru/gnome-shell.css, GNOME Shell 50.1 / Ubuntu 26.04):
+ *   stage fg ............... #222222      (line 22)
+ *   .popup-menu-content .... bg white, border #ededed,
+ *                            shadow 0 2px 4px 0 rgba(0,0,0,.05)  (960-965)
+ *   :hover overlay ......... rgba(34,34,34,.1)                   (5627)
+ *   :active overlay ........ rgba(34,34,34,.15)                  (5630)
+ *   :insensitive fg ........ st-transparentize(#222222,.6)       (985)
+ *   warning ................ #a14a0b                             (1447)
+ *   destructive ............ #c7162b                             (1889)
+ * Accent comes from the runtime variable -st-accent-color, so the checked
+ * checkbox follows the user's accent colour instead of a hardcoded blue.
+ */
+
+.translate-floating-overlay {
+    background-color: transparent;
+}
+
+.translate-floating-window {
+    background-color: white;
+    border: 1px solid #ededed;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+}
+
+.translate-floating-title {
+    color: #222222;
+}
+
+.translate-floating-divider {
+    background-color: #ededed;
+}
+
+.translate-floating-text-src {
+    color: st-transparentize(#222222, 0.35);
+}
+
+.translate-floating-text-dest {
+    color: #222222;
+}
+
+.translate-floating-text-dest.error {
+    color: #c7162b;
+}
+
+.translate-floating-warning {
+    color: #a14a0b;
+}
+
+.translate-floating-autocopy-label {
+    color: st-transparentize(#222222, 0.2);
+}
+
+/* Icon buttons stay transparent until hovered, like .popup-menu-item. */
+.translate-action-btn {
+    background-color: transparent;
+    color: #222222;
+}
+
+.translate-action-btn:hover {
+    background-color: rgba(34, 34, 34, 0.1);
+}
+
+.translate-action-btn:active {
+    background-color: rgba(34, 34, 34, 0.15);
+}
+
+.translate-floating-close-btn {
+    background-color: transparent;
+    color: st-transparentize(#222222, 0.55);
+}
+
+.translate-floating-close-btn:hover {
+    background-color: rgba(34, 34, 34, 0.1);
+    color: #222222;
+}
+
+.translate-floating-close-btn:active {
+    background-color: rgba(34, 34, 34, 0.15);
+}
+
+.translate-floating-swap-btn {
+    background-color: transparent;
+    color: #222222;
+}
+
+.translate-floating-swap-btn:hover {
+    background-color: rgba(34, 34, 34, 0.1);
+}
+
+.translate-floating-toggle-btn {
+    background-color: transparent;
+    color: st-transparentize(#222222, 0.55);
+}
+
+.translate-floating-toggle-btn.active {
+    color: -st-accent-color;
+}
+
+.translate-floating-toggle-btn:hover {
+    background-color: rgba(34, 34, 34, 0.1);
+}
+
+.translate-tooltip {
+    background-color: white;
+    border: 1px solid #ededed;
+    color: #222222;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+}

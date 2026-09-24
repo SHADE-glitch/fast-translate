@@ -654,6 +654,28 @@ global.testRunnerPromise = (async () => {
                 return { success: false, error: "Actor style class is incorrect" };
             }
 
+            // The card must be painted from the variant stylesheet the shell
+            // picked for Main.getStyleVariant(). The padding assertion is what
+            // actually proves the @import resolved: padding/border-radius live
+            // in stylesheet-base.css, so a failed import leaves it at 0 while
+            // the background colour (from the variant file) still looks right.
+            {
+                let variant = Main.getStyleVariant();
+                let node = win.actor.get_theme_node();
+                let bg = node.get_background_color();
+                let wantBg = (variant === 'dark') ? [0x36, 0x36, 0x3a] : [0xff, 0xff, 0xff];
+                if (bg.red !== wantBg[0] || bg.green !== wantBg[1] || bg.blue !== wantBg[2] || bg.alpha !== 255) {
+                    let got = [bg.red, bg.green, bg.blue, bg.alpha].join(',');
+                    win.destroy();
+                    return { success: false, error: "Card background does not match the '" + variant + "' variant stylesheet! Got rgba(" + got + ") want rgba(" + wantBg.join(',') + ",255)" };
+                }
+                let padTop = node.get_padding(St.Side.TOP);
+                if (padTop !== 24) {
+                    win.destroy();
+                    return { success: false, error: "stylesheet-base.css did not load via @import! padding-top=" + padTop + " want 24 (variant='" + variant + "')" };
+                }
+            }
+
             // Geometry baseline: the popup's OWN monitor work area. Not the raw
             // monitor rectangle — the top panel's strut must not push the card
             // off-center. Headless --virtual-monitor still has a 32px panel

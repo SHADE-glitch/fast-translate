@@ -1,0 +1,116 @@
+@import url("stylesheet-base.css");
+
+/* Fast Translate — DARK palette for the floating translation window.
+ *
+ * Loaded when Main.getStyleVariant() === 'dark'. Keep in step with
+ * stylesheet-light.css: the two files must declare the same selectors.
+ *
+ * Tokens read out of Yaru/gnome-shell-dark.css (GNOME Shell 50.1):
+ *   stage fg ............... white                              (line 23)
+ *   .popup-menu-content .... bg #36363a, border #424247,
+ *                            shadow 0 2px 4px 0 rgba(0,0,0,.2)  (960-965)
+ *   :hover overlay ......... rgba(255,255,255,.1)                (5631)
+ *   :active overlay ........ rgba(255,255,255,.15)               (5634)
+ *   :insensitive fg ........ st-transparentize(white,.5)         (985)
+ *   warning ................ #fea320                             (1447)
+ *
+ * The error colour is Yaru's destructive red #c7162b mixed toward white:
+ * used raw on #36363a it only reaches 2.1:1. st-mix(…, 45%) lands at ~5.2:1,
+ * so both variants derive from one token. The dimmed text levels below were
+ * chosen the same way (src text ~6.0:1, idle icons ~4.3:1).
+ */
+
+.translate-floating-overlay {
+    background-color: transparent;
+}
+
+.translate-floating-window {
+    background-color: #36363a;
+    border: 1px solid #424247;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+}
+
+.translate-floating-title {
+    color: white;
+}
+
+.translate-floating-divider {
+    background-color: #424247;
+}
+
+.translate-floating-text-src {
+    color: st-transparentize(white, 0.35);
+}
+
+.translate-floating-text-dest {
+    color: white;
+}
+
+.translate-floating-text-dest.error {
+    color: st-mix(#c7162b, white, 45%);
+}
+
+.translate-floating-warning {
+    color: #fea320;
+}
+
+.translate-floating-autocopy-label {
+    color: st-transparentize(white, 0.15);
+}
+
+/* Icon buttons stay transparent until hovered, like .popup-menu-item. */
+.translate-action-btn {
+    background-color: transparent;
+    color: white;
+}
+
+.translate-action-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.translate-action-btn:active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.translate-floating-close-btn {
+    background-color: transparent;
+    color: st-transparentize(white, 0.5);
+}
+
+.translate-floating-close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.translate-floating-close-btn:active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.translate-floating-swap-btn {
+    background-color: transparent;
+    color: white;
+}
+
+.translate-floating-swap-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.translate-floating-toggle-btn {
+    background-color: transparent;
+    color: st-transparentize(white, 0.5);
+}
+
+.translate-floating-toggle-btn.active {
+    color: -st-accent-color;
+}
+
+.translate-floating-toggle-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.translate-tooltip {
+    background-color: #36363a;
+    border: 1px solid #424247;
+    color: white;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+}

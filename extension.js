@@ -1183,22 +1183,19 @@ class FloatingTranslationWindow {
         this._currentTarget = targetText;
         this._winDestroyed = false;
 
-        // Max-height backstop for the outer window only:
-        // per-region scroll viewport heights are driven by _applyHeightCaps()
-        // using set_height(). CSS max-height on individual scroll views must NOT
-        // be set — it causes a silent clip with AUTOMATIC scrollbar policy,
-        // breaking scroll detection.
+        // Per-region scroll viewport heights are driven by _computeCaps() /
+        // _applyHeightCaps() using set_height(). CSS max-height must NOT be set
+        // on the individual scroll views — it causes a silent clip with the
+        // AUTOMATIC scrollbar policy, breaking scroll detection. (It is also
+        // inert on the outer card; see _computeCaps().)
         try {
-            // Budget against the work area (not the raw monitor) so the card
-            // can never be laid out under the top panel or a dock.
-            const h = this._area?.height ?? 800;
-            this.actor.set_style(`max-height: ${Math.floor(h * 0.60)}px`);
             // Pin both scroll viewports to their caps from the very first frame
             // so layout is stable and never sustains a tall pre-measure window.
             // Label heights are then set to force overflow (or fit) in
             // _applyHeightCaps().
-            this._srcScroll?.set_height(Math.floor(h * 0.25));
-            this._destScroll?.set_height(Math.floor(h * 0.40));
+            const caps = this._computeCaps();
+            this._srcScroll?.set_height(caps.src);
+            this._destScroll?.set_height(caps.dest);
         } catch (_e) {}
 
         // Actions Row (Copy Button & Auto Copy Checkbox)
@@ -1554,6 +1551,40 @@ class FloatingTranslationWindow {
         } catch (_e) {}
     }
 
+    // Height budget for the two scroll regions.
+    //
+    // There is no CSS backstop: St ignores max-height on this actor. Measured
+    // on GNOME Shell 50.1 / Yaru with a 736px work area — the card carried an
+    // inline "max-height: 441px", rendered at 710px, and re-setting the style
+    // to "max-height: 200px" left both the allocation and
+    // get_preferred_height() at 710. So these caps are the ONLY thing bounding
+    // the card and they must leave room for the chrome.
+    //
+    // Chrome, measured at card width 650px: 1px border + 24px padding x2 +
+    // header 48 + two 1px dividers + five 16px gaps + actions 44 + 8px
+    // actions margin-top = 232px. The truncation warning is measured rather
+    // than guessed because its text wraps at card width.
+    //
+    // 60% of the work area is the ceiling the old max-height was aiming at;
+    // what is left after chrome is split between src and dest in the original
+    // 25:40 ratio. Re-measure CHROME if the card padding/spacing changes.
+    _computeCaps() {
+        const h = this._area?.height ?? 800;
+        const CHROME = 232;
+        let warn = 0;
+        if (this._warnLabel) {
+            try {
+                // 600px = card width 650 - 2x24 padding - 2x1 border.
+                warn = Math.round(this._warnLabel.get_preferred_height(600)[1]) + 16;
+            } catch (_e) {
+                warn = 40;
+            }
+        }
+        const budget = Math.max(120, Math.floor(h * 0.60) - CHROME - warn);
+        const src = Math.floor(budget * 25 / 65);
+        return { src, dest: budget - src };
+    }
+
     // Region height = min(content natural height, cap).
     // Under cap: viewport = content height, no scrollbar (compact fit).
     // Over cap: viewport fixed at cap, box + label both forced to the real
@@ -1563,10 +1594,7 @@ class FloatingTranslationWindow {
     // construction, so we control scrolling ONLY via set_height().
     _applyHeightCaps() {
         if (this._winDestroyed || !this.actor) return;
-        // Same baseline as the max-height style above (work area, not monitor).
-        const h = this._area?.height ?? 800;
-        const srcCap = Math.floor(h * 0.25);
-        const destCap = Math.floor(h * 0.40);
+        const { src: srcCap, dest: destCap } = this._computeCaps();
         // GJS note: get_allocated_* returns undefined in this Shell, use get_width().
         // After set_text, label.get_width() is stale (natural unwrapped width ~122k)
         // until next layout. Priority: scroll viewport width (already constrained)
@@ -1591,7 +1619,7 @@ class FloatingTranslationWindow {
             const fullW = _getLabelWidth(label, scroll);
             const natHFull = label.get_preferred_height(fullW)[1];
             if (natHFull <= 0) return { width: fullW, height: 0 };
-            if (natHFull <= Math.floor(h * 0.25)) {
+            if (natHFull <= srcCap) {
                 // Source cap is the smaller of the two; if it fits there, no
                 // scrollbar will appear, so full-width measurement is correct.
                 return { width: fullW, height: natHFull };
@@ -1601,6 +1629,20 @@ class FloatingTranslationWindow {
             const narrowW = Math.max(200, fullW - SCROLLBAR_ESTIMATE);
             return { width: narrowW, height: label.get_preferred_height(narrowW)[1] + HEIGHT_SAFETY };
         };
+        // Clear any height a previous round pinned BEFORE measuring. Clutter
+        // reports an explicitly-set height as the actor's preferred height, so
+        // measuring a label we already pinned returns that pinned value and the
+        // +HEIGHT_SAFETY above ratchets it up by 16px on every round. Measured
+        // on GNOME Shell 50.1: srcNatH ran 1168 -> 1184 -> ... -> 1264 across
+        // all 9 rounds and never converged, leaving ~112px of blank scrollable
+        // space below the text; and because setTargetText() resets _settleCount,
+        // every retry ratcheted a further 128px on top. Clearing first makes the
+        // measurement idempotent, so the fingerprint is stable from round 1 and
+        // the loop stops on its own (measured: 9 rounds -> 3).
+        try {
+            this._srcLabel?.set_height(-1);
+            this._destLabel?.set_height(-1);
+        } catch (_e) {}
         const srcM = _measureLabel(this._srcLabel, this._srcScroll);
         const destM = _measureLabel(this._destLabel, this._destScroll);
         const srcW = srcM.width;

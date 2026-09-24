@@ -709,6 +709,35 @@ global.testRunnerPromise = (async () => {
                 return { success: false, error: "FloatingTranslationWindow was not centered correctly! Expected: " + expectedX + "," + expectedY + " Got: " + gotX + "," + gotY + " workArea: " + areaStr };
             }
 
+            // A6/B1 regression guard. With long text the src/dest caps are the
+            // ONLY bound on the card: St ignores max-height on this actor
+            // (measured — "max-height: 200px" left a 441px card at 441px), so a
+            // budget that forgets the chrome silently fills the screen. The
+            // round count catches the measurement ratchet, where re-reading a
+            // pinned label height added HEIGHT_SAFETY on every settle pass and
+            // never converged.
+            {
+                let longSrc = "";
+                for (let i = 0; i < 120; i++) longSrc += "Source sentence number " + i + " that is reasonably long. ";
+                let longDst = "";
+                for (let i = 0; i < 120; i++) longDst += "Translated sentence number " + i + " of similar length. ";
+                let big = new FloatingTranslationWindow(longSrc, longDst, "EN", "FR", () => {});
+                big.actor.notify('allocation');
+                await sleep(1500);
+                let ceiling = Math.floor(area.height * 0.60) + 2;
+                let gotH = Math.round(big.actor.get_height());
+                let rounds = big._settleCount;
+                big.destroy();
+                if (gotH > ceiling) {
+                    win.destroy();
+                    return { success: false, error: "Long-text card exceeded the 60% work-area budget! height=" + gotH + " ceiling=" + ceiling + " workAreaHeight=" + area.height + " srcLen=" + longSrc.length };
+                }
+                if (rounds > 5) {
+                    win.destroy();
+                    return { success: false, error: "Height settle loop did not converge (label height ratcheting?) _settleCount=" + rounds };
+                }
+            }
+
             // Verify click on backdrop overlay destroys the window
             // (the popup intentionally has no keypress/modal handler; see
             // FloatingTranslationWindow constructor note about focus theft)

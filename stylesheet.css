@@ -260,6 +260,13 @@
     font-weight: bold;
 }
 
+/* A service error replaces the translation in the same region. Drop the bold
+   so a multi-line message reads as prose rather than as a result. */
+.translate-floating-text-dest.error {
+    color: #ff7b63;
+    font-weight: normal;
+}
+
 .translate-floating-actions {
     spacing: 12px;
     margin-top: 8px;

@@ -434,9 +434,11 @@ var FastTranslate = GObject.registerClass(
                     const w = this._floatingWindow;
                     if (w) {
                         try {
-                            w.setTargetText(toText && toText.trim() !== ""
-                                ? toText
-                                : (errMsg || _('Translation failed — please try again.')));
+                            if (toText && toText.trim() !== "") {
+                                w.setTargetText(toText);
+                            } else {
+                                w.setErrorState(errMsg || _('Translation failed — please try again.'));
+                            }
                         } catch (_e) {}
                     }
                 });
@@ -500,6 +502,20 @@ var FastTranslate = GObject.registerClass(
                                     reTranslate();
                                 }
                             },
+                            onRetry: () => {
+                                if (this._destroyed) return;
+                                const w = this._floatingWindow;
+                                if (!w) return;
+                                try {
+                                    // setTargetText clears the error styling and
+                                    // hides the retry button; setLoading re-dims
+                                    // the copy button and restarts the spinner.
+                                    w.setTargetText(PLACEHOLDER);
+                                    w.setLoading(true);
+                                } catch (_e) {}
+                                this._armSafetyTimeout(w, PLACEHOLDER);
+                                reTranslate();
+                            },
                             charLimit,
                             serviceName,
                             srcLength: fromText.length,
@@ -520,29 +536,7 @@ var FastTranslate = GObject.registerClass(
                     // the window stays as a backup; whichever fires first wins
                     // (dismiss is idempotent).
                     this._bindEsc();
-                    try {
-                        // Safety net: display backstop so the placeholder is never
-                        // stuck forever. Request cancellation lives on the
-                        // per-request watchdog in _translateTextIndependent;
-                        // this timer only replaces still-pending placeholder
-                        // text (its message matches the watchdog outcome).
-                        // Drop any timer from a previous trigger first: otherwise the
-                        // stale source stays alive and its callback nulls the new id,
-                        // leaving destroy() unable to remove the live timer.
-                        if (this._safetyTimeoutId) {
-                            GLib.Source.remove(this._safetyTimeoutId);
-                            this._safetyTimeoutId = null;
-                        }
-                        this._safetyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SAFETY_TIMEOUT_MS, () => {
-                            this._safetyTimeoutId = null;
-                            try {
-                                if (win._currentTarget === PLACEHOLDER && this._floatingWindow === win) {
-                                    win.setTargetText(_('Request timed out. Please check your connection and try again.'));
-                                }
-                            } catch (_e) {}
-                            return GLib.SOURCE_REMOVE;
-                        });
-                    } catch (_e) {}
+                    this._armSafetyTimeout(win, PLACEHOLDER);
                 }
             }
 
@@ -573,12 +567,40 @@ var FastTranslate = GObject.registerClass(
                 } else if (!isBackground && myWin && this._floatingWindow === myWin) {
                     // Empty reply or reported failure: surface the reason in the
                     // open window instead of leaving the placeholder until the
-                    // 12s safety net fires.
+                    // 12s safety net fires. Error state, so the retry button is
+                    // available rather than forcing a re-copy.
                     try {
-                        myWin.setTargetText(errMsg || _('Translation failed — please try again.'));
+                        myWin.setErrorState(errMsg || _('Translation failed — please try again.'));
                     } catch (_e) {}
                 }
             });
+        }
+
+        // Display backstop so a placeholder is never stuck forever. Request
+        // cancellation lives on the per-request watchdog in
+        // _translateTextIndependent; this timer only replaces still-pending
+        // placeholder text (its message matches the watchdog outcome).
+        // Re-armed on every attempt, including retries — without that a hung
+        // retry would spin until the window is closed.
+        _armSafetyTimeout(win, placeholder) {
+            try {
+                // Drop any timer from a previous attempt first: otherwise the
+                // stale source stays alive and its callback nulls the new id,
+                // leaving destroy() unable to remove the live timer.
+                if (this._safetyTimeoutId) {
+                    GLib.Source.remove(this._safetyTimeoutId);
+                    this._safetyTimeoutId = null;
+                }
+                this._safetyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SAFETY_TIMEOUT_MS, () => {
+                    this._safetyTimeoutId = null;
+                    try {
+                        if (win._currentTarget === placeholder && this._floatingWindow === win) {
+                            win.setErrorState(_('Request timed out. Please check your connection and try again.'));
+                        }
+                    } catch (_e) {}
+                    return GLib.SOURCE_REMOVE;
+                });
+            } catch (_e) {}
         }
 
         _translateTextIndependent(fromText, callback) {
@@ -699,7 +721,12 @@ var FastTranslate = GObject.registerClass(
                 myFloatingCancellable,
                 (session, result) => {
                     floatState.settled = true;
-                    try { GLib.Source.remove(floatWatchdogId); } catch (_e) {}
+                    // A watchdog that already fired returned SOURCE_REMOVE, so
+                    // its id is dead; removing it again logs
+                    // "Source ID n was not found when attempting to remove it".
+                    if (!floatState.timedOut) {
+                        try { GLib.Source.remove(floatWatchdogId); } catch (_e) {}
+                    }
                     if (this._floatingCancellable === myFloatingCancellable) {
                         this._floatingCancellable = null;
                     }
@@ -999,6 +1026,7 @@ class FloatingTranslationWindow {
         this._onDestroy = onDestroy;
         this._settings = settings;
         this._onSwap = opts?.onSwap ?? null;
+        this._onRetry = opts?.onRetry ?? null;
         this._srcLang = sourceLang;
         this._tgtLang = targetLang;
         // Pick ONE monitor for this popup and derive every geometry decision
@@ -1211,6 +1239,27 @@ class FloatingTranslationWindow {
             actions.add_child(this._swapBtn);
         }
 
+        // Retry, revealed only by setErrorState(). Reuses the copy button's
+        // style classes so it needs no CSS of its own. Must stay after copyBtn:
+        // eval-test locates the copy button at actions.get_children()[0].
+        this._retryBtn = null;
+        if (this._onRetry) {
+            this._retryBtn = new St.Button({
+                style_class: 'translate-action-btn',
+                reactive: true,
+                visible: false
+            });
+            this._retryBtn.set_child(new St.Icon({
+                icon_name: 'view-refresh-symbolic',
+                style_class: 'translate-btn-icon'
+            }));
+            this._retryBtn.connect('clicked', () => {
+                if (this._winDestroyed || !this._onRetry) return;
+                try { this._onRetry(); } catch (_e) {}
+            });
+            actions.add_child(this._retryBtn);
+        }
+
         let spacer = new St.Widget({ x_expand: true });
         actions.add_child(spacer);
 
@@ -1255,8 +1304,10 @@ class FloatingTranslationWindow {
         }
 
         this.actor.add_child(actions);
+        // _copyBtn must stay reachable: setLoading() is its only consumer and
+        // runs immediately below. Nulling it here left the button looking
+        // enabled while its click handler silently swallowed every press.
         this._loading = false;
-        this._copyBtn = null;
 
         // Enter the loading state only when the caller says so (the live
         // trigger opens with a placeholder; tests may pass real text).
@@ -1446,8 +1497,10 @@ class FloatingTranslationWindow {
 
     setTargetText(text) {
         this._currentTarget = text;
-        // Any explicit target text (result or error) ends the loading state.
+        // Any explicit target text (result or placeholder) ends the loading
+        // state and clears a previous error's styling plus its retry button.
         this.setLoading(false);
+        this._setErrorUi(false);
         try {
             if (this._winDestroyed || !this._destLabel) return;
             this._destLabel.set_text(text);
@@ -1464,6 +1517,25 @@ class FloatingTranslationWindow {
                 });
                 return GLib.SOURCE_REMOVE;
             });
+        } catch (_e) {}
+    }
+
+    // Failure text in the destination region, styled as an error with the
+    // retry button revealed. Routed through setTargetText so height
+    // re-measurement and the loading teardown stay in one place.
+    setErrorState(message) {
+        this.setTargetText(message);
+        this._setErrorUi(true);
+    }
+
+    _setErrorUi(on) {
+        if (this._winDestroyed) return;
+        try {
+            if (this._destLabel) {
+                if (on) this._destLabel.add_style_class_name('error');
+                else this._destLabel.remove_style_class_name('error');
+            }
+            if (this._retryBtn) this._retryBtn.visible = !!on;
         } catch (_e) {}
     }
 
@@ -1625,6 +1697,8 @@ class FloatingTranslationWindow {
         this._title = null;
         this._swapBtn = null;
         this._swapTip = null;
+        this._retryBtn = null;
+        this._onRetry = null;
         if (this.overlay) {
             try { this.overlay.destroy(); } catch (_e) {}
             this.overlay = null;

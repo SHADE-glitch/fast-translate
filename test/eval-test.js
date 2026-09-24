@@ -155,12 +155,78 @@ global.testRunnerPromise = (async () => {
                     indicator._translateTextIndependent = originalTranslateTextIndependent;
                     return { success: false, error: "Floating window did not enter loading state!" };
                 }
-                if (w._copyBtn && w._copyBtn.reactive !== false) {
+                // Strict: a null _copyBtn must FAIL, not silently pass. That
+                // guard is exactly what let the "button looks enabled but does
+                // nothing while loading" bug hide.
+                if (!w._copyBtn) {
+                    GLib.get_monotonic_time = originalGetMonotonicTime;
+                    Clipboard.get_text = originalClipboardGetText;
+                    Clipboard.set_text = originalClipboardSetText;
+                    indicator._translateTextIndependent = originalTranslateTextIndependent;
+                    return { success: false, error: "Copy button reference was dropped — setLoading() can never disarm it!" };
+                }
+                if (w._copyBtn.reactive !== false) {
                     GLib.get_monotonic_time = originalGetMonotonicTime;
                     Clipboard.get_text = originalClipboardGetText;
                     Clipboard.set_text = originalClipboardSetText;
                     indicator._translateTextIndependent = originalTranslateTextIndependent;
                     return { success: false, error: "Copy button must be disarmed while loading!" };
+                }
+                if (w._copyBtn.opacity !== 110) {
+                    GLib.get_monotonic_time = originalGetMonotonicTime;
+                    Clipboard.get_text = originalClipboardGetText;
+                    Clipboard.set_text = originalClipboardSetText;
+                    indicator._translateTextIndependent = originalTranslateTextIndependent;
+                    return { success: false, error: "Copy button was not visibly dimmed while loading! opacity=" + w._copyBtn.opacity };
+                }
+            }
+
+            // Error state must be honest: the failure surfaces in place AND
+            // offers a retry, instead of only overwriting the translation
+            // region with prose the user cannot act on.
+            // (No manual mock cleanup on these returns: the finally block at
+            // the end of this test restores all four mocks.)
+            {
+                const w = indicator._floatingWindow;
+                independentTranslationCallback("", "Simulated network failure");
+
+                if (w._loading !== false) {
+                    return { success: false, error: "Error reply did not end the loading state!" };
+                }
+                if (w._currentTarget !== "Simulated network failure") {
+                    return { success: false, error: "Error text was not written into the window! Got: " + w._currentTarget };
+                }
+                if (w._destLabel.style_class.indexOf('error') === -1) {
+                    return { success: false, error: "Destination label was not marked as error! class=" + w._destLabel.style_class };
+                }
+                if (!w._retryBtn) {
+                    return { success: false, error: "No retry button exists for the error state!" };
+                }
+                if (w._retryBtn.visible !== true) {
+                    return { success: false, error: "Retry button was not revealed on error!" };
+                }
+                if (w._copyBtn.reactive !== true || w._copyBtn.opacity !== 255) {
+                    return { success: false, error: "Copy button must be re-armed and undimmed once loading ends! reactive=" + w._copyBtn.reactive + " opacity=" + w._copyBtn.opacity };
+                }
+
+                // Clicking retry re-issues the request, re-enters loading and
+                // withdraws the error affordances.
+                const callsBefore = independentCallCount;
+                w._retryBtn.emit('clicked', 0);
+                if (independentCallCount !== callsBefore + 1) {
+                    return { success: false, error: "Retry did not re-issue the translation (calls " + callsBefore + " -> " + independentCallCount + ")" };
+                }
+                if (w._loading !== true) {
+                    return { success: false, error: "Retry did not re-enter the loading state!" };
+                }
+                if (w._retryBtn.visible !== false) {
+                    return { success: false, error: "Retry button stayed visible after being clicked!" };
+                }
+                if (w._destLabel.style_class.indexOf('error') !== -1) {
+                    return { success: false, error: "Error styling was not cleared on retry! class=" + w._destLabel.style_class };
+                }
+                if (w._copyBtn.reactive !== false || w._copyBtn.opacity !== 110) {
+                    return { success: false, error: "Copy button must be disarmed and dimmed again while the retry loads! reactive=" + w._copyBtn.reactive + " opacity=" + w._copyBtn.opacity };
                 }
             }
 

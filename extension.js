@@ -50,6 +50,10 @@ const CLOSE_SHORTCUT_SETTING_KEY = "keybinding-close-floating-window";
 // same text (shortcut re-press, double-copy, language swap) are common;
 // without a cache every one costs a network round-trip and quota.
 const TRANSLATION_CACHE_MAX = 50;
+// Total resident character budget for the cache. The key embeds the full source
+// text and the value is the full translation, so a count-only cap let 50
+// requests of 5000 characters each (~1MB of strings) sit in the shell process.
+const TRANSLATION_CACHE_MAX_CHARS = 200000;
 // Watchdog delay for translation requests. Soup.Session already times out at
 // 10s; this only fires when the Soup layer itself hangs without a callback,
 // turning a stuck "Cancel" button / "Translating…" placeholder into an
@@ -68,6 +72,7 @@ class Tooltip {
         this._text = text;
         this._tooltipActor = null;
         this._timeoutId = null;
+        this._allocationId = null;
 
         this._hoverId = this._actor.connect('notify::hover', () => {
             if (this._actor.hover) {
@@ -125,7 +130,16 @@ class Tooltip {
             if (ty < 0) {
                 ty = y + height + 6;
             }
-            if (tx < 5) tx = 5;
+            // Clamp all four edges. The tooltip lives in Main.uiGroup, so an
+            // unclamped position puts it off-screen with no way to reach it;
+            // previously only the left edge was handled.
+            const margin = 5;
+            const stageW = global.stage.width;
+            const stageH = global.stage.height;
+            if (tx < margin) tx = margin;
+            if (tx + tooltipWidth > stageW - margin) tx = stageW - tooltipWidth - margin;
+            if (ty < margin) ty = margin;
+            if (ty + tooltipHeight > stageH - margin) ty = stageH - tooltipHeight - margin;
 
             this._tooltipActor.set_position(Math.round(tx), Math.round(ty));
         });
@@ -401,9 +415,17 @@ var FastTranslate = GObject.registerClass(
                 this._translationCache.delete(key);
             }
             this._translationCache.set(key, value);
-            while (this._translationCache.size > TRANSLATION_CACHE_MAX) {
-                // Evict the oldest (first-inserted) entry.
+            // Evict the oldest (first-inserted) entries until BOTH budgets are
+            // met. The size > 1 guard stops a just-inserted entry from being
+            // evicted by its own length.
+            let chars = 0;
+            for (const [k, v] of this._translationCache) chars += k.length + v.length;
+            while (this._translationCache.size > 1 &&
+                (this._translationCache.size > TRANSLATION_CACHE_MAX ||
+                    chars > TRANSLATION_CACHE_MAX_CHARS)) {
                 const oldest = this._translationCache.keys().next().value;
+                const oldestValue = this._translationCache.get(oldest);
+                chars -= oldest.length + (oldestValue ? oldestValue.length : 0);
                 this._translationCache.delete(oldest);
             }
         }
@@ -873,11 +895,7 @@ var FastTranslate = GObject.registerClass(
         }
 
         _showError(messageText) {
-            if (this.errorLabel) {
-                this.errorLabel.text = messageText;
-            } else {
-                Main.notify("Fast Translate", messageText);
-            }
+            Main.notify("Fast Translate", messageText);
         }
 
         _get_country_code(description) {
@@ -1113,7 +1131,10 @@ class FloatingTranslationWindow {
         this._warnLabel = null;
         if (this._truncated) {
             this._warnLabel = new St.Label({
-                text: `${srcLength} / ${charLimit} 字符，文本超过${serviceName}翻译服务的单次请求限制，已截断`,
+                // Translators: %s is the translation service name (Google / DeepL).
+                // The counts stay outside the msgid — they are locale-neutral.
+                text: `${srcLength} / ${charLimit} · ` +
+                    _('Text exceeds the %s single-request limit and was truncated').replace('%s', serviceName),
                 style_class: 'translate-floating-warning',
                 x_expand: true,
                 y_align: Clutter.ActorAlign.CENTER
@@ -1232,7 +1253,7 @@ class FloatingTranslationWindow {
                 reactive: true
             });
             this._swapBtn.connect('clicked', () => this._onSwap());
-            this._swapTip = new Tooltip(this._swapBtn, _('交换源语言和目标语言'));
+            this._swapTip = new Tooltip(this._swapBtn, _('Swap source and target languages'));
             actions.add_child(this._swapBtn);
         }
 

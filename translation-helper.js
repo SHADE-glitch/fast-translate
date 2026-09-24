@@ -182,4 +182,192 @@ export function buildDeepLRequestBody({ fromText, sourceLang, targetLang, splitS
     return bodyObj;
 }
 
+/* =========================================================================
+ * Provider registry
+ *
+ * The gschema `translation-service` enum is the index into PROVIDERS. Values
+ * are append-only: an existing installation stores the integer, so reordering
+ * silently repoints a user's saved choice at a different service.
+ *
+ * Request builders are pure and take the hash primitives as an injected
+ * `hash` argument, because signing needs MD5/HMAC and this module is also
+ * loaded by test/unit.test.js under plain Node where gi:// is unavailable.
+ * extension.js injects signing.js's GLib-backed bundle; the Node tests inject
+ * node:crypto. Same function, two backends, identical output — that is what
+ * makes the signatures testable without any network or credentials.
+ * ========================================================================= */
+
+export const PROVIDERS = [
+    { value: 0, id: 'deepl', label: 'DeepL', charLimit: 5000 },
+    { value: 1, id: 'google', label: 'Google Translate', charLimit: 5000 },
+    { value: 2, id: 'baidu', label: 'Baidu Translate', charLimit: 6000 },
+    { value: 3, id: 'youdao', label: 'Youdao Translate', charLimit: 5000 },
+];
+
+export function getProvider(value) {
+    return PROVIDERS.find(p => p.value === value) || null;
+}
+
+/**
+ * Language codes are provider-specific and the gschema enums are DeepL-shaped
+ * (AUTO, EN-GB, EN-US, PT-PT, PT-BR). Anything unmapped returns null, which
+ * extension.js turns into "not supported by <provider>" instead of sending a
+ * guessed code that fails with an opaque server error.
+ *
+ * 待确认 (both providers): Baidu's and Youdao's official API docs render the
+ * language table client-side, so it could not be read back while writing this,
+ * and there are no credentials to probe with. The tables therefore list ONLY
+ * codes that could be stated with confidence, and omit the rest on purpose —
+ * an omitted language costs the user a clear local message, while a wrong code
+ * costs a cryptic HTTP 200 error body. Re-check against the live docs and add
+ * the missing pairs once an APP ID/secret is available.
+ */
+const LANG_CODES = {
+    // Baidu general-translate codes. Not ISO-639-1: jp/fra/spa/bul/est/dan/
+    // fin/rom/swe are Baidu's own spellings.
+    // Deliberately absent: SK, SL, ID, LT, LV, TR — not verifiable, see above.
+    baidu: {
+        AUTO: 'auto', ZH: 'zh', EN: 'en', 'EN-US': 'en', 'EN-GB': 'en',
+        JA: 'jp', FR: 'fra', ES: 'spa', RU: 'ru', PT: 'pt', 'PT-PT': 'pt',
+        'PT-BR': 'pt', DE: 'de', IT: 'it', EL: 'el', NL: 'nl', PL: 'pl',
+        BG: 'bul', CS: 'cs', DA: 'dan', ET: 'est', FI: 'fin', HU: 'hu',
+        RO: 'rom', SV: 'swe',
+    },
+    // Youdao uses zh-CHS for Simplified Chinese and ISO-639-1 elsewhere.
+    youdao: {
+        AUTO: 'auto', ZH: 'zh-CHS', EN: 'en', 'EN-US': 'en', 'EN-GB': 'en',
+        JA: 'ja', FR: 'fr', ES: 'es', RU: 'ru', PT: 'pt', 'PT-PT': 'pt',
+        'PT-BR': 'pt', DE: 'de', IT: 'it', NL: 'nl', PL: 'pl', CS: 'cs',
+        DA: 'da', FI: 'fi', HU: 'hu', RO: 'ro', SV: 'sv', TR: 'tr',
+        EL: 'el', BG: 'bg', ET: 'et', LT: 'lt', LV: 'lv', SK: 'sk', SL: 'sl',
+        ID: 'id',
+    },
+};
+
+/**
+ * @param {string} providerId - e.g. 'baidu'
+ * @param {string} code - gschema code such as 'EN-US' or 'AUTO'
+ * @returns {string|null} provider code, or null when unsupported
+ */
+export function mapLangCode(providerId, code) {
+    if (!code) return null;
+    const table = LANG_CODES[providerId];
+    if (!table) return null;
+    const upper = String(code).toUpperCase();
+    if (table[upper] !== undefined) return table[upper];
+    // Regional variants the table does not list explicitly (e.g. a future
+    // EN-AU) fall back to their base language when that is supported.
+    const dash = upper.indexOf('-');
+    if (dash > 0 && table[upper.slice(0, dash)] !== undefined) {
+        return table[upper.slice(0, dash)];
+    }
+    return null;
+}
+
+/**
+ * Baidu general translate.
+ * sign = md5(appid + q + salt + secretKey), hex, over the RAW query text — so
+ * `q` must be the unescaped string, not its urlencoded form.
+ *
+ * Every request builder below returns the same shape, which is what lets
+ * extension.js feed any of them to one Soup.Message:
+ *   success: { url, method, contentType, headers, body }
+ *   failure: { error: { code, detail } } — currently only 'unsupported-language'
+ * @returns {{url:string, method:string, contentType:string, headers:Object, body:string}|{error:{code:string, detail:string}}}
+ */
+export function buildBaiduRequest({ appid, secretKey, fromText, sourceLang, targetLang, salt, hash }) {
+    const from = mapLangCode('baidu', sourceLang);
+    const to = mapLangCode('baidu', targetLang);
+    if (!from || !to) return { error: { code: 'unsupported-language', detail: `${sourceLang}->${targetLang}` } };
+    const sign = hash.md5Hex(`${appid}${fromText}${salt}${secretKey}`);
+    return {
+        url: 'https://fanyi-api.baidu.com/api/trans/vip/translate',
+        method: 'POST',
+        contentType: 'application/x-www-form-urlencoded',
+        headers: {},
+        body: buildRequestQuery({ q: fromText, from, to, appid, salt, sign }),
+    };
+}
+
+/**
+ * Youdao v3 signing.
+ *   truncate(input) = input                          when input.length <= 20
+ *                   = input[0:10] + len + input[-10:]  otherwise
+ *   sign = base64(sha256(appKey + truncate(input) + salt + curtime + appSecret))
+ * The SHA-256 digest is base64'd as RAW BYTES, not as its hex text.
+ * `curtime` is Unix seconds as a string and `salt` any unique request id; both
+ * are passed in so the builder stays pure and deterministic under test.
+ */
+export function youdaoTruncate(input) {
+    const s = String(input);
+    if (s.length <= 20) return s;
+    return s.slice(0, 10) + s.length + s.slice(-10);
+}
+
+export function buildYoudaoRequest({ appid, secretKey, fromText, sourceLang, targetLang, salt, curtime, hash }) {
+    const from = mapLangCode('youdao', sourceLang);
+    const to = mapLangCode('youdao', targetLang);
+    if (!from || !to) return { error: { code: 'unsupported-language', detail: `${sourceLang}->${targetLang}` } };
+    const sign = hash.sha256Base64(
+        `${appid}${youdaoTruncate(fromText)}${salt}${curtime}${secretKey}`
+    );
+    return {
+        url: 'https://openapi.youdao.com/api',
+        method: 'POST',
+        contentType: 'application/x-www-form-urlencoded',
+        headers: {},
+        body: buildRequestQuery({
+            q: fromText, from, to, appKey: appid, salt, sign,
+            signType: 'v3', curtime,
+        }),
+    };
+}
+
+/**
+ * Extract the translated text (or a provider failure) from a 200 response.
+ *
+ * Failures come back as { code, detail } rather than prose: this module must
+ * stay free of gettext so test/unit.test.js can import it under plain Node,
+ * and extension.js turns the code into a translated sentence.
+ *   code: 'malformed-response' | 'empty-translation' | 'provider-error'
+ *       | 'unknown-provider'
+ *   detail: provider-supplied raw text (server error message / provider id)
+ * @returns {{text?:string, error?:{code:string, detail:string}}}
+ */
+export function parseProviderResponse(providerId, json) {
+    if (!json || typeof json !== 'object') {
+        return { error: { code: 'malformed-response', detail: String(providerId) } };
+    }
+    const empty = { error: { code: 'empty-translation', detail: String(providerId) } };
+    switch (providerId) {
+    case 'deepl': {
+        const t = json.translations;
+        const text = (t && t.length > 0) ? t[0].text : '';
+        return text ? { text } : empty;
+    }
+    case 'google': {
+        const text = (json && json[0]) ? json[0].map(part => part[0]).join('') : '';
+        return text ? { text } : empty;
+    }
+    case 'baidu': {
+        if (json.error_code) {
+            const detail = [json.error_code, json.error_msg].filter(Boolean).join(' ');
+            return { error: { code: 'provider-error', detail } };
+        }
+        const data = json.result && json.result.data;
+        const text = Array.isArray(data) ? data.map(d => d.dst).join('') : '';
+        return text ? { text } : empty;
+    }
+    case 'youdao': {
+        if (json.errorCode && String(json.errorCode) !== '0') {
+            return { error: { code: 'provider-error', detail: String(json.errorCode) } };
+        }
+        const text = Array.isArray(json.translation) ? json.translation.join('') : '';
+        return text ? { text } : empty;
+    }
+    default:
+        return { error: { code: 'unknown-provider', detail: String(providerId) } };
+    }
+}
+
 

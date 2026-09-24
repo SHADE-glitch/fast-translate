@@ -33,7 +33,8 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse } from "./translation-helper.js";
+import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -59,9 +60,9 @@ const TRANSLATION_CACHE_MAX_CHARS = 200000;
 // turning a stuck "Cancel" button / "Translating…" placeholder into an
 // explicit timeout error and cancelling the underlying request.
 const SAFETY_TIMEOUT_MS = 12000;
-// Per-service single-request character limits (shown, never silent).
-const FLOAT_GOOGLE_CHAR_LIMIT = 5000;
-const FLOAT_DEEPL_CHAR_LIMIT = 5000;
+// Per-service single-request character limits live in PROVIDERS
+// (translation-helper.js) so the popup warning and the request truncation can
+// never disagree about the active service.
 // Same-text re-trigger suppression window (µs). After a floating window is
 // triggered, repeated double-copies of the SAME text are ignored for this long.
 const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
@@ -381,6 +382,10 @@ var FastTranslate = GObject.registerClass(
             this._formality = this._getValue('formality');
             this._url = this._getValue('url');
             this._apikey = this._getValue('apikey');
+            this._baiduAppid = this._getValue('baidu-appid');
+            this._baiduSecret = this._getValue('baidu-secret');
+            this._youdaoAppid = this._getValue('youdao-appid');
+            this._youdaoSecret = this._getValue('youdao-secret');
             this._notifications = this._getValue('notifications');
             this._darktheme = this._getValue('darktheme');
 
@@ -440,8 +445,9 @@ var FastTranslate = GObject.registerClass(
 
             // Per-service character limit for the single request (shown, never
             // silent). Truncate the REQUEST source, keep full text on display.
-            const serviceName = this._translation_service === 1 ? 'Google' : 'DeepL';
-            const charLimit = this._translation_service === 1 ? FLOAT_GOOGLE_CHAR_LIMIT : FLOAT_DEEPL_CHAR_LIMIT;
+            const provider = getProvider(this._translation_service);
+            const serviceName = provider ? provider.label : _('Unknown');
+            const charLimit = provider ? provider.charLimit : 0;
             const requestText = (charLimit > 0 && fromText.length > charLimit)
                 ? fromText.slice(0, charLimit)
                 : fromText;
@@ -625,6 +631,112 @@ var FastTranslate = GObject.registerClass(
             } catch (_e) {}
         }
 
+        // Describe the outgoing request for the configured provider as plain
+        // data so the Soup wiring in _translateTextIndependent stays
+        // provider-independent. Google and DeepL produce byte-identical output
+        // to the previous inline branches; test/unit.test.js pins their exact
+        // URLs, content types and bodies.
+        // Returns null after calling fail() when no request should be sent.
+        _buildRequestSpec(fromText, fail) {
+            const provider = getProvider(this._translation_service);
+            if (!provider) {
+                fail(_('Unknown translation service selected in settings.'));
+                return null;
+            }
+            try {
+                switch (provider.id) {
+                case 'google': {
+                    const { url, body, contentType } = buildGoogleRequest(this._source_lang, this._target_lang, fromText);
+                    return {
+                        url, method: 'POST', contentType, body,
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+                    };
+                }
+                case 'deepl': {
+                    if (!this._isSafeDeepLUrl(this._url)) {
+                        throw new Error(_("DeepL URL must use HTTPS"));
+                    }
+                    const body = JSON.stringify(buildDeepLRequestBody({
+                        fromText,
+                        sourceLang: this._source_lang,
+                        targetLang: this._target_lang,
+                        splitSentences: this._split_sentences,
+                        preserveFormatting: this._preserve_formatting,
+                        formality: this._formality,
+                    }));
+                    return {
+                        url: this._url, method: 'POST', contentType: 'application/json', body,
+                        headers: { 'Authorization': `DeepL-Auth-Key ${this._apikey}` },
+                    };
+                }
+                case 'baidu': {
+                    if (!this._baiduAppid || !this._baiduSecret) {
+                        throw new Error(_('Baidu Translate needs an APP ID and a secret key.'));
+                    }
+                    const built = buildBaiduRequest({
+                        appid: this._baiduAppid, secretKey: this._baiduSecret,
+                        fromText, sourceLang: this._source_lang, targetLang: this._target_lang,
+                        salt: String(Date.now()), hash: hashBundle,
+                    });
+                    if (built.error) {
+                        fail(this._providerErrorText(built.error));
+                        return null;
+                    }
+                    return built;
+                }
+                case 'youdao': {
+                    if (!this._youdaoAppid || !this._youdaoSecret) {
+                        throw new Error(_('Youdao Translate needs an app key and an app secret.'));
+                    }
+                    const built = buildYoudaoRequest({
+                        appid: this._youdaoAppid, secretKey: this._youdaoSecret,
+                        fromText, sourceLang: this._source_lang, targetLang: this._target_lang,
+                        salt: String(Date.now()), curtime: String(Math.floor(Date.now() / 1000)),
+                        hash: hashBundle,
+                    });
+                    if (built.error) {
+                        fail(this._providerErrorText(built.error));
+                        return null;
+                    }
+                    return built;
+                }
+                default:
+                    fail(_('Unknown translation service selected in settings.'));
+                    return null;
+                }
+            } catch (e) {
+                fail(`${_("Error")}: ${e.message || e}`);
+                return null;
+            }
+        }
+
+        // translation-helper.js must stay gettext-free (test/unit.test.js
+        // imports it under plain Node), so it reports failures as stable codes
+        // and the user-facing sentence is built here where _() is available.
+        _providerErrorText(err) {
+            const provider = getProvider(this._translation_service);
+            // Translators: fallback provider name used in error messages.
+            const label = provider ? provider.label : _('the translation service');
+            switch (err?.code) {
+            case 'unsupported-language':
+                // Translators: %s is the provider label (e.g. "Baidu Translate").
+                return _('The selected language pair is not supported by %s.').replace('%s', label);
+            case 'empty-translation':
+                // Translators: %s is the provider label.
+                return _('%s returned an empty translation.').replace('%s', label);
+            case 'provider-error':
+                // Translators: first %s is the provider label, second %s the
+                // untranslated error text the provider itself sent back.
+                return _('%s rejected the request: %s')
+                    .replace('%s', label)
+                    .replace('%s', err.detail || _('unknown error'));
+            case 'malformed-response':
+                return _('The translation service returned a malformed response.');
+            default:
+                return _('Translation failed — please try again.');
+            }
+        }
+
         _translateTextIndependent(fromText, callback) {
             if (!fromText || fromText.trim() === "") return;
 
@@ -642,9 +754,14 @@ var FastTranslate = GObject.registerClass(
                 try { callback("", msg); } catch (_e) {}
             };
 
-            const indepCacheExtra = this._translation_service === 1
-                ? ''
-                : `${this._split_sentences}|${!!this._preserve_formatting}|${this._formality}|${this._url}`;
+            const provider = getProvider(this._translation_service);
+            const providerId = provider ? provider.id : null;
+            // DeepL-affecting options must be part of the key so a formality or
+            // endpoint change never reads back a stale translation. The other
+            // providers take no such options.
+            const indepCacheExtra = providerId === 'deepl'
+                ? `${this._split_sentences}|${!!this._preserve_formatting}|${this._formality}|${this._url}`
+                : '';
             const indepCacheKey = this._makeCacheKey(
                 this._translation_service, this._source_lang, this._target_lang, fromText, indepCacheExtra);
             const indepCached = this._cacheGet(indepCacheKey);
@@ -653,49 +770,20 @@ var FastTranslate = GObject.registerClass(
                 return;
             }
 
+            const spec = this._buildRequestSpec(fromText, fail);
+            if (!spec) return;
+
             let message;
-            if (this._translation_service === 1) {
-                // Google Translate (Auth-Free)
-                const { url, body, contentType } = buildGoogleRequest(this._source_lang, this._target_lang, fromText);
-                const bytes = new GLib.Bytes(body);
-
-                try {
-                    message = Soup.Message.new('POST', url);
-                    if (!message) throw new Error(_("Invalid URL"));
-                } catch (e) {
-                    fail(`${_("Error")}: ${e.message}`);
-                    return;
-                }
-
-                message.set_request_body_from_bytes(contentType, bytes);
-                message.request_headers.replace('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-            } else {
-                // DeepL
-                const bodyObj = buildDeepLRequestBody({
-                    fromText,
-                    sourceLang: this._source_lang,
-                    targetLang: this._target_lang,
-                    splitSentences: this._split_sentences,
-                    preserveFormatting: this._preserve_formatting,
-                    formality: this._formality,
-                });
-
-                const body = JSON.stringify(bodyObj);
-                const bytes = new GLib.Bytes(body);
-
-                try {
-                    if (!this._isSafeDeepLUrl(this._url)) {
-                        throw new Error(_("DeepL URL must use HTTPS"));
-                    }
-                    message = Soup.Message.new('POST', this._url);
-                    if (!message) throw new Error(_("Invalid URL"));
-                } catch (e) {
-                    fail(`${_("Error")}: ${e.message}`);
-                    return;
-                }
-
-                message.request_headers.replace('Authorization', `DeepL-Auth-Key ${this._apikey}`);
-                message.set_request_body_from_bytes('application/json', bytes);
+            try {
+                message = Soup.Message.new(spec.method, spec.url);
+                if (!message) throw new Error(_("Invalid URL"));
+            } catch (e) {
+                fail(`${_("Error")}: ${e.message}`);
+                return;
+            }
+            message.set_request_body_from_bytes(spec.contentType, new GLib.Bytes(spec.body));
+            for (const name in spec.headers) {
+                message.request_headers.replace(name, spec.headers[name]);
             }
             
             if (this._destroyed || !this._httpSession) return;
@@ -771,18 +859,18 @@ var FastTranslate = GObject.registerClass(
                             let response = decoder.decode(resBytes.get_data());
                             let json = JSON.parse(response);
                             
-                            let toText = "";
-                            if (this._translation_service === 1) {
-                                toText = (json && json[0]) ? json[0].map(part => part[0]).join('') : "";
+                            // Providers report their own failures inside a 200
+                            // body (Baidu error_code, Youdao errorCode), so the
+                            // envelope is parsed per provider instead of being
+                            // assumed to be a success.
+                            const parsed = parseProviderResponse(providerId, json);
+                            if (parsed.text && parsed.text.trim() !== "") {
+                                this._cacheSet(indepCacheKey, parsed.text);
+                                callback(parsed.text);
                             } else {
-                                let translations = json.translations;
-                                toText = (translations && translations.length > 0) ? translations[0].text : "";
+                                failIfCurrent(this._providerErrorText(parsed.error));
                             }
-                            if (toText && toText.trim() !== "") {
-                                this._cacheSet(indepCacheKey, toText);
-                            }
-                            callback(toText);
-                        } else if (this._translation_service === 1 && (message.status_code === 403 || message.status_code === 429)) {
+                        } else if (providerId === 'google' && (message.status_code === 403 || message.status_code === 429)) {
                             failIfCurrent(_("Rate-limited or blocked by Google Translate. Please try again later."));
                         } else {
                             let bodyMsg = "";
@@ -806,7 +894,8 @@ var FastTranslate = GObject.registerClass(
 
         _httpStatusMessage(statusCode, bodyMessage) {
             const extra = bodyMessage ? `\n${bodyMessage}` : "";
-            if (this._translation_service === 1 && (statusCode === 403 || statusCode === 429)) {
+            const provider = getProvider(this._translation_service);
+            if (provider && provider.id === 'google' && (statusCode === 403 || statusCode === 429)) {
                 return _("Rate-limited or blocked by Google Translate. Please try again later.");
             }
             if (statusCode === 429) {

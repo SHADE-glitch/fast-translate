@@ -67,6 +67,11 @@
     <enum id="org.gnome.shell.extensions.fast-translate.translation-service">
         <value value="0" nick="DeepL"/>
         <value value="1" nick="Google Translate"/>
+        <!-- Append-only: gsettings stores the integer, so renumbering would
+             silently repoint a saved choice at a different service. Keep in
+             step with PROVIDERS in translation-helper.js. -->
+        <value value="2" nick="Baidu Translate"/>
+        <value value="3" nick="Youdao Translate"/>
     </enum>
 
     <schema path="/org/gnome/shell/extensions/fast-translate/" id="org.gnome.shell.extensions.fast-translate">
@@ -109,6 +114,28 @@
             <default>""</default>
             <summary>DeepL API key</summary>
             <description>Set DeepL API key</description>
+        </key>
+        <!-- Stored in plaintext in dconf, like the existing apikey. Each
+             credential is only ever sent to its own provider's HTTPS endpoint. -->
+        <key name="baidu-appid" type="s">
+            <default>""</default>
+            <summary>Baidu Translate APP ID</summary>
+            <description>APP ID from the Baidu Translate open platform. Required when the translation service is Baidu.</description>
+        </key>
+        <key name="baidu-secret" type="s">
+            <default>""</default>
+            <summary>Baidu Translate secret key</summary>
+            <description>Secret key paired with the Baidu APP ID. Used locally to compute the request signature; sent nowhere else.</description>
+        </key>
+        <key name="youdao-appid" type="s">
+            <default>""</default>
+            <summary>Youdao Translate app key</summary>
+            <description>Application ID from the Youdao open platform. Required when the translation service is Youdao.</description>
+        </key>
+        <key name="youdao-secret" type="s">
+            <default>""</default>
+            <summary>Youdao Translate app secret</summary>
+            <description>Application secret paired with the Youdao app key. Used locally to compute the v3 request signature.</description>
         </key>
         <key name="keybinding-translate-clipboard" type="as">
             <default><![CDATA[['<Super>t']]]></default>

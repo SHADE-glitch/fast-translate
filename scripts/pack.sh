@@ -7,7 +7,7 @@ rm -f *.zip
 
 echo "📦 Copying files to temporary directory..."
 mkdir -p /tmp/fast-translate-pack
-cp -r extension.js prefs.js translation-helper.js metadata.json stylesheet-base.css stylesheet-light.css stylesheet-dark.css icons/ po/ schemas/ /tmp/fast-translate-pack/
+cp -r extension.js prefs.js translation-helper.js signing.js metadata.json stylesheet-base.css stylesheet-light.css stylesheet-dark.css icons/ po/ schemas/ /tmp/fast-translate-pack/
 
 echo "⚡ Compiling GSettings schemas..."
 glib-compile-schemas /tmp/fast-translate-pack/schemas/
@@ -15,9 +15,11 @@ glib-compile-schemas /tmp/fast-translate-pack/schemas/
 echo "🎁 Packing extension via gnome-extensions pack..."
 # There is no plain stylesheet.css: the shell picks stylesheet-<variant>.css
 # from Main.getStyleVariant(). gnome-extensions pack only auto-includes
-# stylesheet.css, so all three CSS files must be passed via --extra-source.
+# stylesheet.css and extension.js, so every other source file needs
+# --extra-source or it is silently left out of the zip.
 (cd /tmp/fast-translate-pack && gnome-extensions pack --force --podir=po \
     --extra-source=translation-helper.js \
+    --extra-source=signing.js \
     --extra-source=icons \
     --extra-source=stylesheet-base.css \
     --extra-source=stylesheet-light.css \

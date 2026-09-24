@@ -56,7 +56,7 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         const serviceEnums = serviceKey.get_range().deep_unpack()[1].deep_unpack();
         const serviceRow = new Adw.ComboRow({
             title: _('Translation Service'),
-            subtitle: _('Choose between Google Translate (unlimited) and DeepL (requires API key)'),
+            subtitle: _('Google Translate needs no key; DeepL, Baidu and Youdao each need their own credentials below'),
             model: Gtk.StringList.new(serviceEnums),
         });
         serviceRow.selected = settings.get_enum('translation-service');
@@ -143,6 +143,48 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         });
         settings.bind('apikey', apikeyRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         apiGroup.add(apikeyRow);
+
+        // Baidu credentials. Shown only while Baidu is the active service.
+        const baiduGroup = new Adw.PreferencesGroup({
+            title: _('Baidu Translate API Configuration'),
+            description: _('APP ID and secret key from the Baidu Translate open platform. The secret is used locally to sign each request and is stored in plaintext in dconf.'),
+        });
+        preferencesPage.add(baiduGroup);
+
+        const baiduAppidRow = new Adw.EntryRow({
+            title: _('APP ID'),
+        });
+        settings.bind('baidu-appid', baiduAppidRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        baiduGroup.add(baiduAppidRow);
+
+        const baiduSecretRow = new Adw.EntryRow({
+            title: _('Secret Key'),
+            use_markup: false,
+            input_purpose: Gtk.InputPurpose.PASSWORD,
+        });
+        settings.bind('baidu-secret', baiduSecretRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        baiduGroup.add(baiduSecretRow);
+
+        // Youdao credentials. Shown only while Youdao is the active service.
+        const youdaoGroup = new Adw.PreferencesGroup({
+            title: _('Youdao Translate API Configuration'),
+            description: _('Application key and secret from the Youdao open platform. The secret is used locally to compute the v3 signature and is stored in plaintext in dconf.'),
+        });
+        preferencesPage.add(youdaoGroup);
+
+        const youdaoAppidRow = new Adw.EntryRow({
+            title: _('App Key'),
+        });
+        settings.bind('youdao-appid', youdaoAppidRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        youdaoGroup.add(youdaoAppidRow);
+
+        const youdaoSecretRow = new Adw.EntryRow({
+            title: _('App Secret'),
+            use_markup: false,
+            input_purpose: Gtk.InputPurpose.PASSWORD,
+        });
+        settings.bind('youdao-secret', youdaoSecretRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        youdaoGroup.add(youdaoSecretRow);
 
         // Group 3: Formatting Options
         const formattingGroup = new Adw.PreferencesGroup({
@@ -287,12 +329,16 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         coffeeRow.add_suffix(coffeeBtn);
         linksGroup.add(coffeeRow);
 
-        // Helper function for service-specific visibility
+        // Helper function for service-specific visibility. The enum values are
+        // the indices into PROVIDERS in translation-helper.js.
         function updateServiceVisibility() {
-            const isDeepL = (settings.get_enum('translation-service') === 0);
+            const service = settings.get_enum('translation-service');
+            const isDeepL = (service === 0);
             apiGroup.visible = isDeepL;
             formattingGroup.visible = isDeepL;
             formalityRow.visible = isDeepL;
+            baiduGroup.visible = (service === 2);
+            youdaoGroup.visible = (service === 3);
         }
         updateServiceVisibility();
     }

@@ -588,21 +588,37 @@ global.testRunnerPromise = (async () => {
                 return { success: false, error: "Actor style class is incorrect" };
             }
 
+            // Geometry baseline: the popup's OWN monitor work area. Not the raw
+            // monitor rectangle — the top panel's strut must not push the card
+            // off-center. Headless --virtual-monitor still has a 32px panel
+            // strut, so monitor != work area even here.
+            let area = Main.layoutManager.getWorkAreaForMonitor(win._monitorIndex);
+            let areaStr = [area.x, area.y, area.width, area.height].join('x');
+
+            // The dismiss backdrop must cover ONLY that work area, never the
+            // whole stage: a stage-sized reactive overlay swallows clicks on
+            // every other monitor as dismiss gestures.
+            if (win.overlay.x !== area.x || win.overlay.y !== area.y ||
+                win.overlay.width !== area.width || win.overlay.height !== area.height) {
+                let got = [win.overlay.x, win.overlay.y, win.overlay.width, win.overlay.height].join('x');
+                win.destroy();
+                return { success: false, error: "Overlay does not match monitor work area! Expected: " + areaStr + " Got: " + got + " stage: " + global.stage.width + "x" + global.stage.height };
+            }
+
             // Simulate allocation event to trigger centering logic, then wait
             // for the settle chain (height caps + recenter run on idle).
             win.actor.notify('allocation');
             await sleep(600);
 
-            let monitor = Main.layoutManager.primaryMonitor;
-            let expectedX = monitor.x + (monitor.width - win.actor.get_width()) / 2;
-            let expectedY = monitor.y + (monitor.height - win.actor.get_height()) / 2;
+            let expectedX = area.x + (area.width - win.actor.get_width()) / 2;
+            let expectedY = area.y + (area.height - win.actor.get_height()) / 2;
             // Capture geometry BEFORE destroy: the mismatch branch destroys
             // first, which nulls actor and would mask Expected vs Got.
             let gotX = win.actor.x;
             let gotY = win.actor.y;
             if (Math.abs(gotX - expectedX) > 2 || Math.abs(gotY - expectedY) > 2) {
                 win.destroy();
-                return { success: false, error: "FloatingTranslationWindow was not centered correctly! Expected: " + expectedX + "," + expectedY + " Got: " + gotX + "," + gotY };
+                return { success: false, error: "FloatingTranslationWindow was not centered correctly! Expected: " + expectedX + "," + expectedY + " Got: " + gotX + "," + gotY + " workArea: " + areaStr };
             }
 
             // Verify click on backdrop overlay destroys the window

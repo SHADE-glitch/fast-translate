@@ -1001,13 +1001,20 @@ class FloatingTranslationWindow {
         this._onSwap = opts?.onSwap ?? null;
         this._srcLang = sourceLang;
         this._tgtLang = targetLang;
+        // Pick ONE monitor for this popup and derive every geometry decision
+        // from it: backdrop, card centering and height caps. Previously the
+        // backdrop spanned the whole stage while the card was centered on the
+        // primary monitor, so with more than one screen the backdrop swallowed
+        // clicks on EVERY monitor while the card lived on only one of them.
+        this._monitorIndex = this._resolveMonitorIndex();
+        this._area = this._resolveWorkArea(this._monitorIndex);
         this.overlay = new St.Widget({
             style_class: 'translate-floating-overlay',
             reactive: true,
-            x: 0,
-            y: 0,
-            width: global.stage.width,
-            height: global.stage.height
+            x: this._area.x,
+            y: this._area.y,
+            width: this._area.width,
+            height: this._area.height
         });
 
         this._overlayPressHandler = () => {
@@ -1154,8 +1161,9 @@ class FloatingTranslationWindow {
         // be set — it causes a silent clip with AUTOMATIC scrollbar policy,
         // breaking scroll detection.
         try {
-            const monitor = Main.layoutManager.primaryMonitor;
-            const h = monitor?.height ?? 800;
+            // Budget against the work area (not the raw monitor) so the card
+            // can never be laid out under the top panel or a dock.
+            const h = this._area?.height ?? 800;
             this.actor.set_style(`max-height: ${Math.floor(h * 0.60)}px`);
             // Pin both scroll viewports to their caps from the very first frame
             // so layout is stable and never sustains a tall pre-measure window.
@@ -1256,14 +1264,15 @@ class FloatingTranslationWindow {
             this.setLoading(true);
         }
 
-        // Center on primary monitor
-        let monitor = Main.layoutManager.primaryMonitor;
+        // Center on this popup's monitor work area (same rect as the backdrop,
+        // so the card can never end up outside the dismissable area).
         let allocationId = this.actor.connect('notify::allocation', () => {
             this.actor.disconnect(allocationId);
             let width = this.actor.get_width();
             let height = this.actor.get_height();
-            let x = monitor.x + (monitor.width - width) / 2;
-            let y = monitor.y + (monitor.height - height) / 2;
+            const area = this._area;
+            let x = area.x + (area.width - width) / 2;
+            let y = area.y + (area.height - height) / 2;
             this.actor.set_position(x, y);
             this._allocatedWidth = width;
             // First _applyHeightCaps() runs before labels have allocated
@@ -1346,6 +1355,53 @@ class FloatingTranslationWindow {
         }
     }
 
+    // Monitor this popup belongs to. The trigger is a keyboard gesture
+    // (double Ctrl+C), so the focus owner wins over the pointer: the user is
+    // looking at the screen they were typing on. Pointers parked on another
+    // screen are the normal case, not the exception.
+    // Verified on GNOME 50: LayoutManager.focusIndex prefers the key-focus
+    // actor and falls back to global.display.focus_window.get_monitor(), and
+    // returns primaryIndex when neither exists.
+    _resolveMonitorIndex() {
+        const layoutManager = Main.layoutManager;
+        const count = layoutManager?.monitors?.length ?? 0;
+        if (count <= 0) return 0;
+        const candidates = [
+            () => layoutManager.focusIndex,
+            () => global.display.get_current_monitor(),
+            () => layoutManager.primaryIndex,
+        ];
+        for (const get of candidates) {
+            try {
+                const index = get();
+                if (Number.isInteger(index) && index >= 0 && index < count) return index;
+            } catch (_e) {}
+        }
+        return 0;
+    }
+
+    // Work area of that monitor (panel / dock struts excluded), in stage
+    // coordinates. Verified on GNOME 50: MonitorConstraint({workArea: true})
+    // consumes this very same rect, so x/y are safe to pass to set_position().
+    _resolveWorkArea(monitorIndex) {
+        const layoutManager = Main.layoutManager;
+        const monitor = layoutManager?.monitors?.[monitorIndex] ?? layoutManager?.primaryMonitor;
+        try {
+            const area = layoutManager.getWorkAreaForMonitor(monitorIndex);
+            // A zero-sized rect means monitors[] and the workspace struts are
+            // momentarily out of sync (hotplug); prefer the monitor rectangle.
+            if (area && area.width > 0 && area.height > 0) {
+                return { x: area.x, y: area.y, width: area.width, height: area.height };
+            }
+        } catch (_e) {}
+        return {
+            x: monitor?.x ?? 0,
+            y: monitor?.y ?? 0,
+            width: monitor?.width ?? global.stage.width,
+            height: monitor?.height ?? global.stage.height,
+        };
+    }
+
     _dismiss() {
         // Animated dismissal for user-initiated closes. Internal paths
         // (trigger rebuild, indicator disable) keep using instant destroy().
@@ -1414,13 +1470,14 @@ class FloatingTranslationWindow {
     _recenter() {
         try {
             if (this._winDestroyed || !this.actor) return;
-            const monitor = Main.layoutManager.primaryMonitor;
+            const area = this._area;
+            if (!area) return;
             const width = this.actor.get_width();
             const height = this.actor.get_height();
             if (!width || !height) return;
             this.actor.set_position(
-                monitor.x + (monitor.width - width) / 2,
-                monitor.y + (monitor.height - height) / 2
+                area.x + (area.width - width) / 2,
+                area.y + (area.height - height) / 2
             );
         } catch (_e) {}
     }
@@ -1434,8 +1491,8 @@ class FloatingTranslationWindow {
     // construction, so we control scrolling ONLY via set_height().
     _applyHeightCaps() {
         if (this._winDestroyed || !this.actor) return;
-        const monitor = Main.layoutManager.primaryMonitor;
-        const h = monitor?.height ?? 800;
+        // Same baseline as the max-height style above (work area, not monitor).
+        const h = this._area?.height ?? 800;
         const srcCap = Math.floor(h * 0.25);
         const destCap = Math.floor(h * 0.40);
         // GJS note: get_allocated_* returns undefined in this Shell, use get_width().

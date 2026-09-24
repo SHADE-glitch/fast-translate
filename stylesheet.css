@@ -1,78 +1,20 @@
-/* Modern styling for Translate Assistant */
+/* Fast Translate — floating translation window.
+ *
+ * Only the popup survives here. The panel-menu rules that used to fill this
+ * file were left behind when commit 3d44996 deleted the menu itself; they are
+ * gone now. Every selector below has a live style_class in extension.js.
+ *
+ * NOTE: an extension stylesheet is loaded into the shell-wide St.Theme
+ * (extensionSystem.js _loadExtensionStylesheet), so a selector here can match
+ * shell widgets that have nothing to do with this extension. Do not add bare
+ * shell class names (e.g. .popup-menu-content) — the old
+ * `.popup-menu-content { box-shadow: none }` stripped the drop shadow from
+ * every popup menu in the desktop while the extension was enabled.
+ */
 
-.translate-container {
-    padding: 8px;
-    spacing: 10px;
-    min-height: 580px;
-}
-
-/* Language Selection Header */
-.translate-lang-row {
-    spacing: 12px;
-    margin-bottom: 4px;
-}
-
-.translate-lang-label {
-    font-weight: bold;
-    font-size: 16px;
-    color: #e0e0e0;
-    padding: 12px 24px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    min-width: 96px;
-    text-align: center;
-}
-
-.translate-swap-button {
-    font-size: 16px;
-    border-radius: 40px;
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding: 8px 16px;
-    transition-duration: 0.2s;
-}
-
-.translate-swap-button:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-}
-
-.translate-swap-button:active {
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-/* Entry Wrappers and Scrollable Text Areas */
-.translate-entry-wrapper {
-    background-color: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 12px;
-    spacing: 12px;
-}
-
-.translate-scroll {
-    min-height: 160px;
-    max-height: 320px;
-    width: 500px;
-}
-
-.translate-entry {
-    background-color: transparent;
-    border: none;
-    padding: 4px;
-    font-size: 16px;
-    color: #ffffff;
-    min-height: 150px;
-}
-
-.translate-entry.read-only {
-    color: #dfdfdf;
-}
-
-/* Action buttons at the bottom of entries */
-.translate-actions-row {
-    spacing: 12px;
-}
-
+/* Action buttons: copy + retry (extension.js style_class 'translate-action-btn').
+ * The palette override at the bottom of this file wins over the rgba() values
+ * below; both blocks are kept until the theme split lands. */
 .translate-action-btn {
     padding: 8px 12px;
     border-radius: 10px;
@@ -94,38 +36,7 @@
     icon-size: 28px;
 }
 
-/* Middle translate button row */
-.translate-middle-row {
-    margin: 8px 0;
-    spacing: 12px;
-}
-
-.translate-submit-btn {
-    font-weight: bold;
-    font-size: 16px;
-    padding: 12px 40px;
-    border-radius: 12px;
-    background-color: #3584e4; /* GNOME Accent Blue */
-    color: #ffffff;
-    transition-duration: 0.2s;
-}
-
-.translate-submit-btn:hover {
-    background-color: #1b6acb;
-}
-
-.translate-submit-btn:active {
-    background-color: #1051a2;
-}
-
-.translate-error-label {
-    color: #ff7b72; /* Soft warning red */
-    font-size: 14px;
-    margin-top: 8px;
-    text-align: center;
-}
-
-/* Tooltips */
+/* Tooltip (extension.js class Tooltip, swap button only) */
 .translate-tooltip {
     background-color: #242424;
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -138,66 +49,10 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
-/* Language Button States */
-.translate-lang-label:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    color: white;
-}
-.translate-lang-label:active {
-    background-color: rgba(255, 255, 255, 0.25);
-}
-.translate-lang-label:focus {
-    box-shadow: none;
-    border: none;
-}
+/* =========================================================
+ * Floating translation window
+ * ========================================================= */
 
-/* Selector Panel Styles */
-.translate-selector-scroll {
-    /* Fill the same vertical space as the hidden input+middle+output rows */
-    min-height: 510px;
-    max-height: 510px;
-}
-
-.translate-selector-box {
-    spacing: 12px;
-    padding: 8px 0;
-}
-
-.translate-lang-selector-row {
-    spacing: 12px;
-}
-
-.translate-lang-selector-btn {
-    padding: 12px 18px;
-    border-radius: 12px;
-    background-color: rgba(255, 255, 255, 0.05);
-    color: #e0e0e0;
-    font-size: 16px;
-    transition-duration: 0.15s;
-    text-align: left;
-}
-
-.translate-lang-selector-btn:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-}
-
-.translate-lang-selector-btn:active {
-    background-color: rgba(255, 255, 255, 0.25);
-}
-
-.translate-lang-selector-btn:focus {
-    box-shadow: none;
-    border: none;
-}
-
-.translate-lang-selector-btn.selected {
-    background-color: #3584e4;
-    color: #ffffff;
-    font-weight: bold;
-}
-
-/* Floating Window Styles */
 .translate-floating-overlay {
     background-color: transparent;
 }
@@ -287,11 +142,12 @@
 }
 
 .translate-floating-src-scroll {
-    /* max-height set dynamically to 25% of monitor height in JS */
+    /* Viewport height is set from JS (25% of the monitor work area) —
+       St ignores vscrollbar_policy changes after construction. */
 }
 
 .translate-floating-dest-scroll {
-    /* max-height set dynamically to 40% of monitor height in JS */
+    /* Viewport height is set from JS (40% of the monitor work area). */
 }
 
 .translate-floating-warning {
@@ -325,70 +181,8 @@
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-
-
-/* =========================================================
- * Fast Translate - Fixed dark theme
- * Only affects Fast Translate UI.
- * ========================================================= */
-
-.translate-menu-item-container {
-    background-color: #303030;
-    color: #ffffff;
-    border-radius: 12px;
-}
-
-.translate-container {
-    background-color: transparent;
-    color: #ffffff;
-}
-
-/* Language buttons */
-.translate-lang-label {
-    background-color: #3a3a3a;
-    color: #ffffff;
-}
-
-.translate-lang-label:hover {
-    background-color: #454545;
-    color: #ffffff;
-}
-
-.translate-lang-label:active {
-    background-color: #4d4d4d;
-}
-
-/* Swap button */
-.translate-swap-button {
-    background-color: #3a3a3a;
-    color: #ffffff;
-}
-
-.translate-swap-button:hover {
-    background-color: #454545;
-}
-
-.translate-swap-button:active {
-    background-color: #4d4d4d;
-}
-
-/* Text areas */
-.translate-entry-wrapper {
-    background-color: #383838;
-    border: 1px solid #4a4a4a;
-    color: #ffffff;
-}
-
-.translate-entry {
-    background-color: transparent;
-    color: #ffffff;
-}
-
-.translate-entry.read-only {
-    color: #eeeeee;
-}
-
-/* Action buttons */
+/* Palette override for the action buttons above (kept as a separate block so
+   this commit stays a pure deletion of dead rules). */
 .translate-action-btn {
     background-color: #424242;
     color: #ffffff;
@@ -401,57 +195,4 @@
 
 .translate-action-btn:active {
     background-color: #575757;
-}
-
-/* Translate button */
-.translate-submit-btn {
-    background-color: #3584e4;
-    color: #ffffff;
-}
-
-.translate-submit-btn:hover {
-    background-color: #4b91e8;
-}
-
-.translate-submit-btn:active {
-    background-color: #2d73c7;
-}
-
-/* Language selector */
-.translate-lang-selector-btn {
-    background-color: #3a3a3a;
-    color: #ffffff;
-}
-
-.translate-lang-selector-btn:hover {
-    background-color: #454545;
-    color: #ffffff;
-}
-
-.translate-lang-selector-btn:active {
-    background-color: #4d4d4d;
-}
-
-.translate-lang-selector-btn.selected {
-    background-color: #3584e4;
-    color: #ffffff;
-}
-
-/* PopupMenu item containing the translation UI */
-.popup-menu .popup-menu-item.translate-menu-item-container {
-    background-color: #303030;
-    color: #ffffff;
-    border-radius: 12px;
-}
-
-.popup-menu .popup-menu-item.translate-menu-item-container:hover,
-.popup-menu .popup-menu-item.translate-menu-item-container:focus,
-.popup-menu .popup-menu-item.translate-menu-item-container:active {
-    background-color: #303030;
-    color: #ffffff;
-}
-
-/* Remove Yaru theme shadow from popup menu */
-.popup-menu-content {
-    box-shadow: none;
 }

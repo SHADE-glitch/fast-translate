@@ -1040,12 +1040,20 @@ var FastTranslate = GObject.registerClass(
 
         destroy() {
             this._destroyed = true;
+            // Teardown must be total. disable() swallows any throw and drops the
+            // only reference to this indicator, so a failure part-way through
+            // would strand the actor in the panel, the settings and selection
+            // signal handlers, and the pending timers with nothing left able to
+            // release them. GObject.disconnect and GLib.Source.remove both raise
+            // when the handler or source is already gone, which is reachable
+            // during logout teardown, so every step is guarded on its own and
+            // super.destroy() is reached unconditionally.
             if (this._floatingWindow) {
-                this._floatingWindow.destroy();
+                try { this._floatingWindow.destroy(); } catch (_e) {}
                 this._floatingWindow = null;
             }
-            this._disconnectSettings();
-            this._disconnectSelectionListener();
+            try { this._disconnectSettings(); } catch (_e) {}
+            try { this._disconnectSelectionListener(); } catch (_e) {}
             this._unbindEsc();
             if (this._floatingCancellable) {
                 try { this._floatingCancellable.cancel(); } catch (_e) {}
@@ -1056,15 +1064,15 @@ var FastTranslate = GObject.registerClass(
                 this._translationCache = null;
             }
             if (this._safetyTimeoutId) {
-                GLib.Source.remove(this._safetyTimeoutId);
+                try { GLib.Source.remove(this._safetyTimeoutId); } catch (_e) {}
                 this._safetyTimeoutId = null;
             }
             if (this._internalCopyTimeoutId) {
-                GLib.Source.remove(this._internalCopyTimeoutId);
+                try { GLib.Source.remove(this._internalCopyTimeoutId); } catch (_e) {}
                 this._internalCopyTimeoutId = null;
             }
             if (this._httpSession) {
-                this._httpSession.abort();
+                try { this._httpSession.abort(); } catch (_e) {}
                 this._httpSession = null;
             }
             super.destroy();

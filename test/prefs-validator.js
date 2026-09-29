@@ -1,7 +1,7 @@
 #!/usr/bin/env gjs
 // test/prefs-validator.js: Standalone headless verification of prefs.js syntax and widget properties.
 import Gio from 'gi://Gio';
-import Gtk from 'gi://Gtk';
+import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw';
 
 try {

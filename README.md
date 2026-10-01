@@ -119,6 +119,8 @@ This fork removes the original panel-menu translator and the configurable global
 4. Push the branch and open a pull request.
 
 Run the test suite with `npm test` (unit tests via Node, plus a GJS preferences-layout validator).
+Maintainers: read [MAINTENANCE.md](MAINTENANCE.md) first — it records the harness
+isolation rules, the measured cost baseline and the update risks.
 
 ## Credits & Attribution
 

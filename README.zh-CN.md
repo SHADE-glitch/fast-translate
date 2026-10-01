@@ -119,6 +119,8 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 4. 推送分支并创建 Pull Request。
 
 运行测试：`npm test`（Node 单元测试，外加 GJS 偏好设置布局校验）。
+维护者请先读 [MAINTENANCE.zh-CN.md](MAINTENANCE.zh-CN.md)：里面记着 harness 的隔离
+规则、实测成本基线和更新风险。
 
 ## 致谢与来源说明
 

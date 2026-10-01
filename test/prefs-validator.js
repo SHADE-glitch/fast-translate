@@ -1,8 +1,25 @@
 #!/usr/bin/env gjs
 // test/prefs-validator.js: Standalone headless verification of prefs.js syntax and widget properties.
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw';
+
+// The generated runner is written outside the source tree: this directory *is*
+// the live extension directory, so a leftover from a throw between writing and
+// deleting is both repo litter and an extra file the shell could pick up. The
+// pid keeps two concurrent runs from clobbering each other.
+let tempFile = null;
+const cleanup = () => {
+    if (!tempFile)
+        return;
+    try {
+        tempFile.delete(null);
+    } catch (e) {
+        // Already gone, or owned by a run that crashed. Nothing to do.
+    }
+    tempFile = null;
+};
 
 try {
     // 1. Read prefs.js content
@@ -42,8 +59,11 @@ try {
         `
     );
 
-    // 3. Write mock prefs to a temp file
-    const tempFile = Gio.File.new_for_path('test/mock-prefs-runner.js');
+    // 3. Write mock prefs to a temp file outside the source tree
+    tempFile = Gio.File.new_for_path(GLib.build_filenamev([
+        GLib.get_tmp_dir(),
+        `fast-translate-mock-prefs-runner-${GLib.get_monotonic_time()}.js`,
+    ]));
     tempFile.replace_contents(
         new TextEncoder().encode(code),
         null,
@@ -68,12 +88,14 @@ try {
     const mockWindow = new Adw.PreferencesWindow();
     prefsInstance.fillPreferencesWindow(mockWindow);
 
-    // Cleanup temp file
-    tempFile.delete(null);
-
     console.log('✅ Preferences layout validation successful!');
 } catch (e) {
     console.error('❌ Preferences validation failed:', e);
+    // imports.system.exit() terminates the process and skips a finally
+    // clause, so the failure path has to clean up before it leaves.
+    cleanup();
     // Exit with failure code
     imports.system.exit(1);
+} finally {
+    cleanup();
 }

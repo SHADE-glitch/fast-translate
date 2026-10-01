@@ -36,9 +36,21 @@ ln -s "$REPO" "$RUN/data/gnome-shell/extensions/fast-translate@local"
 # Unlink first, then remove the tree. `rm -rf` unlinks symlinks rather than
 # following them, but this repo *is* the live extension directory, so leave no
 # path by which a cleanup could ever reach it (see AGENTS.md).
+#
+# Removal errors are swallowed and retried, and cleanup returns 0, because a
+# leftover must never change the script's verdict: under `set -e` an
+# undeletable directory once turned a passing run into exit 1. The leftover was
+# a gvfs-metadata store that the nested shell's GVFS stack wrote into the
+# redirected XDG_DATA_HOME and kept open — GIO_USE_VFS=local below stops that at
+# the source, and also removes the volume-monitor and fusermount noise.
 cleanup() {
     rm -f "$RUN/data/gnome-shell/extensions/fast-translate@local"
-    rm -rf "$RUN"
+    rm -rf "$RUN" 2>/dev/null
+    if [ -e "$RUN" ]; then
+        sleep 2
+        rm -rf "$RUN" 2>/dev/null
+    fi
+    return 0
 }
 trap cleanup EXIT INT TERM
 
@@ -61,6 +73,12 @@ dbus-run-session bash -c '
     export XDG_CACHE_HOME="$RUN/cache"
     export WAYLAND_DISPLAY="$WL"
     export NO_AT_BRIDGE=1
+    # The local GVFS backend only. Without it the nested shell activates the
+    # whole GVFS stack, which then writes a gvfs-metadata store into the
+    # redirected XDG_DATA_HOME and holds it open — that leftover made the
+    # cleanup above fail, and a failing cleanup under `set -e` turned a passing
+    # run into exit 1. It also removes the volume-monitor and fusermount noise.
+    export GIO_USE_VFS=local
 
     EV() {
         gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell \

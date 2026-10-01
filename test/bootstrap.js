@@ -39,17 +39,25 @@ global.__ftBoot = null;
     const Main = await import("resource:///org/gnome/shell/ui/main.js");
     const em = Main.extensionManager;
 
-    // The extension scan is async and there is no "scan finished" signal, and
-    // INITIALIZED in particular means the object exists but extension.js has
-    // *not* been imported yet, so stateObj is still undefined. Poll the object.
+    // The extension scan is async and there is no "scan finished" signal.
+    // Two things make this worth polling carefully:
+    //   - `lookup()` returns an object as soon as it has been *created*, and
+    //     createExtensionObject() does not set `state` at all — the shell only
+    //     assigns state inside loadExtension(). A truthy lookup therefore says
+    //     nothing, and acting on `state === undefined` is a race that fails
+    //     intermittently (it decides "not INITIALIZED", skips the init, and
+    //     reports state=undefined).
+    //   - INITIALIZED in particular means the object exists but extension.js
+    //     has *not* been imported yet, so stateObj is still undefined.
     let ext = null;
-    for (let i = 0; i < 240 && !ext; i++) {
+    for (let i = 0; i < 240; i++) {
         ext = em.lookup(UUID);
-        if (!ext)
-            await wait(500);
+        if (ext && ext.state !== undefined)
+            break;
+        await wait(500);
     }
-    if (!ext) {
-        global.__ftBoot = "ERROR:extension-not-enumerated";
+    if (!ext || ext.state === undefined) {
+        global.__ftBoot = "ERROR:never-assigned-a-state";
         return;
     }
 

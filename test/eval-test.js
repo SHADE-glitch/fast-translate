@@ -1,5 +1,7 @@
 global.testRunnerResult = null;
 global.testRunnerPromise = (async () => {
+    // Declared outside the try so the finally clause can reach it.
+    let settingsRestore = null;
     try {
         const Main = await import("resource:///org/gnome/shell/ui/main.js");
         const ext = Main.extensionManager.lookup("fast-translate@local");
@@ -91,6 +93,24 @@ global.testRunnerPromise = (async () => {
                 indicator._internalCopyTimeoutId = null;
             }
             indicator._isInternalCopy = false;
+            // Capture the developer's real values BEFORE the three writes
+            // below. Every snapshot/restore pair further down (the
+            // originalAutoCopyState, originalBgMode/originalBgToast and
+            // originalBgModeD/originalBgToastD stages) re-reads these keys
+            // after this point has already overwritten them, so those pairs
+            // can only put test values back — they are kept because each stage
+            // asserts on the value it just set. The finally clause on the outer
+            // try uses this snapshot to restore the truth on every exit path.
+            const settingsOriginals = {
+                autoCopy: indicator._settings.get_boolean('floating-auto-copy'),
+                backgroundMode: indicator._settings.get_boolean('floating-background-mode'),
+                backgroundToast: indicator._settings.get_boolean('floating-background-toast'),
+            };
+            settingsRestore = () => {
+                indicator._settings.set_boolean('floating-auto-copy', settingsOriginals.autoCopy);
+                indicator._settings.set_boolean('floating-background-mode', settingsOriginals.backgroundMode);
+                indicator._settings.set_boolean('floating-background-toast', settingsOriginals.backgroundToast);
+            };
             indicator._settings.set_boolean('floating-auto-copy', false);
             indicator._settings.set_boolean('floating-background-mode', false);
             indicator._settings.set_boolean('floating-background-toast', true);
@@ -815,6 +835,20 @@ global.testRunnerPromise = (async () => {
         return { success: true };
     } catch (e) {
         return { success: false, error: e.message || String(e) };
+    } finally {
+        // One clause covers every exit: the ~70 early
+        // `return { success: false }` branches, the success branch, and a
+        // throw escaping the try. Without it, failing anywhere between the
+        // first set_boolean and the end of the suite would leave the
+        // developer's own settings at test values. A finally must not return,
+        // or it would discard the result the caller reads back.
+        try {
+            if (settingsRestore)
+                settingsRestore();
+        } catch (restoreError) {
+            // Nothing useful can be done from a finally clause; the suite
+            // result has already been decided.
+        }
     }
 })();
 

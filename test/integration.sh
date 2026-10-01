@@ -30,7 +30,8 @@ RUN="$(mktemp -d "${TMPDIR:-/tmp}/ft-integration.XXXXXX")"
 REPO="$(pwd)"
 WL="wayland-fti$$"
 export RUN REPO WL
-mkdir -p "$RUN/data/gnome-shell/extensions" "$RUN/cache"
+mkdir -p "$RUN/data/gnome-shell/extensions" "$RUN/cache" "$RUN/runtime"
+chmod 700 "$RUN/runtime"
 ln -s "$REPO" "$RUN/data/gnome-shell/extensions/fast-translate@local"
 
 # Unlink first, then remove the tree. `rm -rf` unlinks symlinks rather than
@@ -49,6 +50,13 @@ cleanup() {
     if [ -e "$RUN" ]; then
         sleep 2
         rm -rf "$RUN" 2>/dev/null
+    fi
+    # Tripwire: the nested shell gets a private XDG_RUNTIME_DIR, so it can no
+    # longer leave the marker in the shared one. If it appears here anyway,
+    # something bypassed that isolation.
+    local marker="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/gnome-shell-disable-extensions"
+    if [ -e "$marker" ]; then
+        echo "⚠️  $marker exists. If a nested shell left it, remove it."
     fi
     return 0
 }
@@ -71,6 +79,12 @@ dbus-run-session bash -c '
     export GSETTINGS_SCHEMA_DIR="$REPO/schemas"
     export XDG_DATA_HOME="$RUN/data"
     export XDG_CACHE_HOME="$RUN/cache"
+    # Private runtime dir: the shell creates gnome-shell-disable-extensions in
+    # $XDG_RUNTIME_DIR at startup and deletes it 60 s later. Killing a nested
+    # shell inside that window would otherwise leave that marker in the shared
+    # /run/user/1000, and its presence is the condition under which a
+    # gnome-shell crash disables every extension at the next login.
+    export XDG_RUNTIME_DIR="$RUN/runtime"
     export WAYLAND_DISPLAY="$WL"
     export NO_AT_BRIDGE=1
     # The local GVFS backend only. Without it the nested shell activates the

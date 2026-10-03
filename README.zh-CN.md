@@ -9,7 +9,7 @@
 ![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/fast-translate)
 
-## 项目说明
+## 📖 项目说明
 
 本仓库是 **Fast Translate** 的**个人维护分支**，而 Fast Translate 本身又是 [Lorenzo Carbonell（atareao）](https://github.com/atareao) 的原始项目 [**translate-assistant**](https://github.com/atareao/translate-assistant) 的现代化分支。
 
@@ -21,7 +21,7 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 
 本项目**与两位上游作者均无关**，也未获得其背书。本分支将扩展收敛为单一而专注的工作流——**翻译你刚刚复制的内容**——并加以强化：LRU 缓存、请求看门狗、精确的自回声抑制，以及修复 DeepL 区域语言代码问题。
 
-## 功能特性
+## ✨ 功能特性
 
 - **双击复制即时翻译** —— 正常复制文本后，在约 500ms 内再按一次 `Ctrl+C` 即可翻译。无需菜单，无需切换窗口。
 - **浮动翻译窗口** —— 可拖动、自动居中的弹窗，显示源语言与目标语言，带**交换**与**复制**按钮，可选自动复制。
@@ -30,11 +30,11 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 - **内联语言选择** —— 偏好设置中的旗帜 emoji 网格。
 - **健壮性** —— LRU 翻译缓存（50 条）、12 秒请求看门狗、原生 `St.Spinner` 加载态、友好的网络错误提示，以及精确的自回声抑制，确保你自己的复制不会被误判为新输入。
 
-## 截图
+## 🖌️ 截图
 
 ![双击复制快捷键触发的浮动翻译窗口](screenshots/CTRLCC.webp)
 
-## 前置依赖
+## 🧰 前置依赖
 
 | 依赖 | 说明 |
 |---|---|
@@ -43,7 +43,7 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 | 构建工具 | `glib-compile-schemas`（来自 `libglib2.0-bin`）与 `msgfmt`（来自 `gettext`）——克隆后需运行一次，用于编译 GSettings schema 与翻译 |
 | API Key | 可选——**Google 翻译**无需 Key；**DeepL**、**百度**与**有道**各自需要凭据 |
 
-## 安装
+## 📥 安装
 
 本仓库**就是**扩展本体：把它克隆进扩展目录，再编译两个未纳入版本控制的构建产物——GSettings schema 与翻译。
 
@@ -78,7 +78,7 @@ gnome-extensions disable fast-translate@local
 rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 ```
 
-## 使用
+## 🖱️ 使用
 
 复制任意文本，然后在约 500ms 内再按一次 `Ctrl+C`。
 
@@ -87,7 +87,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 
 面板图标仅暴露一个 **设置** 入口。
 
-## 偏好设置
+## ⚙️ 偏好设置
 
 打开 **GNOME 设置 → 扩展 → Fast Translate → 设置**，可配置：
 
@@ -97,7 +97,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - 双击复制行为，包括后台模式与完成提示
 - 格式与主题选项
 
-## 相对上游的改动
+## 🆚 相对上游的改动
 
 本分支移除了原面板菜单翻译器与可配置的全局快捷键，仅保留双击复制工作流，并新增可靠性改进。提交数**有意不写死**——`git rev-list --count 420251c..HEAD` 才是权威（`420251c` 是本分支历史的起点，即冻结上游版本的导入提交）。
 
@@ -111,7 +111,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - **偏好设置：** 移除「Panel Menu Automation」分组，新增各服务商凭据分组，并重排其余分组。
 - **测试：** 单元测试覆盖新增的纯函数（含 GJS/Node 签名交叉校验）；评估测试断言面板 UI 与快捷键已不存在。
 
-## 参与贡献
+## 🤝 参与贡献
 
 1. Fork 本仓库。
 2. 新建分支：`git checkout -b <branch_name>`。
@@ -122,7 +122,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 维护者请先读 [MAINTENANCE.zh-CN.md](MAINTENANCE.zh-CN.md)：里面记着 harness 的隔离
 规则、实测成本基线和更新风险。
 
-## 致谢与来源说明
+## 🙏 致谢与来源说明
 
 本扩展是 **Lorenzo Carbonell Cerezo（atareao）** 的原始项目 **Translate Assistant** 的分支，后经 **tazztone** 现代化为 **Fast Translate**。
 
@@ -131,7 +131,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - **原始贡献者：** Philipp Kiemle（daPhipz）、Fabrício Müller（fabricio8800）、Heimen Stoffels（Vistaus）、Lorenzo Carbonell（atareao）
 - **上游（本分支之前）引入的功能：** Google 翻译默认后端、`Ctrl+C` `Ctrl+C` 双击即时翻译、后台模式、内联旗帜 emoji 网格、高 DPI 缩放与集成测试。
 
-## 许可证
+## ⚖️ 许可证
 
 本项目采用 **MIT 许可证** —— 见 [LICENSE](LICENSE)。
 

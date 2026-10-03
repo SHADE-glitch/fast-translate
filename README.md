@@ -9,7 +9,7 @@ Instant translation from a double copy — Google Translate and DeepL in your GN
 ![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/fast-translate)
 
-## About
+## 📖 About
 
 This repository is a **personal maintenance fork** of **Fast Translate**, which is itself a modernized fork of the original [**translate-assistant**](https://github.com/atareao/translate-assistant) by [Lorenzo Carbonell (atareao)](https://github.com/atareao).
 
@@ -21,7 +21,7 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  this fork (fast-
 
 It is **not** affiliated with or endorsed by either upstream author. This fork narrows the extension to a single, focused workflow — **translate the text you just copied** — and hardens it: an LRU cache, a request watchdog, precise self-echo suppression, and a fix for DeepL regional source codes.
 
-## Features
+## ✨ Features
 
 - **Double-copy instant translation** — copy text normally, then press `Ctrl+C` again within ~500 ms to translate it. No menus, no window switching.
 - **Floating translation window** — a draggable, re-centering popup showing the source and target languages, with **swap** and **copy** buttons and optional auto-copy.
@@ -30,11 +30,11 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 - **Inline language selection** — a flag-emoji grid in the preferences.
 - **Robustness** — an LRU translation cache (50 entries), a 12-second request watchdog, a native `St.Spinner` loading state, friendly network-error messages, and precise self-echo suppression so your own copies are never mistaken for new input.
 
-## Screenshots
+## 🖌️ Screenshots
 
 ![Floating translation window triggered by the double-copy shortcut](screenshots/CTRLCC.webp)
 
-## Prerequisites
+## 🧰 Prerequisites
 
 | Requirement | Details |
 |---|---|
@@ -43,7 +43,7 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 | Build tools | `glib-compile-schemas` (from `libglib2.0-bin`) and `msgfmt` (from `gettext`) — needed once, to compile the GSettings schema and the translations after cloning |
 | API keys | Optional — **Google Translate** needs none; **DeepL**, **Baidu** and **Youdao** each need their own credentials |
 
-## Installation
+## 📥 Installation
 
 The repository *is* the extension: clone it into your extensions directory and compile the two build artifacts that are not committed — the GSettings schema and the translations.
 
@@ -78,7 +78,7 @@ gnome-extensions disable fast-translate@local
 rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 ```
 
-## Usage
+## 🖱️ Usage
 
 Copy any text, then press `Ctrl+C` a second time within ~500 ms.
 
@@ -87,7 +87,7 @@ Copy any text, then press `Ctrl+C` a second time within ~500 ms.
 
 The panel icon exposes a single **Settings** entry.
 
-## Preferences
+## ⚙️ Preferences
 
 Open **GNOME Settings → Extensions → Fast Translate → Settings** to configure:
 
@@ -97,7 +97,7 @@ Open **GNOME Settings → Extensions → Fast Translate → Settings** to config
 - Double-copy behavior, including background mode and the completion toast
 - Formatting and theme options
 
-## Changes vs upstream
+## 🆚 Changes vs upstream
 
 This fork removes the original panel-menu translator and the configurable global keybinding, keeping only the double-copy workflow, and adds reliability work. The count is deliberately not stated — `git rev-list --count 420251c..HEAD` is authoritative (`420251c` is the frozen-upstream import this fork's history starts from).
 
@@ -111,7 +111,7 @@ This fork removes the original panel-menu translator and the configurable global
 - **Preferences:** the "Panel Menu Automation" group was removed, provider-credential groups were added, and the remaining groups reorganized.
 - **Tests:** unit tests cover the new pure helpers (including a GJS/Node signing cross-check); the evaluation test asserts the panel UI and shortcut are gone.
 
-## Contributing
+## 🤝 Contributing
 
 1. Fork this repository.
 2. Create a branch: `git checkout -b <branch_name>`.
@@ -122,7 +122,7 @@ Run the test suite with `npm test` (unit tests via Node, plus a GJS preferences-
 Maintainers: read [MAINTENANCE.md](MAINTENANCE.md) first — it records the harness
 isolation rules, the measured cost baseline and the update risks.
 
-## Credits & Attribution
+## 🙏 Credits & Attribution
 
 This extension is a fork of the original **Translate Assistant** by **Lorenzo Carbonell Cerezo (atareao)**, later modernized as **Fast Translate** by **tazztone**.
 
@@ -131,7 +131,7 @@ This extension is a fork of the original **Translate Assistant** by **Lorenzo Ca
 - **Original contributors:** Philipp Kiemle (daPhipz), Fabrício Müller (fabricio8800), Heimen Stoffels (Vistaus), Lorenzo Carbonell (atareao)
 - **Features introduced upstream (before this fork):** Google Translate default backend, the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, the inline flag-emoji grid, high-DPI scaling and integration tests.
 
-## License
+## ⚖️ License
 
 Licensed under the **MIT License** — see [LICENSE](LICENSE).
 

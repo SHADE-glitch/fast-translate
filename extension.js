@@ -60,6 +60,11 @@ const TRANSLATION_CACHE_MAX_CHARS = 200000;
 // turning a stuck "Cancel" button / "Translating…" placeholder into an
 // explicit timeout error and cancelling the underlying request.
 const SAFETY_TIMEOUT_MS = 12000;
+// Hard deadline for the dismiss fade's destroy(). The animated path is the
+// normal one, but its completion callback depends on the frame clock, and a
+// stalled clock (screen off, suspend) would otherwise keep the full-work-area
+// backdrop and the stage-level Esc listener alive indefinitely.
+const DISMISS_FALLBACK_MS = 500;
 // Per-service single-request character limits live in PROVIDERS
 // (translation-helper.js) so the popup warning and the request truncation can
 // never disagree about the active service.
@@ -1329,6 +1334,8 @@ class FloatingTranslationWindow {
         // guard in _triggerFloatingTranslation keys on it; internal teardown
         // (supersede, disable) never sets it, so that behaviour is unchanged.
         this._userDismissed = false;
+        // Deadline timer armed by _dismiss(); see DISMISS_FALLBACK_MS.
+        this._dismissFallbackId = null;
 
         // Per-region scroll viewport heights are driven by _computeCaps() /
         // _applyHeightCaps() using set_height(). CSS max-height must NOT be set
@@ -1612,6 +1619,25 @@ class FloatingTranslationWindow {
                 this.destroy();
                 return;
             }
+            // Stop eating input right now. The backdrop covers the whole work
+            // area and is reactive, so leaving it live for the duration of the
+            // fade would swallow the first click of whatever the user does next.
+            try {
+                if (this.overlay)
+                    this.overlay.reactive = false;
+            } catch (_e) {}
+            // destroy() normally runs from the tween's completion callback, which
+            // depends on the frame clock. Arm a deadline so a stalled clock cannot
+            // leave the backdrop and the Esc listener alive forever. destroy() is
+            // idempotent, so whichever fires first wins and the other is a no-op.
+            try {
+                this._dismissFallbackId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
+                    DISMISS_FALLBACK_MS, () => {
+                        this._dismissFallbackId = null;
+                        this.destroy();
+                        return GLib.SOURCE_REMOVE;
+                    });
+            } catch (_e) {}
             this.actor.ease({
                 opacity: 0,
                 duration: 120,
@@ -1876,6 +1902,13 @@ class FloatingTranslationWindow {
             }
         } catch (_e) {}
         this._keyPressId = null;
+        // Dismiss normally runs destroy() from its own timeout too; GLib raises
+        // on an already-removed source, so this is guarded like every other step.
+        try {
+            if (this._dismissFallbackId)
+                GLib.Source.remove(this._dismissFallbackId);
+        } catch (_e) {}
+        this._dismissFallbackId = null;
         this._keyPressHandler = null;
         this._overlayPressHandler = null;
         // Stop the spinner timeline so it cannot outlive the actors.

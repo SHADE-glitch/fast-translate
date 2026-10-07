@@ -754,6 +754,50 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3d: a dismissed card must stop eating input at once, and must not
+        // rely on the fade callback to actually go away. The backdrop spans the
+        // whole work area and is reactive, so any click landing during the 120 ms
+        // fade is swallowed; and if the frame clock never completes the tween
+        // (screen off, suspend) the backdrop and the stage-level Esc listener
+        // would stay alive indefinitely.
+        {
+            const savedTranslate = indicator._translateTextIndependent;
+            const wait = (ms) => new Promise(resolve => {
+                imports.gi.GLib.timeout_add(imports.gi.GLib.PRIORITY_DEFAULT, ms, () => {
+                    resolve();
+                    return imports.gi.GLib.SOURCE_REMOVE;
+                });
+            });
+            try {
+                indicator._translateTextIndependent = function () { /* never replies */ };
+                indicator._triggerFloatingTranslation("hello");
+                const w = indicator._floatingWindow;
+                if (!w) {
+                    return { success: false, error: "Dismiss input guard: no window built" };
+                }
+                if (w.overlay.reactive !== true) {
+                    w.destroy();
+                    return { success: false, error: "Dismiss input guard: precondition, backdrop should start reactive" };
+                }
+                w._dismiss();
+                if (w.overlay.reactive !== false) {
+                    w.destroy();
+                    return { success: false, error: "Dismiss input guard: dismissed backdrop still swallows clicks" };
+                }
+                // Headless never completes the tween, so surviving this wait can
+                // only be the fallback timer doing the teardown.
+                await wait(800);
+                if (w._winDestroyed !== true) {
+                    w.destroy();
+                    return { success: false, error: "Dismiss input guard: destroy() depends on the animation callback" };
+                }
+            } finally {
+                indicator._translateTextIndependent = savedTranslate;
+                if (indicator._floatingWindow && indicator._floatingWindow._winDestroyed)
+                    indicator._floatingWindow = null;
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node test/unit.test.js && node test/teardown-guard.test.js && gjs -m test/signing-crosscheck.js && gjs -m test/prefs-validator.js",
     "integration": "bash test/integration.sh",
-    "perf": "bash test/perf-probe.sh"
+    "perf": "bash test/perf-probe.sh",
+    "check:log": "node scripts/check-log.mjs"
   }
 }

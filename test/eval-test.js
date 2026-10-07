@@ -696,6 +696,64 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3c: dismissing the card must not let a late reply overwrite the
+        // clipboard. The reply path called _copyToClipboard unconditionally, so
+        // "Esc, copy something else, paste" silently pasted a translation the
+        // user had already thrown away.
+        {
+            const savedAutoCopy = indicator._settings.get_boolean('floating-auto-copy');
+            const savedSource = indicator._source_lang;
+            const savedTarget = indicator._target_lang;
+            const savedTranslate = indicator._translateTextIndependent;
+            const savedCopy = indicator._copyToClipboard;
+            let copiedAfterDismiss = 0;
+            let capturedReply = null;
+            try {
+                // The branch under test only exists with auto-copy on; leaving
+                // the schema default (off) would make this assertion vacuous.
+                indicator._settings.set_boolean('floating-auto-copy', true);
+                indicator._source_lang = 'ZH';
+                indicator._target_lang = 'EN-US';
+                indicator._translateTextIndependent = function (text, cb) {
+                    capturedReply = cb;   // reply deferred until after dismissal
+                };
+                indicator._copyToClipboard = function (t) {
+                    if (this === indicator && t === "late result")
+                        copiedAfterDismiss++;
+                };
+                indicator._triggerFloatingTranslation("hello");
+                const w = indicator._floatingWindow;
+                if (!w) {
+                    return { success: false, error: "Dismiss clipboard guard: no window built" };
+                }
+                if (typeof capturedReply !== 'function') {
+                    w.destroy();
+                    return { success: false, error: "Dismiss clipboard guard: request never issued" };
+                }
+                // Sanity: the flag the fix keys on must actually be set by the
+                // user-facing dismissal path, not assumed.
+                w._dismiss();
+                if (w._userDismissed !== true) {
+                    w.destroy();
+                    return { success: false, error: "Dismiss clipboard guard: _dismiss did not record a user dismissal" };
+                }
+                capturedReply("late result", null);
+                if (copiedAfterDismiss !== 0) {
+                    w.destroy();
+                    return { success: false, error: "Dismiss clipboard guard: a dismissed card still wrote the clipboard" };
+                }
+                w.destroy();
+                if (indicator._floatingWindow === w)
+                    indicator._floatingWindow = null;
+            } finally {
+                indicator._translateTextIndependent = savedTranslate;
+                indicator._copyToClipboard = savedCopy;
+                indicator._settings.set_boolean('floating-auto-copy', savedAutoCopy);
+                indicator._source_lang = savedSource;
+                indicator._target_lang = savedTarget;
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

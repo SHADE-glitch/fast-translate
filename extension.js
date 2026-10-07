@@ -598,13 +598,18 @@ var FastTranslate = GObject.registerClass(
                             Main.notify(_("Translated"), `${requestText} → ${toText}`);
                         }
                     } else {
-                        // Only the display write is guarded: a stale reply must not
-                        // paint the new window. Auto-copy stays unconditional, as in
-                        // upstream — it must still fire when the window was closed.
+                        // The display write is guarded by identity: a stale reply
+                        // must not paint the newer window. Auto-copy is guarded by
+                        // intent instead — if the user dismissed this card by hand,
+                        // they have moved on, and the next paste belongs to
+                        // whatever they copied after that, not to our late reply.
+                        // Background mode (nothing ever shown) still copies above.
+                        const dismissedByUser = !!(myWin && myWin._userDismissed);
                         if (myWin && this._floatingWindow === myWin) {
                             try { myWin.setTargetText(toText); } catch (_e) {}
                         }
-                        if (this._settings.get_boolean('floating-auto-copy') === true) {
+                        if (!dismissedByUser &&
+                            this._settings.get_boolean('floating-auto-copy') === true) {
                             this._copyToClipboard(toText);
                         }
                     }
@@ -1320,6 +1325,10 @@ class FloatingTranslationWindow {
         this._destBox = destBox;
         this._currentTarget = targetText;
         this._winDestroyed = false;
+        // Set only by _dismiss(), i.e. a close the user asked for. The reply
+        // guard in _triggerFloatingTranslation keys on it; internal teardown
+        // (supersede, disable) never sets it, so that behaviour is unchanged.
+        this._userDismissed = false;
 
         // Per-region scroll viewport heights are driven by _computeCaps() /
         // _applyHeightCaps() using set_height(). CSS max-height must NOT be set
@@ -1593,6 +1602,11 @@ class FloatingTranslationWindow {
         // (trigger rebuild, indicator disable) keep using instant destroy().
         try {
             if (this._winDestroyed || this._dismissing) return;
+            // Remember that *the user* asked for this card to go away. A reply
+            // that lands later must not reach into the clipboard anymore; only
+            // destroy() runs here as an internal teardown would leave the flag
+            // unset and keep the old behaviour.
+            this._userDismissed = true;
             this._dismissing = true;
             if (!this.actor) {
                 this.destroy();

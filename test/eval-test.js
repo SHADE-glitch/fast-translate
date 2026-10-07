@@ -650,6 +650,52 @@ global.testRunnerPromise = (async () => {
             indicator._translateTextIndependent = originalTranslateTextIndependent;
         }
 
+        // Test 3b: the '⇄' guard, driven through the real onSwap closure.
+        // Before the guard existed, swapping while the source was "Auto detect"
+        // wrote AUTO into _target_lang and — because the pair is only re-derived
+        // from settings — every later double-copy failed. The unit test covers the
+        // pure decision; this covers the wiring, and provokes the guard rather
+        // than trusting it.
+        {
+            const savedSource = indicator._source_lang;
+            const savedTarget = indicator._target_lang;
+            const savedTranslate = indicator._translateTextIndependent;
+            try {
+                indicator._source_lang = 'AUTO';
+                indicator._target_lang = 'EN-US';
+                indicator._translateTextIndependent = function (text, cb) {
+                    cb("translated: " + text);
+                };
+                indicator._triggerFloatingTranslation("hello");
+                const w = indicator._floatingWindow;
+                if (!w) {
+                    return { success: false, error: "Swap guard: no floating window was built" };
+                }
+                if (typeof w._onSwap !== 'function') {
+                    w.destroy();
+                    return { success: false, error: "Swap guard: window exposes no _onSwap" };
+                }
+                w._onSwap();
+                if (indicator._target_lang === 'AUTO') {
+                    w.destroy();
+                    return { success: false, error: "Swap guard: AUTO reached the target slot" };
+                }
+                if (indicator._source_lang !== 'AUTO' || indicator._target_lang !== 'EN-US') {
+                    w.destroy();
+                    return { success: false, error: "Swap guard: refused swap still mutated the pair " +
+                        indicator._source_lang + "->" + indicator._target_lang };
+                }
+                w.destroy();
+                if (indicator._floatingWindow === w) {
+                    indicator._floatingWindow = null;
+                }
+            } finally {
+                indicator._translateTextIndependent = savedTranslate;
+                indicator._source_lang = savedSource;
+                indicator._target_lang = savedTarget;
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

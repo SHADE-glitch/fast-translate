@@ -153,6 +153,28 @@ export function normalizeDeepLSourceLang(code) {
     const dash = String(code).indexOf('-');
     return dash === -1 ? code : String(code).slice(0, dash);
 }
+
+/**
+ * The '⇄' button's decision, kept pure so it can be tested without a shell.
+ *
+ * 'AUTO' is a source-only value: the target enum has 28 members and none of them
+ * is an automatic-detection code, and no provider accepts it as a target
+ * (Google gets `tl=auto`, DeepL `target_lang: "AUTO"`, Baidu/Youdao `to=auto`,
+ * all of which fail). Swapping straight through therefore used to move the
+ * schema's default source value into the target slot, where it stayed —
+ * `_source_lang`/`_target_lang` are only re-derived from settings — so one press
+ * on '⇄' broke every later translation until the user touched a preference.
+ *
+ * @param {string} sourceLang - current source code ('AUTO' possible)
+ * @param {string} targetLang - current target code
+ * @returns {{source: string, target: string} | {error: {code: string, detail: string}}}
+ */
+export function swapLanguages(sourceLang, targetLang) {
+    if (sourceLang === 'AUTO') {
+        return { error: { code: 'swap-source-is-automatic', detail: String(targetLang ?? '') } };
+    }
+    return { source: targetLang, target: sourceLang };
+}
 /**
  * Builds a DeepL request body object (caller JSON.stringifies it).
  * Pure: field-for-field identical to the previously inline logic.

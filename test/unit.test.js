@@ -1,6 +1,6 @@
 import assert from "assert";
 import crypto from "node:crypto";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages } from "../translation-helper.js";
 
 // Node-backed stand-in for signing.js's GLib bundle. translation-helper.js must
 // stay free of gi:// imports because this file runs under plain Node, so the
@@ -289,6 +289,36 @@ assert.deepStrictEqual(parseProviderResponse("deepl", null).error,
     { code: "malformed-response", detail: "deepl" }, "A null body must not throw");
 
 console.log("✅ provider registry tests passed successfully!\n");
+
+// ==========================================
+// 6. swapLanguages guard
+// ==========================================
+console.log("⏳ Running swap guard tests...");
+
+// '⇄' used to assign _source_lang straight into the target slot. The source
+// default is AUTO, so one press put an automatic-detection code where only a
+// concrete language may live (the target enum has 28 values and AUTO is not one
+// of them), and every later double-copy failed until the user touched Settings.
+// The decision lives here, in the pure module, so the failure is testable
+// without a shell.
+assert.deepStrictEqual(swapLanguages("ZH", "EN-US"),
+    { source: "EN-US", target: "ZH" }, "A concrete pair swaps both ways");
+assert.deepStrictEqual(swapLanguages("EN-GB", "PT-BR"),
+    { source: "PT-BR", target: "EN-GB" }, "Regional codes swap too");
+assert.deepStrictEqual(swapLanguages("AUTO", "ZH"),
+    { error: { code: "swap-source-is-automatic", detail: "ZH" } },
+    "AUTO may never become the target");
+assert.strictEqual(swapLanguages("AUTO", "ZH").source, undefined,
+    "The refused swap must not produce a new state");
+assert.strictEqual(swapLanguages("AUTO", "EN-US").target, undefined,
+    "The refused swap must not produce a new state");
+assert.strictEqual(swapLanguages("ZH", "AUTO").source, "AUTO",
+    "AUTO is legal as a source, so swapping into it is allowed");
+assert.deepStrictEqual(swapLanguages("AUTO", "AUTO"),
+    { error: { code: "swap-source-is-automatic", detail: "AUTO" } },
+    "Two AUTO values still refuse");
+
+console.log("✅ swap guard tests passed successfully!\n");
 
 console.log("🎉 All unit tests passed successfully!");
 

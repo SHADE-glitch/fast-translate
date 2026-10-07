@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -512,9 +512,20 @@ var FastTranslate = GObject.registerClass(
                                         backText = cur;
                                     }
                                 } catch (_e) {}
-                                const oldTargetLang = this._target_lang;
-                                this._target_lang = this._source_lang;
-                                this._source_lang = oldTargetLang;
+                                const swapped = swapLanguages(this._source_lang, this._target_lang);
+                                if (swapped.error) {
+                                    // "Auto detect" cannot become a target, so the
+                                    // pair is left exactly as it was. Without a
+                                    // message the button just looks broken.
+                                    if (w) {
+                                        try {
+                                            w.setErrorState(this._providerErrorText(swapped.error));
+                                        } catch (_e) {}
+                                    }
+                                    return;
+                                }
+                                this._source_lang = swapped.source;
+                                this._target_lang = swapped.target;
                                 if (backText) {
                                     this._triggerFloatingTranslation(backText);
                                 } else {
@@ -732,6 +743,10 @@ var FastTranslate = GObject.registerClass(
                     .replace('%s', err.detail || _('unknown error'));
             case 'malformed-response':
                 return _('The translation service returned a malformed response.');
+            case 'swap-source-is-automatic':
+                // Translators: shown when '⇄' is pressed while the source
+                // language is "Auto detect", which cannot become a target.
+                return _('Reverse translation needs a specific source language. Choose one in Settings first.');
             default:
                 return _('Translation failed — please try again.');
             }

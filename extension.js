@@ -1823,14 +1823,18 @@ class FloatingTranslationWindow {
         // full width minus a conservative scrollbar estimate to get the real wrap.
         const SCROLLBAR_ESTIMATE = 16;
         const HEIGHT_SAFETY = 16;
-        const _measureLabel = (label, scroll) => {
+        const _measureLabel = (label, scroll, cap) => {
             if (!label) return { width: 200, height: 0 };
             const fullW = _getLabelWidth(label, scroll);
             const natHFull = label.get_preferred_height(fullW)[1];
             if (natHFull <= 0) return { width: fullW, height: 0 };
-            if (natHFull <= srcCap) {
-                // Source cap is the smaller of the two; if it fits there, no
-                // scrollbar will appear, so full-width measurement is correct.
+            if (natHFull <= cap) {
+                // Fits this region's own cap, so no scrollbar will appear and the
+                // full-width measurement is the truth. Measuring against the
+                // other region's cap instead (the source cap is always the
+                // smaller one) pushed content that fits here into the overflow
+                // branch below, which pinned the viewport to the cap and raised a
+                // scrollbar that the text never needed.
                 return { width: fullW, height: natHFull };
             }
             // Overflow expected: scrollbar will reduce available width. Add a
@@ -1852,8 +1856,8 @@ class FloatingTranslationWindow {
             this._srcLabel?.set_height(-1);
             this._destLabel?.set_height(-1);
         } catch (_e) {}
-        const srcM = _measureLabel(this._srcLabel, this._srcScroll);
-        const destM = _measureLabel(this._destLabel, this._destScroll);
+        const srcM = _measureLabel(this._srcLabel, this._srcScroll, srcCap);
+        const destM = _measureLabel(this._destLabel, this._destScroll, destCap);
         const srcW = srcM.width;
         const srcNatH = srcM.height;
         const destW = destM.width;

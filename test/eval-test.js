@@ -925,6 +925,23 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3h: the message for an unsupported language has to name it. The
+        // builder already reports `detail: "ID->ZH"` and the old sentence threw it
+        // away, so a user who picks Indonesian on Baidu is told the pair is
+        // unsupported without being told which one they chose.
+        {
+            const msg = indicator._providerErrorText({
+                code: 'unsupported-language', detail: 'ID->ZH',
+            });
+            if (typeof msg !== 'string' || msg.indexOf('ID->ZH') === -1) {
+                return { success: false, error: "Unsupported-language message names no language, got: " + msg };
+            }
+            // The provider label must survive too, or the hint is unattributed.
+            if (!/Baidu|Google|DeepL|Youdao|translation service/i.test(msg)) {
+                return { success: false, error: "Unsupported-language message lost the provider, got: " + msg };
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

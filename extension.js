@@ -772,8 +772,12 @@ var FastTranslate = GObject.registerClass(
             const label = provider ? provider.label : _('the translation service');
             switch (err?.code) {
             case 'unsupported-language':
-                // Translators: %s is the provider label (e.g. "Baidu Translate").
-                return _('The selected language pair is not supported by %s.').replace('%s', label);
+                // Translators: first %s is the offending "source->target" pair,
+                // second %s the provider label (e.g. "Baidu Translate"). The pair
+                // is what the user can act on, so it must not be dropped.
+                return _('The selected language pair (%s) is not supported by %s.')
+                    .replace('%s', err.detail || _('unknown'))
+                    .replace('%s', label);
             case 'empty-translation':
                 // Translators: %s is the provider label.
                 return _('%s returned an empty translation.').replace('%s', label);

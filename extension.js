@@ -547,6 +547,12 @@ var FastTranslate = GObject.registerClass(
                                             w.setTargetText(PLACEHOLDER);
                                             w.setLoading(true);
                                         } catch (_e) {}
+                                        // reTranslate() never arms the watchdog
+                                        // itself, and the previous one may already
+                                        // have fired and stayed silent — without
+                                        // this the card would sit on "Translating…"
+                                        // with no retry forever.
+                                        this._armSafetyTimeout(w, PLACEHOLDER);
                                     }
                                     reTranslate();
                                 }

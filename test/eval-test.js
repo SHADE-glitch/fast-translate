@@ -798,6 +798,55 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3e: pressing '⇄' before any result arrives must re-arm the 12 s
+        // safety net. onRetry arms it and the fresh trigger path arms it, but the
+        // swap path did not, so a card already past its watchdog would sit on
+        // "Translating…" with a dimmed copy button and no retry, forever.
+        {
+            const savedTranslate = indicator._translateTextIndependent;
+            const savedArm = indicator._armSafetyTimeout;
+            const savedSource = indicator._source_lang;
+            const savedTarget = indicator._target_lang;
+            let w = null;
+            let armCalls = 0;
+            try {
+                indicator._source_lang = 'ZH';
+                indicator._target_lang = 'EN-US';
+                indicator._translateTextIndependent = function () { /* never replies */ };
+                indicator._armSafetyTimeout = function (win, ph) {
+                    armCalls++;
+                    return savedArm.call(this, win, ph);
+                };
+                indicator._triggerFloatingTranslation("hello");
+                w = indicator._floatingWindow;
+                if (!w) {
+                    return { success: false, error: "Swap safety net: no window built" };
+                }
+                if (armCalls !== 1) {
+                    return { success: false, error: "Swap safety net: expected the trigger path to arm once, got " + armCalls };
+                }
+                armCalls = 0;   // only the swap's own arming counts from here
+                w._onSwap();
+                if (armCalls === 0) {
+                    return { success: false, error: "Swap safety net: ⇄ re-translated without re-arming the watchdog" };
+                }
+            } finally {
+                indicator._translateTextIndependent = savedTranslate;
+                indicator._armSafetyTimeout = savedArm;
+                indicator._source_lang = savedSource;
+                indicator._target_lang = savedTarget;
+                if (indicator._safetyTimeoutId) {
+                    try { imports.gi.GLib.Source.remove(indicator._safetyTimeoutId); } catch (_e) {}
+                    indicator._safetyTimeoutId = null;
+                }
+                if (w) {
+                    try { w.destroy(); } catch (_e) {}
+                    if (indicator._floatingWindow === w)
+                        indicator._floatingWindow = null;
+                }
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

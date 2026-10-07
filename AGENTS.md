@@ -27,12 +27,14 @@
 ## Recording conventions
 - Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
   reused**, so a gap means an entry was deleted — `check:log` treats that as a failure.
-- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert`, cut by **who may demand a revert**: dropping it
+- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert` | `chore`, cut by **who may demand a revert**: dropping it
   makes a bug → `fix`; dropping it only re-introduces measurable degradation → `perf`; dropping it
   only annoys me → `taste` (zero obligation; on an upgrade it may
   be discarded wholesale). A change that is both splits into two entries — done so here: `5843765`
   is recorded as `D-007` (the height ratchet, a defect) and `D-008` (the 60 % cap, a preference).
-  Withdrawals are recorded too.
+  Withdrawals are recorded too. Cleanup owed nothing either way (dead code, wrong comments,
+  naming) is `chore`; none is recorded here yet, but the checker accepts the value so all five
+  extensions share one vocabulary.
 - An entry is an assertion **as of its commit**, not current state: never re-verify an old entry,
   never hand-copy an aggregate count into the file (`check:log` prints both counts).
 - Known-but-not-fixed issues do **not** go in `CHANGELOG.md` — they have no commit. They live in

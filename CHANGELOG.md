@@ -1,0 +1,159 @@
+# CHANGELOG — fast-translate@local
+
+Personal maintenance fork of Fast Translate (translate-assistant), frozen upstream imported at
+`420251c`. This file records only the deviations I introduced after that import.
+
+Coverage: 420251c..HEAD
+Check with `npm run check:log`. Entries are `D-###`, monotonic, never reused.
+An entry states what was true **as of its commit**, not current state: old entries are not
+re-verified, and aggregate counts live in the checker's output, never in this file.
+
+> **How the backfilled entries were written.** `Symptom` / `Change` below are compressed from the
+> commit subject plus the state of the touched file at HEAD; I did not re-read every diff. Treat
+> them as an index into the commit, not as a substitute for it. Entries whose `Evidence` names a
+> test were re-run in the session that wrote them; the rest are `L?` on purpose.
+
+`kind` cut: dropping it makes a bug → `fix`; dropping it only annoys me → `taste`
+(zero obligation on an upgrade). A change that is both is split across two entries.
+
+---
+
+### D-001 · 2026-09-22 · fix · v10
+Symptom  接管后的第一处：shell 打出 keybinding 相关警告，且残留不会被执行到的死代码
+Change   消除 keybinding 警告路径并删除死代码
+Evidence L?
+Cost     与 D-002 是同一条工作流的两端，单独恢复其中一半会留下悬空设置键
+Commit   91d9b1e
+
+### D-002 · 2026-09-23 · taste · v10
+Symptom  上游的交互是面板菜单 + 可配置全局快捷键；本仓想要的是一件事做到底的单手流程
+Change   改为"双击复制即翻译"，删除面板菜单翻译 UI、`shortcut-enabled` 全局快捷键与面板自动化
+Evidence L1（`npm run integration` 的评估测试断言面板 UI 与快捷键已不存在；本轮未逐条重跑）
+Cost     **本 fork 的身份本身**。丢掉它不是 bug，只是变回上游；升级时这条是唯一"整块可丢"的参照
+Commit   3d44996
+
+### D-003 · 2026-09-23 · taste · v10
+Symptom  结果浮窗没有关闭键、没有加载态、出现/消失是硬切
+Change   加 `Esc` 关闭、loading 状态与开合动画
+Evidence L?
+Cost     纯体验倾斜；丢掉不产生缺陷，但会与 D-005 的诚实状态纠缠
+Commit   f9419ad
+
+### D-004 · 2026-09-24 · fix · v10
+Symptom  浮窗遮罩铺满整块 stage（跨显示器的全屏几何），多显示器下遮罩吃掉相邻显示器上的点击
+Change   遮罩与卡片改按单屏 work area 定位
+Evidence L?
+Cost     与鼠标位置/显示器布局相关，回归只在多屏环境暴露；不要按单屏验证就宣布修好
+Commit   7932ae5
+
+### D-005 · 2026-09-24 · fix · v10
+Symptom  弹窗说谎：复制按钮在加载中标着可点、失败后不能就地重试，并在 shell 里留下 `Source ID` critical
+Change   复制按钮 loading 期间置灰、失败可就地重试、消除 Source ID critical
+Evidence L?
+Cost     与 D-003 的加载态是同一块 UI，改一处要看另一处还成不成立
+Commit   f060c8e
+
+### D-006 · 2026-09-24 · taste · v10
+Symptom  浮窗不跟随浅/深色主题与系统强调色
+Change   拆成 `stylesheet-base.css` + `-light` / `-dark` 双变体，经 `@import` 共享结构
+Evidence L?
+Cost     旧的全局单文件 `stylesheet.css` 已不存在；这条同时解释了为什么只动旧文件的提交落在记录窗口之外
+Commit   254ce61
+
+### D-007 · 2026-09-24 · fix · v10
+Symptom  高度棘轮：卡片在逐轮 settle 中只会变高不会变矮，长文本被永久撑开
+Change   消除棘轮，settle 轮数从 9 轮降到 3 轮
+Evidence L?
+Cost     与 D-008 同源但可分离：棘轮是缺陷，上限值是偏好
+Commit   5843765
+
+### D-008 · 2026-09-24 · taste · v10
+Symptom  长文本卡片占 work area 的 96%（710px），几乎顶满屏幕
+Change   上限降到 60%（441px）
+Evidence L?
+Cost     纯个人取向，**升级时可整块丢弃**；丢掉只会回到"快占满屏"，不是坏
+Commit   5843765
+
+### D-009 · 2026-09-24 · fix · v10
+Symptom  三处：界面里硬编码中文字符串（非中文用户看得到中文）、一条永不执行的死分支、Tooltip 越界
+Change   去中文硬编码、删死分支、修 Tooltip 越界
+Evidence L?
+Cost     打包前需重跑 `po` 编译；文案改动会连带影响 `test/prefs-validator.js` 的布局断言
+Commit   5ff5a88
+
+### D-010 · 2026-09-25 · taste · v10
+Symptom  只有 DeepL / Google 两家；想要按服务商各自的限额与签名规则统一调度
+Change   建服务商注册表（百度 / 有道），抽出纯函数 `signing.js` 计算百度 MD5 与有道 v3 签名，请求规格统一
+Evidence L0 本轮重跑：`GLib signing primitives match the node:crypto known-answer vectors`
+Cost     引入凭据分组与新增翻译面；密钥处理路径从此进入本仓，隐私边界见 MAINTENANCE §11
+Commit   23c9efe
+
+### D-011 · 2026-09-29 · fix · v10
+Symptom  `destroy()` 里任一处理器中途抛错就会中断后续清理，指示器被永久泄漏在 shell 里
+Change   逐个处理器加存活守卫，单个失败不再中断整条销毁链
+Evidence L0 本轮重跑：`destroy() totality tests passed (7 guarded, 2 intentionally bare, body at extension.js:1102)`——**"intentionally bare" 是刻意的，不是漏网**
+Cost     去掉守卫不会报错，只会在真实销毁时泄漏；测试名单是判据，别把两个 bare 也"顺手"补上
+Commit   69bde15
+
+### D-012 · 2026-10-07 · fix · v10
+Symptom  ⇄ 交换语言时把 "Auto detect" 当成目标语言写进去，下一次请求的目标语言非法
+Change   交换时不再把检测项写进目标语言
+Evidence L?
+Cost     与 D-013 / D-018 同在语言处理链上，回归要连着一起跑
+Commit   f4f1582
+
+### D-013 · 2026-10-07 · fix · v10
+Symptom  超限截断按 UTF-16 单元切，emoji 被数成两个字符、还会切出孤立代理项
+Change   改为码点安全截断，计数按码点
+Evidence L?
+Cost     `signing.js`/请求体长度与实际发送文本必须一致，单边改会引入签名/限额偏差
+Commit   b4560c2
+
+### D-014 · 2026-10-07 · fix · v10
+Symptom  用户已经主动关掉卡片，晚到的译文仍会改写剪贴板
+Change   取消路径上不再执行剪贴板写入
+Evidence L?
+Cost     剪贴板是用户可见副作用，恢复它等于把"用户没要求的写入"请回来
+Commit   f3b0424
+
+### D-015 · 2026-10-07 · fix · v10
+Symptom  关闭卡片后遮罩仍在吞点击（要等淡出动效跑完才解除），且淡出期间 actor 销毁无硬截止
+Change   关闭即解除吞点击，并给淡出销毁加硬截止
+Evidence L?
+Cost     与 D-004 同一个遮罩生命周期；截止值改动会影响 D-011 的销毁链
+Commit   8d7a5f0
+
+### D-016 · 2026-10-07 · fix · v10
+Symptom  ⇄ 重译复用上一条请求的看门狗状态，12 秒超时不再挂在新请求上
+Change   重译时重新挂上 12 秒看门狗
+Evidence L?
+Cost     看门狗是可重入启用守卫的一部分（README §Reliability），单改这里会破坏取消代际
+Commit   aac0edf
+
+### D-017 · 2026-10-07 · fix · v10
+Symptom  源语言与目标语言相同、或文本只有零宽字符时，仍然发出一次注定无意义的网络请求
+Change   前置判断直接跳过，不再白跑请求
+Evidence L0 本轮重跑：`request-sanity guard tests passed successfully!`
+Cost     这是最容易被"看起来更勤快"的改动重新引入的一类问题，守卫测试是唯一屏障
+Commit   7577ad7
+
+### D-018 · 2026-10-07 · fix · v10
+Symptom  "不支持的语言"提示不说是哪一对语言，用户只能猜
+Change   提示里带上具体的语言对
+Evidence L?
+Cost     文案改动牵动 `po` 翻译与 D-009 的去硬编码约定
+Commit   efa7927
+
+### D-019 · 2026-10-07 · fix · v10
+Symptom  配置文案与实现不符（写着不存在的行为），并残留死 import
+Change   修正文案与文档、清理死 import
+Evidence L0 本轮重跑：`Preferences layout validation successful!`（仅证明不抛错，不证明文案正确）
+Cost     文案类修复没有测试能证，只能靠对读——这条的 `Evidence` 弱于它的断言范围，别把它当行为验证
+Commit   aba4c8b
+
+### D-020 · 2026-10-07 · fix · v10
+Symptom  高度测量按单一上限判定，`dest` 分支不算自己的额度，留下无内容的空隙
+Change   各区域按各自上限判定，dest 不再白留空隙
+Evidence L?
+Cost     与 D-007 / D-008 同一条高度路径；三者任一改动都要重看另两个
+Commit   ce2a054

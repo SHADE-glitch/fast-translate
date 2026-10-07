@@ -35,7 +35,7 @@ const CODE_PATHS = [
   'stylesheet-dark.css',
   'stylesheet-light.css',
 ];
-const KINDS = ['fix', 'perf', 'taste', 'guard', 'revert'];
+const KINDS = ['fix', 'perf', 'taste', 'guard', 'revert', 'chore'];
 const FIELDS = ['Symptom', 'Change', 'Evidence', 'Cost', 'Commit'];
 
 const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });

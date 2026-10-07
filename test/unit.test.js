@@ -1,6 +1,6 @@
 import assert from "assert";
 import crypto from "node:crypto";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength } from "../translation-helper.js";
 
 // Node-backed stand-in for signing.js's GLib bundle. translation-helper.js must
 // stay free of gi:// imports because this file runs under plain Node, so the
@@ -319,6 +319,40 @@ assert.deepStrictEqual(swapLanguages("AUTO", "AUTO"),
     "Two AUTO values still refuse");
 
 console.log("✅ swap guard tests passed successfully!\n");
+
+// ==========================================
+// 7. code-point-safe truncation
+// ==========================================
+console.log("⏳ Running truncation tests...");
+
+// The request was cut with String.slice(0, charLimit), which counts UTF-16 code
+// units and can stop in the middle of a surrogate pair. The lone high surrogate
+// then made encodeURIComponent() throw URIError, and the popup showed the user a
+// literal "Error: URI malformed". Providers count characters, not code units, so
+// the limit is applied in code points and the cut never splits a pair.
+const astral = "a".repeat(4999) + "\u{10437}" + "b"; // 5001 code points, 5002 units
+assert.strictEqual(codePointLength(astral), 5001, "Astral chars count once");
+assert.strictEqual(astral.length, 5002, "sanity: UTF-16 units differ from code points");
+
+const cut = safeTruncate(astral, 5000);
+assert.strictEqual(codePointLength(cut), 5000, "truncated to exactly the limit");
+assert.strictEqual(cut, "a".repeat(4999) + "\u{10437}",
+    "the trailing astral character must stay whole");
+assert.doesNotThrow(() => encodeURIComponent(cut),
+    "a truncated request must always be URI-encodable");
+
+// The naive slice is what we are guarding against; assert it really was broken,
+// so this test cannot silently stop covering the bug.
+assert.throws(() => encodeURIComponent(astral.slice(0, 5000)), URIError,
+    "slice(0, limit) must still split the pair (regression sentinel)");
+
+assert.strictEqual(safeTruncate("hello", 10), "hello", "short text untouched");
+assert.strictEqual(safeTruncate("hello", 5), "hello", "exactly at the limit untouched");
+assert.strictEqual(safeTruncate("hello", 0), "hello", "limit 0 means unlimited");
+assert.strictEqual(safeTruncate("😀😀😀", 2), "😀😀", "emoji pairs are single units");
+assert.strictEqual(codePointLength("😀😀😀"), 3, "three emoji are 3 characters, not 6");
+
+console.log("✅ truncation tests passed successfully!\n");
 
 console.log("🎉 All unit tests passed successfully!");
 

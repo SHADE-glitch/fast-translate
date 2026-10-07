@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -448,8 +448,13 @@ var FastTranslate = GObject.registerClass(
             const provider = getProvider(this._translation_service);
             const serviceName = provider ? provider.label : _('Unknown');
             const charLimit = provider ? provider.charLimit : 0;
-            const requestText = (charLimit > 0 && fromText.length > charLimit)
-                ? fromText.slice(0, charLimit)
+            // Count and cut in code points. slice(0, charLimit) counts UTF-16
+            // units and could stop inside a surrogate pair, whose lone high
+            // surrogate then made encodeURIComponent() throw and the card showed
+            // a literal "Error: URI malformed".
+            const srcCodePoints = codePointLength(fromText);
+            const requestText = (charLimit > 0 && srcCodePoints > charLimit)
+                ? safeTruncate(fromText, charLimit)
                 : fromText;
 
             const reTranslate = () => {
@@ -557,7 +562,7 @@ var FastTranslate = GObject.registerClass(
                             },
                             charLimit,
                             serviceName,
-                            srcLength: fromText.length,
+                            srcLength: srcCodePoints,
                             loading: true,
                         }
                     );
@@ -1237,7 +1242,7 @@ class FloatingTranslationWindow {
         // Character-limit warning (per active service), shown before truncating the request.
         let charLimit = opts?.charLimit ?? 0;
         let serviceName = opts?.serviceName ?? '';
-        let srcLength = opts?.srcLength ?? sourceText.length;
+        let srcLength = opts?.srcLength ?? codePointLength(sourceText);
         this._truncated = charLimit > 0 && srcLength > charLimit;
         this._charLimit = charLimit;
         this._warnLabel = null;

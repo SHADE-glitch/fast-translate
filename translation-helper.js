@@ -175,6 +175,53 @@ export function swapLanguages(sourceLang, targetLang) {
     }
     return { source: targetLang, target: sourceLang };
 }
+
+/**
+ * Count characters the way a translation provider does: Unicode code points,
+ * not UTF-16 code units. `'😀'.length` is 2, and a clipboard full of emoji or
+ * CJK-extension characters would otherwise report double its real size.
+ * @param {string} text
+ * @returns {number}
+ */
+export function codePointLength(text) {
+    const s = String(text ?? '');
+    // Spread, not a loop over .length, so surrogate pairs count once.
+    let n = 0;
+    for (const _ch of s)
+        n++;
+    return n;
+}
+
+/**
+ * Cut a string to at most `limit` code points without ever splitting a
+ * surrogate pair.
+ *
+ * `String.prototype.slice(0, limit)` counts UTF-16 code units and can stop
+ * halfway through an astral character. The resulting lone high surrogate makes
+ * encodeURIComponent() throw URIError, which reached the user verbatim as
+ * "Error: URI malformed" — the request was never sent. Providers count
+ * characters, so a code-point limit is both the correct and the safe measure.
+ * @param {string} text - source text
+ * @param {number} limit - maximum code points; 0 or negative means no limit
+ * @returns {string} the possibly shortened text
+ */
+export function safeTruncate(text, limit) {
+    const s = String(text ?? '');
+    if (!limit || limit <= 0)
+        return s;
+    // Cheap guard: code units can only meet or exceed code points, so a string
+    // already within the limit by .length cannot need cutting.
+    if (s.length <= limit)
+        return s;
+    // Walk by code point, never by code unit, so the boundary below can never
+    // land inside a surrogate pair.
+    let cut = 0;
+    for (let i = 0; i < limit && cut < s.length; i++) {
+        const hi = s.charCodeAt(cut);
+        cut += (hi >= 0xD800 && hi <= 0xDBFF) ? 2 : 1;
+    }
+    return s.slice(0, cut);
+}
 /**
  * Builds a DeepL request body object (caller JSON.stringifies it).
  * Pure: field-for-field identical to the previously inline logic.

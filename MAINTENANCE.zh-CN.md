@@ -111,6 +111,25 @@ XDG_RUNTIME_DIR=<tmp>/runtime  +  --headless --wayland-display=wayland-<唯一�
 | `wantBg` 深色 `0x36363a` / 浅色 `0xffffff` | 变体样式表确实生效 |
 | `padTop !== 24` | 证明 `stylesheet-base.css` 通过 `@import` 加载成功 |
 | overlay 与 work area | 弹窗覆盖的是自己显示器的 work area，不是整个 stage |
+| `_currentTarget.indexOf('same')` | 同语言的卡片必须带解释——它耦合的是**英文 msgid**，翻译这句话会让断言失败 |
+| ⇄ 之后 `armCalls === 0` | swap 路径必须重新挂 12 秒看门狗 |
+| `_dismiss()` 后 `w.overlay.reactive !== false` | 被关掉的遮罩必须立刻停止吞点击 |
+| 等 800ms 后 `w._winDestroyed` | 销毁不能只依赖动画回调（无头环境永远不完成） |
+
+### 已生效的请求前置守卫
+
+每条判定都是 `translation-helper.js` 里的纯函数，既在 Node 里做单元测试，也在壳内
+被真实触发（`test/eval-test.js` 的 Test 3b–3h）：
+
+| 纯函数 | 挡住的问题 |
+|---|---|
+| `swapLanguages` | ⇄ 把 `AUTO` 放进目标槽——没有服务商接受，且污染会持续到用户改动设置 |
+| `safeTruncate`、`codePointLength` | `slice(0, limit)` 切半代理对 → `URIError` 被原样显示成 "Error: URI malformed"；以及 emoji 被数成两个字符 |
+| `isSameLanguage` | 花一次网络往返把原文原样还回去（只在两码完全相等时拦截：`EN-GB -> EN-US` 是正当请求） |
+| `hasVisibleText` | `trim()` 覆盖不到 U+200B–U+200F 与 U+2060，于是一串不可见字符也会发出请求 |
+
+`_dismiss()` 另外会置 `_userDismissed`，用来阻止晚到的译文在用户已经关掉卡片后
+仍改写剪贴板；后台模式不受影响，因为它根本不显示卡片。
 
 ## 7. 实测成本基线
 
@@ -249,6 +268,18 @@ journalctl --user -b --no-pager -o cat _PID=$(pgrep -x gnome-shell) \
   云（HMAC-SHA1 RPC）、华为云（SDK-HMAC-SHA256）不需要新增依赖：GLib 原生覆盖。
 - 弹窗的真机行为（§9），以及那约 40 ms/30s 的空闲增量来源（若用更多窗口能分辨的
   话）仍未归因。
+- **RTL 属未验证，不是已修复。** 从 `libst` 里读不到 `text-align` 的取值表，Yaru 的
+  CSS 也没有可参照用法，因此 St 是否接受 `text-align: start` 是未知的。警告标签仍
+  保持 `left` 对齐，标题在 RTL 语言对里也仍指向 `➜`。在证明该取值被接受之前不要改。
+- **各区域用自己的上限之后，dest 面板是否还有多余空白未经测量。** 原缺陷是十几像素
+  的空白而非功能故障，在壳里断言它等于复刻私有布局推算，所以没有加专门测试；现有
+  套件只能证明无回归。真机上目的地面板是否仍留空白需要人眼确认。
+- **prefs 不按服务商过滤语言下拉。** 百度仍能在选择器里选到它映射表拒绝的 6 种
+  （ID、LT、LV、SK、SL、TR）；修法是让报错点名具体语言对，而不是藏掉选项——过滤
+  共享枚举会让这行偏好依赖服务商状态，还可能藏起用户已经存过的语言。
+- 那 5 个遗留 schema 键（`auto-copy`、`auto-paste`、`auto-translate`、
+  `keybinding-translate-clipboard`、`shortcut-enabled`）已在 schema 里加注说明，但
+  **刻意不删**：删键会丢掉用户已存的值，属于删功能。
 - `po/` 在这台机器上无法重生成（缺 gettext）。
 
 ## 14. 回滚

@@ -125,6 +125,26 @@ Grep for the anchor before restructuring the popup; line numbers drift.
 | `wantBg` dark `0x36363a` / light `0xffffff` | the variant stylesheet actually applied |
 | `padTop !== 24` | proof that `stylesheet-base.css` loaded through `@import` |
 | overlay vs work area | the popup covers its own monitor's work area, not the stage |
+| `_currentTarget.indexOf('same')` | the same-language card must carry an explanation — couples to the **English msgid**, so translating that string breaks this assertion |
+| `armCalls === 0` after ⇄ | the swap path must re-arm the 12 s watchdog |
+| `w.overlay.reactive !== false` after `_dismiss()` | a dismissed backdrop must stop swallowing clicks |
+| `w._winDestroyed` after an 800 ms wait | teardown must not depend on the tween's `onComplete` (headless never completes it) |
+
+### Request-sanity guards now in force
+
+Each is a pure decision in `translation-helper.js`, unit-tested in Node and also
+provoked from inside the shell (`test/eval-test.js` Test 3b–3h):
+
+| Helper | Prevents |
+|---|---|
+| `swapLanguages` | '⇄' moving `AUTO` into the target slot, where no provider accepts it and the corruption persists until a setting is touched |
+| `safeTruncate`, `codePointLength` | `slice(0, limit)` splitting a surrogate pair → `URIError` shown verbatim as "Error: URI malformed"; emoji counted twice |
+| `isSameLanguage` | a paid round trip that returns the input unchanged (exact-match only: `EN-GB → EN-US` is still a real request) |
+| `hasVisibleText` | `trim()` missing U+200B–U+200F / U+2060, so invisible-only selections fired a request |
+
+`_dismiss()` additionally sets `_userDismissed`, which stops a late reply from
+overwriting the clipboard after the user closed the card; background mode is
+unaffected because it never shows a card.
 
 ## 7. Measured cost baseline
 
@@ -285,6 +305,25 @@ Then read the symptom: icon present but no trigger ⇒ item 1/2; no icon ⇒ ite
   (SDK-HMAC-SHA256) need no new dependency: GLib covers them natively.
 - The popup's real-session behaviours (§9) and the ~40 ms/30 s idle delta source
   (if it resolves at all with more windows) remain unattributed.
+- **RTL is unverified, not fixed.** No `text-align` value table could be read out
+  of `libst`, and Yaru's CSS offers no precedent, so whether St accepts
+  `text-align: start` is unknown. The warning label is left `left`-aligned and the
+  header arrow still points `➜` for RTL pairs. Do not change this without proving
+  the value is accepted.
+- **Dest-pane whitespace after the per-region cap fix is unmeasured.** The bug was
+  a few px of slack rather than a functional failure, and asserting it in the shell
+  would mean duplicating private layout maths, so no dedicated test was added.
+  Existing suites prove no regression only; whether the destination pane still
+  shows stray blank space needs a human look in a real session.
+- **prefs does not filter the language dropdowns per provider.** Baidu still
+  accepts six selections its table rejects (ID, LT, LV, SK, SL, TR); the fix was
+  to name the offending pair in the error instead of hiding choices, because
+  filtering a shared enum would have made the preference row depend on provider
+  state and could hide a language the user had already saved.
+- The five legacy schema keys (`auto-copy`, `auto-paste`, `auto-translate`,
+  `keybinding-translate-clipboard`, `shortcut-enabled`) are annotated in the
+  schema but deliberately **not removed** — deleting them would discard stored
+  values and constitutes feature removal.
 - `po/` cannot be regenerated on this machine (gettext absent).
 
 ## 14. Rollback

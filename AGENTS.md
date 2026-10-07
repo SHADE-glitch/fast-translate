@@ -27,8 +27,9 @@
 ## Recording conventions
 - Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
   reused**, so a gap means an entry was deleted — `check:log` treats that as a failure.
-- `kind` ∈ `fix` | `taste` | `guard` | `revert`, cut by **who may demand a revert**: dropping it
-  makes a bug → `fix`; dropping it only annoys me → `taste` (zero obligation; on an upgrade it may
+- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert`, cut by **who may demand a revert**: dropping it
+  makes a bug → `fix`; dropping it only re-introduces measurable degradation → `perf`; dropping it
+  only annoys me → `taste` (zero obligation; on an upgrade it may
   be discarded wholesale). A change that is both splits into two entries — done so here: `5843765`
   is recorded as `D-007` (the height ratchet, a defect) and `D-008` (the 60 % cap, a preference).
   Withdrawals are recorded too.

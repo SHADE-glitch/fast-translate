@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -271,7 +271,7 @@ var FastTranslate = GObject.registerClass(
                     return;
                 }
                 if (seq !== this._clipboardSeq) return; // superseded by a newer selection event
-                if (!text || text.trim() === '') return;
+                if (!text || !hasVisibleText(text)) return;
 
                 // Precise self-echo suppression: swallow only the exact text
                 // we wrote via _copyToClipboard. A different text arriving
@@ -448,6 +448,14 @@ var FastTranslate = GObject.registerClass(
 
             let isBackground = this._settings.get_boolean('floating-background-mode');
 
+            // A same-language pair can only echo the input back, and the card that
+            // shows two identical panes reads as a broken translator. Say why
+            // instead of spending the round trip. In background mode there is no
+            // one to explain it to, so skip the copy entirely.
+            const sameLangPair = isSameLanguage(this._source_lang, this._target_lang);
+            if (sameLangPair && isBackground)
+                return;
+
             // Per-service character limit for the single request (shown, never
             // silent). Truncate the REQUEST source, keep full text on display.
             const provider = getProvider(this._translation_service);
@@ -591,7 +599,16 @@ var FastTranslate = GObject.registerClass(
                     // the window stays as a backup; whichever fires first wins
                     // (dismiss is idempotent).
                     this._bindEsc();
-                    this._armSafetyTimeout(win, PLACEHOLDER);
+                    if (sameLangPair) {
+                        // No request, so no watchdog: the card is already final.
+                        // Same surface the reply-error path uses, so the retry
+                        // button and error styling behave identically.
+                        try {
+                            win.setErrorState(_('Source and target language are the same — pick a different target.'));
+                        } catch (_e) {}
+                    } else {
+                        this._armSafetyTimeout(win, PLACEHOLDER);
+                    }
                 }
             }
 
@@ -599,6 +616,10 @@ var FastTranslate = GObject.registerClass(
             // replace this._floatingWindow before the reply lands, and a stale reply
             // must never be written into the new window.
             const myWin = this._floatingWindow;
+            // The card already carries the explanation; issuing the request here
+            // would defeat the whole guard.
+            if (sameLangPair)
+                return;
             this._translateTextIndependent(requestText, (toText, errMsg) => {
                 if (toText && toText.trim() !== "") {
                     if (this._destroyed) return;
@@ -774,7 +795,7 @@ var FastTranslate = GObject.registerClass(
         }
 
         _translateTextIndependent(fromText, callback) {
-            if (!fromText || fromText.trim() === "") return;
+            if (!fromText || !hasVisibleText(fromText)) return;
 
             // Report a failure both as a notification (visible in background /
             // menu mode) and through the callback, so the floating window shows

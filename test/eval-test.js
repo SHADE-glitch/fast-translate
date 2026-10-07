@@ -847,6 +847,84 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3f/3g: prove the two new request-sanity guards are actually wired
+        // into the shell, not just correct as pure functions. Both assertions are
+        // built so that an unwired guard fails them: the same-language case must
+        // show its message in the card, and the zero-width case must reach the
+        // request builder if (and only if) the guard is missing.
+        {
+            const savedTranslate = indicator._translateTextIndependent;
+            const savedBuild = indicator._buildRequestSpec;
+            const savedSource = indicator._source_lang;
+            const savedTarget = indicator._target_lang;
+            let w = null;
+            try {
+                // --- same-language pair: no request, and the card says why ---
+                indicator._source_lang = 'ZH';
+                indicator._target_lang = 'ZH';
+                indicator._buildRequestSpec = function (...a) {
+                    return savedBuild.apply(this, a);
+                };
+                let issued = 0;
+                indicator._translateTextIndependent = function () { issued++; };
+                indicator._triggerFloatingTranslation("hello");
+                w = indicator._floatingWindow;
+                if (!w) {
+                    return { success: false, error: "Same-language guard: no card shown at all" };
+                }
+                if (issued !== 0) {
+                    return { success: false, error: "Same-language guard: a request was still issued" };
+                }
+                // Translations are inert on this machine (no .mo), so the msgid
+                // itself is what the label holds; match on that, not on a _()
+                // call which does not exist in a classic Eval script.
+                if (!w._currentTarget || w._currentTarget.indexOf('same') === -1) {
+                    return { success: false, error: "Same-language guard: card shows no explanation, got " + w._currentTarget };
+                }
+                if (w._retryBtn && w._retryBtn.visible !== true) {
+                    return { success: false, error: "Same-language guard: error surface is not the one the reply path uses" };
+                }
+                w.destroy();
+                if (indicator._floatingWindow === w)
+                    indicator._floatingWindow = null;
+                w = null;
+
+                // --- zero-width-only clipboard: never reaches the builder ---
+                // Restore the real entry point: the stub above would make the
+                // positive control vacuous (it counted a different function).
+                indicator._translateTextIndependent = savedTranslate;
+                indicator._source_lang = 'ZH';
+                indicator._target_lang = 'EN-US';
+                let built = 0;
+                indicator._buildRequestSpec = function (...a) {
+                    built++;
+                    // null short-circuits right after the call, so no Soup
+                    // message is ever built and no request can leave the process.
+                    return null;
+                };
+                indicator._translateTextIndependent("\u200B\u200E\u200F", () => {});
+                if (built !== 0) {
+                    return { success: false, error: "Zero-width guard: invisible-only text still reached the request builder" };
+                }
+                // Positive control: real text must still get through, or the
+                // guard would be a blanket "never translate" bug.
+                indicator._translateTextIndependent("\u4f60\u597d", () => {});
+                if (built !== 1) {
+                    return { success: false, error: "Zero-width guard also swallowed real text (built=" + built + ")" };
+                }
+            } finally {
+                indicator._translateTextIndependent = savedTranslate;
+                indicator._buildRequestSpec = savedBuild;
+                indicator._source_lang = savedSource;
+                indicator._target_lang = savedTarget;
+                if (w) {
+                    try { w.destroy(); } catch (_e) {}
+                    if (indicator._floatingWindow === w)
+                        indicator._floatingWindow = null;
+                }
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

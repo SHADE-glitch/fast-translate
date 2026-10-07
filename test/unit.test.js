@@ -1,6 +1,6 @@
 import assert from "assert";
 import crypto from "node:crypto";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
 
 // Node-backed stand-in for signing.js's GLib bundle. translation-helper.js must
 // stay free of gi:// imports because this file runs under plain Node, so the
@@ -353,6 +353,37 @@ assert.strictEqual(safeTruncate("😀😀😀", 2), "😀😀", "emoji pairs are
 assert.strictEqual(codePointLength("😀😀😀"), 3, "three emoji are 3 characters, not 6");
 
 console.log("✅ truncation tests passed successfully!\n");
+
+// ==========================================
+// 8. same-language and visible-text guards
+// ==========================================
+console.log("⏳ Running request-sanity guard tests...");
+
+// Nothing on the request path noticed that source == target, so the user paid a
+// network round trip to be shown the same text twice, which reads as "it broke".
+assert.strictEqual(isSameLanguage("ZH", "ZH"), true, "identical pair is a no-op request");
+assert.strictEqual(isSameLanguage("EN-US", "EN-US"), true, "identical regional pair too");
+assert.strictEqual(isSameLanguage("zh", "ZH"), true, "case must not hide a match");
+assert.strictEqual(isSameLanguage("EN-GB", "EN-US"), false,
+    "regional variants are a real DeepL request, not a no-op");
+assert.strictEqual(isSameLanguage("AUTO", "ZH"), false,
+    "detection is unknown, so AUTO must never block a request");
+assert.strictEqual(isSameLanguage(null, "ZH"), false, "missing code is not a match");
+assert.strictEqual(isSameLanguage("ZH", null), false, "missing code is not a match");
+
+// .trim() does not cover U+200B..200F or U+2060 (category Cf, not Zs), so a
+// clipboard holding only invisible formatting used to fire a real request.
+assert.strictEqual(hasVisibleText("\u200B\u200E\u200F\u2060"), false, "zero width only");
+assert.strictEqual(hasVisibleText("\u200B"), false, "single ZWSP");
+assert.strictEqual(hasVisibleText("  \t\n\u00A0"), false, "whitespace only");
+assert.strictEqual(hasVisibleText(""), false, "empty");
+assert.strictEqual(hasVisibleText(null), false, "null");
+assert.strictEqual(hasVisibleText("\u60A8\u597D"), true, "CJK is visible");
+assert.strictEqual(hasVisibleText("a\u200B"), true, "one visible char plus ZWSP is visible");
+assert.strictEqual(hasVisibleText("\u2014"), true,
+    "an em dash is punctuation, not an invisible format character");
+
+console.log("✅ request-sanity guard tests passed successfully!\n");
 
 console.log("🎉 All unit tests passed successfully!");
 

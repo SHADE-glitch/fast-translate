@@ -222,6 +222,42 @@ export function safeTruncate(text, limit) {
     }
     return s.slice(0, cut);
 }
+
+/**
+ * Whether a request would be pointless because source and target are the same
+ * language.
+ *
+ * Deliberately exact-match only. EN-GB -> EN-US is a real DeepL request (spelling
+ * variants), and AUTO as a source cannot be compared at all, so blocking those
+ * would remove working functionality rather than fix it.
+ * @param {string} sourceLang
+ * @param {string} targetLang
+ * @returns {boolean}
+ */
+export function isSameLanguage(sourceLang, targetLang) {
+    if (!sourceLang || !targetLang)
+        return false;
+    if (String(sourceLang).toUpperCase() === 'AUTO')
+        return false;
+    return String(sourceLang).toUpperCase() === String(targetLang).toUpperCase();
+}
+
+/**
+ * Whether clipboard content is worth translating.
+ *
+ * String.prototype.trim() covers category Zs but not the zero-width and
+ * directional formatting characters (U+200B..U+200F, U+2060), so a selection of
+ * nothing but invisible characters used to pass the emptiness check and cost a
+ * live request. The set below is intentionally narrow: U+2014 (em dash) and
+ * similar punctuation must stay visible.
+ * @param {?string} text
+ * @returns {boolean}
+ */
+export function hasVisibleText(text) {
+    if (text === null || text === undefined)
+        return false;
+    return !/^[\s\u200B\u200C\u200D\u200E\u200F\u2060\uFEFF]*$/.test(String(text));
+}
 /**
  * Builds a DeepL request body object (caller JSON.stringifies it).
  * Pure: field-for-field identical to the previously inline logic.

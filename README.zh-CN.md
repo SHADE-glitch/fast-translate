@@ -27,7 +27,7 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 - **浮动翻译窗口** —— 可拖动、自动居中的弹窗，显示源语言与目标语言，带**交换**与**复制**按钮，可选自动复制。
 - **后台模式** —— 静默翻译并直接把结果写入剪贴板，随时可粘贴，可选桌面提示通知。
 - **四种后端** —— **Google 翻译**（无需 API Key，开箱即用）、**DeepL**（免费版与专业版），以及 **百度** / **有道**（各自需要凭据）。
-- **内联语言选择** —— 偏好设置中的旗帜 emoji 网格。
+- **内联语言选择** —— 偏好设置里是普通下拉行；卡片标题会用旗帜 emoji 标出两种语言。
 - **健壮性** —— LRU 翻译缓存（50 条）、12 秒请求看门狗、原生 `St.Spinner` 加载态、友好的网络错误提示，以及精确的自回声抑制，确保你自己的复制不会被误判为新输入。
 
 ## 🖌️ 截图
@@ -129,7 +129,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - **原始上游：** [atareao/translate-assistant](https://github.com/atareao/translate-assistant)，作者 Lorenzo Carbonell Cerezo —— 许可证 **MIT**
 - **现代化上游：** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) —— 许可证 **MIT**
 - **原始贡献者：** Philipp Kiemle（daPhipz）、Fabrício Müller（fabricio8800）、Heimen Stoffels（Vistaus）、Lorenzo Carbonell（atareao）
-- **上游（本分支之前）引入的功能：** Google 翻译默认后端、`Ctrl+C` `Ctrl+C` 双击即时翻译、后台模式、内联旗帜 emoji 网格、高 DPI 缩放与集成测试。
+- **上游（本分支之前）引入的功能：** Google 翻译默认后端、`Ctrl+C` `Ctrl+C` 双击即时翻译、后台模式、语言标签中的旗帜 emoji、高 DPI 缩放与集成测试。
 
 ## ⚖️ 许可证
 

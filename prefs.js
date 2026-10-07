@@ -243,7 +243,10 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
 
         const notificationsRow = new Adw.SwitchRow({
             title: _('Show Notifications'),
-            subtitle: _('Show a system notification when a translation completes'),
+            // This switch gates the failure notices only. A successful background
+            // translation is announced by floating-background-toast instead, so
+            // saying "when a translation completes" here would be untrue.
+            subtitle: _('Show a system notification when a translation fails'),
         });
         settings.bind('notifications', notificationsRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         systemGroup.add(notificationsRow);

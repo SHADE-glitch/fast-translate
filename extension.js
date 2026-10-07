@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, parseLanguageName, getFlagEmoji, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -909,7 +909,7 @@ var FastTranslate = GObject.registerClass(
                         resBytes = session.send_and_read_finish(result);
                     } catch (e) {
                         if (this._destroyed) return;
-                        failIfCurrent(this._friendlyTransportError(e) || `Error: ${e.message || e}`);
+                        failIfCurrent(this._friendlyTransportError(e) || `${_("Error")}: ${e.message || e}`);
                         return;
                     }
 
@@ -941,7 +941,7 @@ var FastTranslate = GObject.registerClass(
                             failIfCurrent(this._httpStatusMessage(message.status_code, bodyMsg));
                         }
                     } catch (e) {
-                        failIfCurrent(`Error: ${e.message || e}`);
+                        failIfCurrent(`${_("Error")}: ${e.message || e}`);
                     }
                 }
             );
@@ -981,7 +981,7 @@ var FastTranslate = GObject.registerClass(
             if (statusCode >= 500 && statusCode < 600) {
                 return _("Translation service unavailable. Please try again later.") + ` (${statusCode})` + extra;
             }
-            return `Error: ${statusCode}` + extra;
+            return `${_("Error")}: ${statusCode}` + extra;
         }
 
         _friendlyTransportError(e) {

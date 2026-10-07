@@ -27,7 +27,7 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 - **Floating translation window** — a draggable, re-centering popup showing the source and target languages, with **swap** and **copy** buttons and optional auto-copy.
 - **Background mode** — translate silently and write the result straight to the clipboard, ready to paste, with an optional desktop toast notification.
 - **Four backends** — **Google Translate** (no API key, works out of the box), **DeepL** (Free and Pro tiers), and **Baidu** / **Youdao** (each with its own credentials).
-- **Inline language selection** — a flag-emoji grid in the preferences.
+- **Inline language selection** — source and target pickers in the preferences; the card header labels both languages with their flag emoji.
 - **Robustness** — an LRU translation cache (50 entries), a 12-second request watchdog, a native `St.Spinner` loading state, friendly network-error messages, and precise self-echo suppression so your own copies are never mistaken for new input.
 
 ## 🖌️ Screenshots
@@ -129,7 +129,7 @@ This extension is a fork of the original **Translate Assistant** by **Lorenzo Ca
 - **Original upstream:** [atareao/translate-assistant](https://github.com/atareao/translate-assistant) by Lorenzo Carbonell Cerezo — license **MIT**
 - **Modernized upstream:** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) — license **MIT**
 - **Original contributors:** Philipp Kiemle (daPhipz), Fabrício Müller (fabricio8800), Heimen Stoffels (Vistaus), Lorenzo Carbonell (atareao)
-- **Features introduced upstream (before this fork):** Google Translate default backend, the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, the inline flag-emoji grid, high-DPI scaling and integration tests.
+- **Features introduced upstream (before this fork):** Google Translate default backend, the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, flag emoji in the language labels, high-DPI scaling and integration tests.
 
 ## ⚖️ License
 

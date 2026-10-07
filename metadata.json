@@ -1,5 +1,5 @@
 {
-  "description": "Translate with Google and DeepL Translator",
+  "description": "Instant translation on a double copy — Google, DeepL, Baidu and Youdao",
   "extension-id": "fast-translate@local",
   "gettext-domain": "fast-translate@tazztone.github.io",
   "icon": "fast-translate-icon",

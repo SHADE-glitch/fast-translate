@@ -78,7 +78,7 @@
         <key name="translation-service" enum="org.gnome.shell.extensions.fast-translate.translation-service">
             <default>'Google Translate'</default>
             <summary>Translation service</summary>
-            <description>The translation service to use (DeepL or Google Translate)</description>
+            <description>The translation service to use (Google Translate, DeepL, Baidu or Youdao)</description>
         </key>
         <key name="source-lang" enum="org.gnome.shell.extensions.fast-translate.source-lang">
             <default>'Auto (AUTO)'</default>
@@ -137,6 +137,16 @@
             <summary>Youdao Translate app secret</summary>
             <description>Application secret paired with the Youdao app key. Used locally to compute the v3 request signature.</description>
         </key>
+        <!-- LEGACY, NOT READ BY ANY CODE: keybinding-translate-clipboard,
+        auto-paste, auto-copy, auto-translate and shortcut-enabled are declared
+        here but never read in extension.js or prefs.js. They are upstream keys for
+        the panel-menu UI and the Super+T shortcut, both of which this fork removed
+        in favour of the double-copy flow (a shortcut was dropped because
+        pushModal/key-focus alternatives were measured to break Super+Alt+Tab and
+        key-repeat; see MAINTENANCE.md).
+        Kept on purpose: removing a key is a schema change that discards whatever
+        the user already has stored, and an unreferenced key costs nothing. Do not
+        wire them back up without re-checking why the features went away. -->
         <key name="keybinding-translate-clipboard" type="as">
             <default><![CDATA[['<Super>t']]]></default>
             <summary>Shortcut</summary>

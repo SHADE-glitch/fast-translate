@@ -61,6 +61,10 @@
 | `npm run integration` | 约 2–4 分钟 | 真实无头壳：ACTIVE、面板按钮、弹窗结构、双击拷贝行为 | 不写（内存后端） |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 分钟 | 单次事件成本与空闲 CPU/RSS | 不写；JSON 落在 `~/.cache/fast-translate-perf/` |
 
+**`CHANGELOG.md` 使用的层级名**按"结论需要什么环境"定义，不按工具定义：**L0** = `npm test`（
+完全不需要 shell）、**L1** = `npm run integration` / `npm run perf`（私有总线上的是一次性无头壳）、
+**L2** = §9 真机会话验证，本仓没有任何东西能把它自动化。
+
 `npm test` **不覆盖** `extension.js` 的运行时（约 1900 行）：纯 Node 下它根本加载
 不了，因为 `gi://` 不可用。运行时路径只有 `npm run integration` 会走。
 

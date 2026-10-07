@@ -67,6 +67,10 @@ Everything is already installed by GNOME; there is nothing to add.
 | `npm run integration` | ~2–4 min | a real headless shell: ACTIVE, panel button, popup structure, double-copy behaviour | nothing (memory backend) |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 min | cost per event and idle CPU/RSS | nothing; writes JSON to `~/.cache/fast-translate-perf/` |
 
+**Tier names used by `CHANGELOG.md`**, defined by what a claim needs rather than by the tool:
+**L0** = `npm test` (no shell at all), **L1** = `npm run integration` / `npm run perf` (a
+throwaway headless shell on a private bus), **L2** = §9 live session, which nothing here automates.
+
 `npm test` deliberately does **not** cover `extension.js` at runtime (≈1900
 lines): it never loads under plain Node, because `gi://` is unavailable there.
 Runtime paths are only exercised by `npm run integration`.

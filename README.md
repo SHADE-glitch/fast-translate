@@ -101,14 +101,20 @@ Open **GNOME Settings → Extensions → Fast Translate → Settings** to config
 
 This fork removes the original panel-menu translator and the configurable global keybinding, keeping only the double-copy workflow, and adds reliability work. The count is deliberately not stated — `git rev-list --count 420251c..HEAD` is authoritative (`420251c` is the frozen-upstream import this fork's history starts from).
 
-- **Removed:** the panel-menu translation UI (input/output fields, translate button, error label, language-selector popover), the global keybinding (`shortcut-enabled`), and the auto-paste / auto-translate / auto-copy panel automation.
-- **Four translation providers:** a provider registry in `translation-helper.js` (DeepL, Google, Baidu, Youdao), each with its own language-code map, character limit and request spec, plus a pure `signing.js` that computes the Baidu MD5 and Youdao v3 signatures identically under GJS and Node.
-- **Reliability:** an LRU translation cache (max 50 entries), a 12-second request watchdog with a re-entrant-enable guard and request-generation cancellation, precise self-echo suppression via the last internal copy text, a native `St.Spinner` loading state (copy button disarmed while loading), friendly transport/HTTP error messages, and per-handler `destroy()` guards so a mid-way throw can no longer leak the indicator permanently.
-- **Popup:** `Esc` to close, a loading state and open/close animation; honest state (copy button greyed while loading, in-place retry after a failure, a `Source ID` critical fixed); overlay and card positioned by the monitor work area, so multi-monitor setups no longer swallow clicks; follows the light/dark theme and system accent colour through two variant stylesheets.
-- **Performance:** long-text card height reduced from 710 px to 441 px (96 % → 60 % of the work area); reveal settle rounds reduced from 9 to 3, removing a height ratchet.
-- **Cleanup / i18n:** removed the global `.popup-menu-content` shadow override and 259 lines of dead CSS (457 → 198 lines, classes now 1:1 with the JS); removed hardcoded Chinese strings; pinned the `Gtk` imports to `?version=4.0`.
+Every change below is also recorded in [CHANGELOG.md](CHANGELOG.md) with its kind
+(`fix` / `taste` / `guard` / `revert`), its evidence tier and its commit — `D-###` ids point at
+that record. `taste` entries carry zero obligation: they may be discarded wholesale on an upgrade.
+
+
+Every change below is also recorded in [CHANGELOG.md](CHANGELOG.md) with its kind (`fix` / `taste` / `guard` / `revert`), its evidence tier and its commit — `D-###` ids point at that record. `taste` entries carry zero obligation: they may be discarded wholesale on an upgrade.
+- **Removed:** the panel-menu translation UI (input/output fields, translate button, error label, language-selector popover), the global keybinding (`shortcut-enabled`), and the auto-paste / auto-translate / auto-copy panel automation. (D-002)
+- **Four translation providers:** a provider registry in `translation-helper.js` (DeepL, Google, Baidu, Youdao), each with its own language-code map, character limit and request spec, plus a pure `signing.js` that computes the Baidu MD5 and Youdao v3 signatures identically under GJS and Node. (D-010)
+- **Reliability:** an LRU translation cache (max 50 entries), a 12-second request watchdog with a re-entrant-enable guard and request-generation cancellation, precise self-echo suppression via the last internal copy text, a native `St.Spinner` loading state (copy button disarmed while loading), friendly transport/HTTP error messages, and per-handler `destroy()` guards so a mid-way throw can no longer leak the indicator permanently. (D-011, D-016)
+- **Popup:** `Esc` to close, a loading state and open/close animation; honest state (copy button greyed while loading, in-place retry after a failure, a `Source ID` critical fixed); overlay and card positioned by the monitor work area, so multi-monitor setups no longer swallow clicks; follows the light/dark theme and system accent colour through two variant stylesheets. (D-003, D-004, D-005, D-006)
+- **Performance:** long-text card height reduced from 710 px to 441 px (96 % → 60 % of the work area); reveal settle rounds reduced from 9 to 3, removing a height ratchet. (D-007, D-008)
+- **Cleanup / i18n:** removed the global `.popup-menu-content` shadow override and 259 lines of dead CSS (457 → 198 lines, classes now 1:1 with the JS); removed hardcoded Chinese strings; pinned the `Gtk` imports to `?version=4.0`. (D-009)
 - **Fixed:** DeepL rejects regional source codes such as `EN-US` / `PT-BR` with a 400 — they are now normalized (`EN-US` → `EN`, `PT-BR` → `PT`) after a language swap.
-- **Preferences:** the "Panel Menu Automation" group was removed, provider-credential groups were added, and the remaining groups reorganized.
+- **Preferences:** the "Panel Menu Automation" group was removed, provider-credential groups were added, and the remaining groups reorganized. (D-010, D-019)
 - **Tests:** unit tests cover the new pure helpers (including a GJS/Node signing cross-check); the evaluation test asserts the panel UI and shortcut are gone.
 
 ## 🤝 Contributing

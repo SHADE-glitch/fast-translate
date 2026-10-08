@@ -36,6 +36,21 @@
   so the full `npm test` is a local/desktop gate, not a CI one.
 - `checkout` uses `fetch-depth: 0` because `check:log` walks `git log` back to the coverage
   anchor in `CHANGELOG.md`; a shallow clone cannot resolve that window.
+- **Keep CI in step with the code.** Update `.github/workflows/ci.yml` in the *same change* that
+  makes it stale — never as a later cleanup.
+- **Because CI lists the Node test files explicitly** (rather than running `npm test`), adding or
+  renaming a Node test file means adding/renaming it in the workflow too. The two `gjs` steps stay
+  out of CI on purpose (they need a display + GTK4/libadwaita typelibs) — keep it that way unless a
+  headless display is set up.
+- **Environment changes** — a new dependency, a Node version bump, or a new system tool — mean
+  updating the workflow's setup/install steps.
+- **Renamed or moved code**: `check:log` watches a declared list (`CODE_PATHS` in
+  `scripts/check-log.mjs`). If a watched file moves, update that list; the check goes red until you do.
+- **After a refactor**, confirm CI still exercises the real code and the declared paths still cover
+  it. A green CI that no longer touches the changed code is worse than a red one.
+- **A new verification tier** (headless / live) — decide explicitly whether CI runs it; do not add it silently.
+- If what CI runs changes, update this section too. CI is a signal, not a gate, until branch protection
+  is enabled — read the result after every push.
 
 ## Release / version
 - The released version is the integer `version` in `metadata.json` — nothing else carries it.

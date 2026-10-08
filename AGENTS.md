@@ -14,6 +14,35 @@
   fails on any commit inside the declared coverage window that touched production code without
   being cited by a `CHANGELOG.md` entry.
 
+## Tests
+- **Run the suite**: `npm test`. It chains five checks in order, each failing the run on its own:
+  - `node test/unit.test.js` — pure helpers in `translation-helper.js` under plain Node.
+  - `node test/teardown-guard.test.js` — source-level gate that `destroy()` is total.
+  - `node test/repo.test.js` — repository invariants: every `*.zh-CN.md` has an English twin
+    with the same `##` count and the same language-switcher opener, and no doc uses task boxes.
+  - `gjs -m test/signing-crosscheck.js` — GLib signing primitives vs the `node:crypto` vectors.
+  - `gjs -m test/prefs-validator.js` — `prefs.js` layout under Gtk/Adw.
+- The last two steps need `gjs`; `prefs-validator.js` additionally needs a display and the GTK4
+  and libadwaita typelibs, so it only runs on a desktop session, not headless.
+- **Integration / perf probes**: `npm run integration` and `npm run perf` drive a live shell;
+  they are not part of `npm test`.
+
+## CI
+- `.github/workflows/ci.yml` runs on every push and pull request (`ubuntu-latest`, Node 20):
+  `node test/unit.test.js`, `node test/teardown-guard.test.js`, `node test/repo.test.js`, then
+  `npm run check:log`.
+- CI is **desktop-free on purpose**: it does not install `gjs`, so the two `gjs -m` steps of
+  `npm test` are excluded. `prefs-validator.js` calls `Gtk.init()` and fails without a display,
+  so the full `npm test` is a local/desktop gate, not a CI one.
+- `checkout` uses `fetch-depth: 0` because `check:log` walks `git log` back to the coverage
+  anchor in `CHANGELOG.md`; a shallow clone cannot resolve that window.
+
+## Release / version
+- The released version is the integer `version` in `metadata.json` — nothing else carries it.
+  Bump it by one in the same commit that changes the shipped extension (code, schema or
+  `shell-version`), and only for a change intended to reach users.
+- Docs-only, test-only and CI-only changes do not bump it.
+
 ## Docs & Commits
 - `README.md` and `README.zh-CN.md` are one document in two languages; keep both in sync with
   code changes, including the `D-###` references in the upstream-diff section.

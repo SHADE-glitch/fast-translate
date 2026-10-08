@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 keeps full history: `npm run check:log` walks git log
+      # back to the frozen-upstream anchor declared in CHANGELOG.md, so a
+      # shallow clone cannot resolve the coverage window.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Only the desktop-free Node suites run here. The gjs-based checks are
+      # deliberately excluded: `npm test` ends with gjs -m test/prefs-validator.js,
+      # which calls Gtk.init()/Adw.init() and needs a display plus the GTK4 and
+      # libadwaita typelibs — installing only `gjs` would make it fail with
+      # "Failed to open display". Run the full `npm test` locally on a desktop.
+      - name: Node test suites
+        run: |
+          node test/unit.test.js
+          node test/teardown-guard.test.js
+          node test/repo.test.js
+
+      - name: Record coverage check
+        run: npm run check:log

@@ -1511,7 +1511,205 @@ global.testRunnerPromise = (async () => {
             }
         }
 
-        return { success: true };
+        // Test 5: MEASUREMENT, not assertion. Two facts this repo has carried as unknowns:
+        // whether St accepts `text-align: start` (the RTL half of docs/maintenance/open-items
+        // §2 waits on exactly that), and how wide an St scrollbar really is (extension.js
+        // SCROLLBAR_ESTIMATE = 16 is a guess on the safe side of never having measured it).
+        // Everything is reported into the result JSON; each probe records its own failure
+        // instead of throwing, because "this instrument is not bound" is a finding, not a
+        // red suite. Numbers become assertions only once they have been seen.
+        const style = {};
+        {
+            const Clutter = imports.gi.Clutter;
+            const GLib = imports.gi.GLib;
+            const bound = (obj, names) => names.filter((n) => typeof obj[n] === 'function');
+            // Local helper: the suite's other `wait` is block-scoped, and layout probes have to
+            // sit on real frame boundaries.
+            const wait = (ms) => new Promise(resolve => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => { resolve(); return GLib.SOURCE_REMOVE; });
+            });
+
+            // 5a. what a theme node and a label will actually tell us, before trusting a reading
+            const bare = new St.Label({ text: 'x' });
+            style.themeNodeMethods = bound(bare.get_theme_node(), [
+                'get_text_align', 'get_length', 'get_color', 'get_font_size', 'get_double_length',
+            ]);
+            style.labelChild = (() => {
+                const out = { firstChild: bare.get_first_child() ? bare.get_first_child().get_name() : null };
+                // St.Label's text actor is reachable by name in this binding — production reads
+                // `label.get_clutter_text().set_line_wrap(...)` (extension.js:1562), so that is
+                // the instrument for alignment rather than a guessed child walk.
+                try {
+                    const t = bare.get_clutter_text();
+                    out.hasClutterText = !!t;
+                    out.methods = bound(t, ['get_line_alignment', 'get_layout', 'get_cursor_position', 'get_buffer']);
+                } catch (e) { out.clutterTextError = String(e.message || e).slice(0, 60); }
+                return out;
+            })();
+            bare.destroy();
+
+            // 5b. is the keyword kept, and is it distinct from `left`? Inline `set_style` runs the
+            // same parser a stylesheet does. Pango.Alignment is LEFT=0 CENTER=1 RIGHT=2, so
+            // `center` and `right` are the controls proving the reader can see a difference, and
+            // `banana` is the control proving what "not kept" looks like.
+            const readAlign = (decl, rtl) => {
+                const l = new St.Label({ text: 'abc' });
+                if (rtl) l.text_direction = Clutter.TextDirection.RTL;
+                l.set_style(decl);
+                global.stage.add_child(l);
+                const out = { decl, rtl: !!rtl };
+                try { out.value = l.get_theme_node().get_text_align(); }
+                catch (e) { out.error = String(e.message || e).slice(0, 70); }
+                try {
+                    const t = l.get_clutter_text();
+                    if (t && typeof t.get_line_alignment === 'function') out.lineAlignment = t.get_line_alignment();
+                } catch (e) { out.lineAlignmentError = String(e.message || e).slice(0, 60); }
+                l.destroy();
+                return out;
+            };
+            style.align = [
+                readAlign('text-align: left;', false),
+                readAlign('text-align: start;', false),
+                readAlign('text-align: center;', false),
+                readAlign('text-align: end;', false),
+                readAlign('text-align: right;', false),
+                readAlign('text-align: banana;', false),
+                readAlign('text-align: left;', true),
+                readAlign('text-align: start;', true),
+                readAlign('text-align: end;', true),
+            ];
+
+            // 5c. does the ScrollView expose scrollbar objects at all? Production only ever calls
+            // add_child/set_height on one, and an earlier run of this probe found neither
+            // get_vscrollbar() nor get_allocation() exists in this binding — recorded, because it
+            // is what decides how the width can be measured.
+            style.scrollViewApi = (() => {
+                const sv = new St.ScrollView({ width: 200, height: 100 });
+                const out = {
+                    name: sv.get_name(),
+                    methods: bound(sv, ['get_vscrollbar', 'get_hscrollbar', 'get_allocation', 'get_width',
+                        'get_height', 'get_children', 'get_child', 'set_child', 'add_child', 'get_theme_node']),
+                };
+                try { out.children = (sv.get_children ? sv.get_children() : []).map((c) => c.get_name()); }
+                catch (e) { out.childrenError = String(e.message || e).slice(0, 60); }
+                sv.destroy();
+                return out;
+            })();
+
+            // 5d. the width the scrollbar takes, measured as the width the layout withholds from
+            // the label: same box, same text, policy ALWAYS against policy NEVER as the control.
+            const stolenWith = async (policy, tag) => {
+                const sv = new St.ScrollView({
+                    width: 300, height: 120,
+                    hscrollbar_policy: St.PolicyType.NEVER,
+                    vscrollbar_policy: policy,
+                });
+                const box = new St.BoxLayout({ vertical: true, x_expand: true, y_expand: true });
+                const label = new St.Label({
+                    text: 'measurement line',
+                    x_expand: true,
+                    style_class: 'translate-floating-text-src',
+                });
+                box.add_child(label);
+                sv.add_child(box);
+                global.stage.add_child(sv);
+                sv.queue_relayout();
+                await wait(150);
+                sv.queue_relayout();
+                await wait(150);
+                const out = { tag, labelWidth: label.get_width(), boxWidth: box.get_width() };
+                try { out.svWidth = sv.get_width(); } catch (e) { out.svWidthError = String(e.message || e).slice(0, 48); }
+                sv.destroy();
+                return out;
+            };
+            style.syntheticStolen = [
+                await stolenWith(St.PolicyType.ALWAYS, 'scrollbar always'),
+                await stolenWith(St.PolicyType.NEVER, 'control: policy off'),
+            ];
+
+            // The same pair through the production path: the card's own measure-and-pin step,
+            // overflowing text (scrollbar up) against text that fits (no scrollbar).
+            {
+                const long = 'word '.repeat(240).trim();
+                const readCard = async (destText, tag) => {
+                    let w = null;
+                    try {
+                        w = new indicator.FloatingTranslationWindow(long, destText, 'EN', 'ZH');
+                        w.setTargetText(destText);
+                        w._applyHeightCaps();
+                        w.actor.queue_relayout();
+                        await wait(200);
+                        w._applyHeightCaps();
+                        await wait(200);
+                        return {
+                            tag,
+                            srcLabelWidth: w._srcLabel.get_width(),
+                            destLabelWidth: w._destLabel.get_width(),
+                            srcScrollHeight: w._srcScroll.get_height(),
+                            destScrollHeight: w._destScroll.get_height(),
+                        };
+                    } catch (e) {
+                        return { tag, error: String(e.message || e).slice(0, 120) };
+                    } finally {
+                        if (w) { try { w.destroy(); } catch (_e) {} }
+                        if (indicator._floatingWindow === w) indicator._floatingWindow = null;
+                    }
+                };
+                style.cardStolen = [
+                    await readCard(long, 'overflow: scrollbar up'),
+                    await readCard('short', 'control: fits, no scrollbar'),
+                ];
+            }
+
+            // 5e. the two facts this probe was written for, now asserted.
+            //
+            // Scrollbar: measured 8 px withheld, on a synthetic ScrollView (300 -> 292) and on
+            // the real card through _applyHeightCaps() (650 -> 642). The invariant production
+            // depends on is not the exact number but that SCROLLBAR_ESTIMATE in extension.js
+            // (16) never *under*-covers it — under-covering measures the wrap too wide, so the
+            // pinned height clips the last line. Asserted as a range so a wider scrollbar on an
+            // unrun theme or an older shell trips here instead of clipping silently.
+            const synth = style.syntheticStolen;
+            const synthStolen = synth[1].boxWidth - synth[0].boxWidth;
+            if (synthStolen < 1) {
+                return { success: false, error: `a vertical scrollbar withheld ${synthStolen}px ` +
+                    `(policy ALWAYS gave ${synth[0].boxWidth}, policy NEVER gave ${synth[1].boxWidth}) — ` +
+                    `either the policy stopped applying or this instrument no longer measures anything` };
+            }
+            const cardStolen = style.cardStolen[1].destLabelWidth - style.cardStolen[0].destLabelWidth;
+            if (cardStolen !== synthStolen) {
+                return { success: false, error: `the card's scrollbar withholds ${cardStolen}px but a plain ` +
+                    `ScrollView withholds ${synthStolen}px — the two paths no longer share a layout contract` };
+            }
+            if (synthStolen > 16) {
+                return { success: false, error: `a vertical scrollbar withholds ${synthStolen}px, more than ` +
+                    `SCROLLBAR_ESTIMATE (16) covers: _measureActor would predict the wrap too wide and the ` +
+                    `pinned height would clip the last line` };
+            }
+
+            // Alignment: `right`/`center` prove the reader distinguishes values, `banana` shows
+            // what an unrecognised keyword looks like. start/end land on LEFT under both
+            // directions, which is why the RTL question cannot be answered in CSS. If a future
+            // St makes them direction-relative, this trips and the popup gets re-decided — that
+            // is the point of pinning it.
+            const v = (decl, rtl) => (style.align.find((a) => a.decl === decl && !!a.rtl === !!rtl) || {}).value;
+            if (!(v('text-align: center;', false) === 1 && v('text-align: right;', false) === 2)) {
+                return { success: false, error: `the alignment reader no longer separates values ` +
+                    `(center=${v('text-align: center;', false)} right=${v('text-align: right;', false)}, ` +
+                    `expected 1 and 2) — the start/end finding below is meaningless without it` };
+            }
+            if (v('text-align: start;', false) !== v('text-align: banana;', false)
+                || v('text-align: start;', true) === v('text-align: right;', false)) {
+                return { success: false, error: `text-align start/end changed behaviour: start gives ` +
+                    `${v('text-align: start;', false)} under LTR and ${v('text-align: start;', true)} under RTL, ` +
+                    `an unrecognised keyword gives ${v('text-align: banana;', false)}, right gives ` +
+                    `${v('text-align: right;', false)}. This finding is what keeps the RTL question on the JS ` +
+                    `side — if St has begun honouring start/end, re-read docs/maintenance/open-items.md §2 ` +
+                    `before keeping that choice` };
+            }
+        }
+
+        return { success: true, style };
     } catch (e) {
         return { success: false, error: e.message || String(e) };
     } finally {

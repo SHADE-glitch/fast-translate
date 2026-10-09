@@ -2264,15 +2264,19 @@ class FloatingTranslationWindow {
             if (lw && lw > 100 && lw < 5000) return Math.min(lw, cap);
             return cap;
         };
-        // The vertical scrollbar steals ~10px of the label's wrap width once it
-        // appears. Real width can't be read reliably (sb.get_width() returns 0),
-        // so we measure in two stages: full width first to detect overflow, then
-        // full width minus a conservative scrollbar estimate to get the real wrap.
-        // 16 rather than the ~10 above because over-estimating only widens the
-        // measured wrap into space the scrollbar then reclaims; the +HEIGHT_SAFETY
-        // below is what keeps the last line from clipping either way. The exact
-        // St scrollbar width has never been measured in a live session — needs
-        // manual confirmation, and this value is the safe side of that unknown.
+        // The vertical scrollbar takes width away from the label's wrap once it appears.
+        // Measured on GNOME Shell 50.1: 8 px, two independent ways — a plain St.ScrollView
+        // 300 px wide lays its child out at 292, and this card's destination label goes
+        // 650 -> 642 once the text overflows (test/eval-test.js Test 5 asserts both, and
+        // that the two agree). It cannot be read off the scrollbar itself: this binding
+        // exposes no get_vscrollbar()/get_allocation() on St.ScrollView at all, and
+        // production only ever calls add_child()/set_height() on one.
+        // The estimate stays at 16 rather than the measured 8 on purpose: subtracting too
+        // little would measure the wrap wider than the label ever gets, and the pinned
+        // height would then clip the last line, while subtracting too much only costs a
+        // few px of slack. 45-49 are unrun here, and a theme with a wider scrollbar would
+        // land inside the margin instead of clipping — if it ever exceeded 16, Test 5 goes
+        // red rather than the popup.
         const SCROLLBAR_ESTIMATE = 16;
         const HEIGHT_SAFETY = 16;
         const _measureActor = (label, scroll, cap) => {

@@ -171,3 +171,17 @@ Change   新增纯函数 `looksLikeWord`；请求按输入路由——单个词�
 Evidence L0+L1 本轮重跑：`word-detection tests passed successfully!`、`npm run integration` 报 `success:true`
 Cost     单词会被发给 Google（整句仍只发所选服务商）；判定是保守启发式——无标点、无空格的 CJK 长片段会被当成词发给 Google；只对词生效，句子的行为与文案不变
 Commit   e93d10a
+
+### D-023 · 2026-10-09 · taste · v11
+Symptom  词典卡把音标/词性/义项/例句压进译文 label 的 Pango markup：无法逐元素上色，且不显示主译文
+Change   改为真实 actor 组成的结构化卡片（译文标题 + 音标 + 词性行 + 例句），逐元素套 CSS；改用纯文本渲染，删除 `escapeMarkup`/`_buildDictMarkup` 与 `.translate-floating-text-dest.dict`；高度测量改测活动子 actor（label 或 card），并在每轮清空 card 的 pinned height
+Evidence L0+L1 本轮重跑：`npm run integration` 报 `success:true`（含重写的 Test 3i 结构化卡片断言与新增的词典卡 settle 收敛断言）
+Cost     卡片是 `_destBox` 内的兄弟 actor，与译文 label 用 visible 互斥；`_applyHeightCaps` 每轮必须先清空 card 的 pinned height，否则重演 D-007 棘轮；卡片仅 Google 出卡的限制不变
+Commit   08bf811
+
+### D-024 · 2026-10-09 · taste · v11
+Symptom  配置 ZH→EN 时双击英文单词（如 hello）被当作中文源，回显原文、拿不到词条
+Change   新增纯函数 `baseLangCode`/`detectLang`/`resolveDirection`；仅对词在“检测语言 == 目标基码且 ≠ 源基码”时反转方向（新源取目标基码、新目标取旧源），句子与 AUTO 源不变；`_buildRequestSpec` 四个分支统一用有效方向
+Evidence L0+L1 本轮重跑：`auto-direction tests passed successfully!`、`npm run integration` 报 `success:true`
+Cost     检测仅覆盖 ZH/EN 两种脚本，其他语言不反转；仅对词生效，句子的服务商与方向不变；Google 恒不走缓存故缓存键无需改；标题仍显示设置方向，与自动方向可能不一致（记入 MAINTENANCE §13）
+Commit   08bf811

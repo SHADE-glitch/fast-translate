@@ -188,6 +188,120 @@ describe("the card's geometry constants still match the CSS they mirror", () => 
     });
 });
 
+describe("the shipped defaults keep the promises the settings copy makes", () => {
+    // A default is behaviour, and `prefs.js` describes it in prose. Those two live in
+    // different files, so they can contradict each other while every test passes —
+    // which is exactly what happened: the background-mode row advertised silent
+    // translation while `floating-background-toast` defaulted to true, and
+    // `notifications` defaulted to false, which makes a background-mode failure
+    // invisible (the inline error branch needs `!isBackground`, extension.js:721, and
+    // fail() gates on this._notifications, extension.js:1014).
+    const SCHEMA = read("schemas/org.gnome.shell.extensions.fast-translate.gschema.xml");
+    const boolDefault = (key) => {
+        const m = SCHEMA.match(new RegExp(
+            `<key\\s+name="${key}"\\s+type="b">\\s*<default>\\s*(true|false)\\s*</default>`));
+        assert.ok(m, `${key}: no boolean <default> in the schema — the copy cannot be checked against it`);
+        return m[1] === "true";
+    };
+
+    it("a background-mode failure can reach the user by default", () => {
+        assert.equal(boolDefault("notifications"), true,
+            "notifications must default to true: with false, a translation that fails in " +
+            "background mode produces no card (that branch requires !isBackground) and no " +
+            "notification, so the user gets silence and a clipboard that never changed");
+    });
+
+    it("background mode is silent by default, because that is what its row says", () => {
+        assert.equal(boolDefault("floating-background-toast"), false,
+            "the Double-copy Background Mode row promises silent translation, so the toast " +
+            "that quotes the source text and the result must be off until asked for — " +
+            "a notification body also lands on the lock screen");
+    });
+
+    it("Escape is bound by default, so the on/off row has something to toggle", () => {
+        // The default is wrapped in CDATA (`[['Escape']]' is a JS-array string), so the
+        // value is taken between the tags rather than as a plain attribute.
+        const m = SCHEMA.match(new RegExp(
+            `<key\\s+name="keybinding-close-floating-window"\\s+type="as">\\s*<default>([\\s\\S]*?)</default>`));
+        assert.ok(m, "keybinding-close-floating-window must stay an as-type key with a default");
+        assert.match(m[1], /Escape/,
+            "the prefs row toggles between this default and an empty array; if the default " +
+            "changes, the row writes the wrong binding");
+    });
+});
+
+describe("the translation catalogs cover the strings the code asks to translate", () => {
+    // `_()` is the only path to a translated string, and nothing here regenerates the
+    // catalogs on this machine (gettext is absent — see MAINTENANCE §10). So a msgid can
+    // be added, shipped and simply never appear in po/: the UI stays English silently and
+    // a translator gets an incomplete catalog. This guard is what makes that loud.
+    const TRANSLATED = ["extension.js", "prefs.js", "translation-helper.js"];
+
+    const jsUnescape = (s) => s
+        .replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\(["'`\\])/g, "$1");
+    const poUnescape = (s) => s
+        .replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\(["\\])/g, "$1");
+
+    // Every literal passed to _() in the sources, whole-line comments stripped so a
+    // sentence in a comment cannot register as a msgid.
+    function sourceMsgids() {
+        const out = new Set();
+        for (const f of TRANSLATED) {
+            const code = srcCode(read(f));
+            for (const m of code.matchAll(/_\(\s*(["'`])((?:(?!\1)[^\\]|\\.)*?)\1\s*\)/g))
+                out.add(jsUnescape(m[2]));
+        }
+        return out;
+    }
+
+    // msgid strings of a catalog, including C-style continuations on the next lines.
+    function catalogMsgids(rel) {
+        const lines = read(rel).split("\n");
+        const out = new Set();
+        for (let i = 0; i < lines.length; i++) {
+            const m = lines[i].match(/^msgid\s+"((?:[^"\\]|\\.)*)"/);
+            if (!m) continue;
+            let text = m[1];
+            while (i + 1 < lines.length && /^"((?:[^"\\]|\\.)*)"$/.test(lines[i + 1]))
+                text += lines[++i].slice(1, -1);
+            if (text) out.add(poUnescape(text));
+        }
+        return out;
+    }
+
+    const src = sourceMsgids();
+
+    it("the sources ask for translation at all", () => {
+        // A guard over an empty set proves nothing: if the extraction ever matches
+        // nothing, the coverage assertions below would pass vacuously.
+        assert.ok(src.size > 50,
+            `only ${src.size} msgid(s) extracted — the _() matcher stopped working, so this ` +
+            `guard is checking nothing`);
+    });
+
+    it("messages.pot carries every string the sources translate", () => {
+        const pot = catalogMsgids("po/messages.pot");
+        const missing = [...src].filter((s) => !pot.has(s)).sort();
+        assert.deepEqual(missing, [],
+            `po/messages.pot is missing ${missing.length} of ${src.size} msgid(s): ` +
+            `${missing.map((s) => JSON.stringify(s)).join(", ")} — a string that is not in the ` +
+            `catalog can never be translated, no matter what a translator writes in the .po files`);
+    });
+
+    for (const rel of ["po/de.po", "po/es.po", "po/nl.po"]) {
+        it(`${rel} translates only strings the template knows about`, () => {
+            // Locales are allowed to lag the template (that is what a translator picks
+            // up next time), but a msgid that no longer exists in the sources is an
+            // orphan: its translation is of a sentence the extension never shows.
+            const pot = catalogMsgids("po/messages.pot");
+            const orphans = [...catalogMsgids(rel)].filter((s) => !pot.has(s)).sort();
+            assert.deepEqual(orphans, [],
+                `${rel} carries ${orphans.length} msgid(s) absent from the template: ` +
+                `${orphans.slice(0, 3).map((s) => JSON.stringify(s)).join(", ")}`);
+        });
+    }
+});
+
 describe("documentation conventions hold", () => {
     // House convention across every fork in this workspace: a doc that exists in
     // two languages is a two-file bilingual pair with mirrored section order,

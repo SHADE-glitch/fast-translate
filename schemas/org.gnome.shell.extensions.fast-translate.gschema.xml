@@ -158,7 +158,7 @@
             <description>Shortcut to close the floating translation window. Registered only while the window is open; clear it (via dconf) to disable.</description>
         </key>
         <key name="notifications" type="b">
-            <default>false</default>
+            <default>true</default>
             <summary>Show notifications</summary>
             <description>Show notifications on translation</description>
         </key>
@@ -188,7 +188,7 @@
             <description>Translate in background on double-copy instead of showing the floating window</description>
          </key>
          <key name="floating-background-toast" type="b">
-            <default>true</default>
+            <default>false</default>
             <summary>Show Notification in Background Mode</summary>
             <description>Display a notification when background translation finishes</description>
          </key>

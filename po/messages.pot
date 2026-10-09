@@ -448,3 +448,367 @@ msgid ""
 "Translate automatically the content of the input box and the set the result "
 "in the output box"
 msgstr ""
+
+#: extension.js:68
+msgid "noun"
+msgstr ""
+
+#: extension.js:68
+msgid "verb"
+msgstr ""
+
+#: extension.js:68
+msgid "adjective"
+msgstr ""
+
+#: extension.js:69
+msgid "adverb"
+msgstr ""
+
+#: extension.js:69
+msgid "pronoun"
+msgstr ""
+
+#: extension.js:70
+msgid "preposition"
+msgstr ""
+
+#: extension.js:70
+msgid "conjunction"
+msgstr ""
+
+#: extension.js:71
+msgid "interjection"
+msgstr ""
+
+#: extension.js:71
+msgid "determiner"
+msgstr ""
+
+#: extension.js:72
+msgid "article"
+msgstr ""
+
+#: extension.js:72
+msgid "numeral"
+msgstr ""
+
+#: extension.js:73
+msgid "abbreviation"
+msgstr ""
+
+#: extension.js:73
+msgid "phrase"
+msgstr ""
+
+#: extension.js:421
+msgid "Unknown"
+msgstr ""
+
+#: extension.js:452 extension.js:583 extension.js:786
+msgid "Translation failed — please try again."
+msgstr ""
+
+#: extension.js:460
+msgid "Translating…"
+msgstr ""
+
+#: extension.js:538
+msgid "Source and target language are the same — pick a different target."
+msgstr ""
+
+#: extension.js:599 extension.js:962 extension.js:997
+msgid "Request timed out. Please check your connection and try again."
+msgstr ""
+
+#: extension.js:700 extension.js:758
+msgid "Unknown translation service selected in settings."
+msgstr ""
+
+#: extension.js:711
+msgid "DeepL URL must use HTTPS"
+msgstr ""
+
+#: extension.js:728
+msgid "Baidu Translate needs an APP ID and a secret key."
+msgstr ""
+
+#: extension.js:743
+msgid "Youdao Translate needs an app key and an app secret."
+msgstr ""
+
+#: extension.js:769
+msgid "the translation service"
+msgstr ""
+
+#: extension.js:772
+msgid "The selected language pair (%s) is not supported by %s."
+msgstr ""
+
+#: extension.js:773
+msgid "unknown"
+msgstr ""
+
+#: extension.js:776
+msgid "%s returned an empty translation."
+msgstr ""
+
+#: extension.js:778
+msgid "%s rejected the request: %s"
+msgstr ""
+
+#: extension.js:780
+msgid "unknown error"
+msgstr ""
+
+#: extension.js:782
+msgid "The translation service returned a malformed response."
+msgstr ""
+
+#: extension.js:784
+msgid "Reverse translation needs a specific source language. Choose one in Settings first."
+msgstr ""
+
+#: extension.js:932
+msgid "Rate-limited (429): too many requests. Please wait a moment and try again."
+msgstr ""
+
+#: extension.js:935
+msgid "Auth failed (401): check API key and URL in settings"
+msgstr ""
+
+#: extension.js:941
+msgid "Bad request (400)."
+msgstr ""
+
+#: extension.js:943
+msgid "Hint: DeepL does not accept regional codes (e.g. EN-US) as the source language."
+msgstr ""
+
+#: extension.js:948
+msgid "Request timed out (408). Please check your connection and try again."
+msgstr ""
+
+#: extension.js:951
+msgid "Translation service unavailable. Please try again later."
+msgstr ""
+
+#: extension.js:971 extension.js:1009
+msgid "Network error: cannot reach the translation service. Please check your connection."
+msgstr ""
+
+#: extension.js:981 extension.js:1000
+msgid "Proxy error: cannot reach the translation service through the configured proxy."
+msgstr ""
+
+#: extension.js:987 extension.js:1003
+msgid "Secure connection failed (TLS/certificate). Please check your network or proxy settings."
+msgstr ""
+
+#: extension.js:1235
+msgid "Text exceeds the %s single-request limit and was truncated"
+msgstr ""
+
+#: extension.js:1339
+msgid "Swap source and target languages"
+msgstr ""
+
+#: extension.js:1614
+msgid "Examples"
+msgstr ""
+
+#: extension.js:1625
+msgid "Synonyms"
+msgstr ""
+
+#: extension.js:1644
+msgid "Definitions"
+msgstr ""
+
+#: prefs.js:43
+msgid "Preferences"
+msgstr ""
+
+#: prefs.js:57
+msgid "Google Translate needs no key; DeepL, Baidu and Youdao each need their own credentials below"
+msgstr ""
+
+#: prefs.js:75
+msgid "Default source language for new translations"
+msgstr ""
+
+#: prefs.js:91
+msgid "Default target language for new translations"
+msgstr ""
+
+#: prefs.js:107
+msgid "Lean towards formal or informal language structure (DeepL only)"
+msgstr ""
+
+#: prefs.js:121
+msgid "Configure the DeepL API endpoint URL and your private authentication key"
+msgstr ""
+
+#: prefs.js:140
+msgid "Baidu Translate API Configuration"
+msgstr ""
+
+#: prefs.js:141
+msgid "APP ID and secret key from the Baidu Translate open platform. The secret is used locally to sign each request and is stored in plaintext in dconf."
+msgstr ""
+
+#: prefs.js:146
+msgid "APP ID"
+msgstr ""
+
+#: prefs.js:152
+msgid "Secret Key"
+msgstr ""
+
+#: prefs.js:160
+msgid "Youdao Translate API Configuration"
+msgstr ""
+
+#: prefs.js:161
+msgid "Application key and secret from the Youdao open platform. The secret is used locally to compute the v3 signature and is stored in plaintext in dconf."
+msgstr ""
+
+#: prefs.js:166
+msgid "App Key"
+msgstr ""
+
+#: prefs.js:172
+msgid "App Secret"
+msgstr ""
+
+#: prefs.js:186
+msgid "Split the input text into sentences to improve translation context and quality"
+msgstr ""
+
+#: prefs.js:193
+msgid "Retain original formatting details like capitalization, spacing, and newlines"
+msgstr ""
+
+#: prefs.js:199
+msgid "Double-Copy Instant Translation"
+msgstr ""
+
+#: prefs.js:204
+msgid "Auto Copy (Floating)"
+msgstr ""
+
+#: prefs.js:205
+msgid "Automatically copy the translated text to the clipboard when using the floating window"
+msgstr ""
+
+#: prefs.js:212
+msgid "Translate silently in the background on double-copy (Ctrl+C Ctrl+C) without showing the floating UI"
+msgstr ""
+
+#: prefs.js:219
+msgid "Show a desktop notification with the translation result when running in background mode"
+msgstr ""
+
+#: prefs.js:227
+msgid "System Integration"
+msgstr ""
+
+#: prefs.js:233
+msgid "Show a system notification when a translation fails"
+msgstr ""
+
+#: prefs.js:239
+msgid "Show Panel Icon"
+msgstr ""
+
+#: prefs.js:240
+msgid "Show the extension icon in the top panel (double-copy translation still works when hidden)"
+msgstr ""
+
+#: prefs.js:247
+msgid "Use dark theme friendly status icons in the top panel"
+msgstr ""
+
+#: prefs.js:283
+msgid "Links and Support"
+msgstr ""
+
+#: prefs.js:57
+msgid "The text you copy is sent to a translation service on the internet."
+msgstr ""
+
+#: prefs.js:338
+msgid "The text you copy is sent to %s for translation."
+msgstr ""
+
+#: prefs.js:340
+msgid " Its key is entered below."
+msgstr ""
+
+#: prefs.js:341
+msgid " It needs no key."
+msgstr ""
+
+#: prefs.js:343
+msgid "Single words are also sent to %s for the dictionary."
+msgstr ""
+
+#: prefs.js:319
+msgid "Restore this section’s defaults"
+msgstr ""
+
+#: prefs.js:320
+msgid "Resets %d settings in this section. Keys are never touched."
+msgstr ""
+
+#: prefs.js:330
+msgid "Clear the keys in this section"
+msgstr ""
+
+#: prefs.js:331
+msgid "Empties %d stored fields. This cannot be undone."
+msgstr ""
+
+#: prefs.js:339
+msgid "Click again to confirm — the stored key will be erased."
+msgstr ""
+
+#: prefs.js:121
+msgid "The API key below is secret; the URL above is not. Both are stored on this machine in plain text."
+msgstr ""
+
+#: prefs.js:141
+msgid "Both values come from the same page of the Baidu console. The Secret Key is the one that must stay private: it signs every request on this machine and is stored in plain text."
+msgstr ""
+
+#: prefs.js:161
+msgid "Both values come from the same page of the Youdao console. The App Secret is the one that must stay private: it signs every request on this machine and is stored in plain text."
+msgstr ""
+
+#: prefs.js:219
+msgid "Show a notification with the copied text and its translation. The text is visible on the lock screen."
+msgstr ""
+
+#: prefs.js:256
+msgid "Close the popup with Escape"
+msgstr ""
+
+#: prefs.js:257
+msgid "Escape dismisses the translation popup. Turning this off frees the key for the app behind it."
+msgstr ""
+
+#: prefs.js:297
+msgid "License"
+msgstr ""
+
+#: prefs.js:298
+msgid "MIT License — Copyright © the authors and contributors named in LICENSE"
+msgstr ""
+
+#: prefs.js:315
+msgid "This fork"
+msgstr ""
+
+#: prefs.js:331
+msgid "Upstream project"
+msgstr ""

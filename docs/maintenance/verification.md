@@ -38,6 +38,21 @@ A check that has not been seen failing has not been shown to check anything:
 provoke each new guard once (add the assertion before the code, or break the
 thing it guards in a scratch run, then restore).
 
+Two corollaries, each bought with a real mistake:
+
+- **A measurement taken outside the production call chain proves nothing about the
+  feature.** D-028's reverse dictionary lookup was "measured" with a standalone
+  `Soup.Session` probe that passed a method, while the shipped code path called a
+  builder that returned none — so `Soup.Message.new` threw, the caller's `catch`
+  swallowed it, and the feature had never sent a request. Verify *through the code
+  path users run*, or reproduce exactly the arguments that path passes.
+- **A harness must never let its own housekeeping decide the verdict.** Under
+  `set -e`, an EXIT trap aborts at its first failing command and the trap's status
+  *replaces* the result: a suite that printed `success:true` and the pass banner
+  exited 1 because cleanup could not delete its scratch tree. Every cleanup step is
+  therefore `|| true` and uses `/bin/rm` explicitly (see the trap list in
+  [cost-measurement.md](cost-measurement.md)).
+
 ## 3. Brittle assertions in `test/eval-test.js`
 
 Grep for the anchor before restructuring the popup; line numbers drift.
@@ -57,6 +72,7 @@ Grep for the anchor before restructuring the popup; line numbers drift.
 | `armCalls === 0` after ⇄ | the swap path must re-arm the 12 s watchdog |
 | `w.overlay.reactive !== false` after `_dismiss()` | a dismissed backdrop must stop swallowing clicks |
 | `w._winDestroyed` after an 800 ms wait | teardown must not depend on the tween's `onComplete` (headless never completes it) |
+| Test 3i `fired === 1`, then `fired === 0` after `destroy()` | the dictionary enrich arms a real watchdog, and `destroy()` removes the live source. Behavioural because `GLib.source_exists` is **not bound in GJS** — liveness can only be shown by whether the 6 s callback arrives |
 
 ### Request-sanity guards now in force
 

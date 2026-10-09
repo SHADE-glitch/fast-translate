@@ -59,8 +59,14 @@ XDG_RUNTIME_DIR=<tmp>/runtime  +  --headless --wayland-display=wayland-<唯一�
   就读 `Main.panel.statusArea[UUID]`，正是那次"面板按钮消失了"的来源。
 - 在 `bash -c '...'` 体内不能出现未转义的撇号：它会截断字符串，剩下的部分跑到外层
   shell 执行。这事真发生过一次，表现是一条莫名其妙的 `trap: usage`。
-- 跑完检查有没有遗留的嵌套壳：`pgrep -af 'gnome-shell --headless'`。每个占约
-  230 MB 和若干 CPU，而且会污染你自己的测量。
+- 跑完检查有没有遗留的嵌套壳——但要先读输出再数条数：`pgrep -f 'gnome-shell --headless'`
+  会匹配到**执行这条检查的那个 shell 自己的命令行**，于是报出一个并不存在的泄漏。改用
+  `pgrep -x gnome-shell` 再看 `/proc/<pid>/cmdline`，或者把打印出来的行过滤掉。每个真实
+  残留约占 230 MB 和若干 CPU，而且会污染你自己的测量。
+- **清理必须走 `/bin/rm`，而且必须容错。** 本机 `rm` 解析到 gio 回收站包装，它拒绝删
+  `/tmp` 下的东西（`Trashing on system internal mounts is not supported`）；在 `set -e`
+  下，EXIT trap 正好在那里中断，于是 trap 的状态码顶替了运行结论——一套全绿的断言以 1 退出，
+  还留下删不掉的临时树。现在每个清理步骤都是 `/bin/rm … || true`。
 
 ## 4. 让数字有意义的采样规则
 

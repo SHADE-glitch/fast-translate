@@ -12,10 +12,10 @@ Last updated 2026-10-09, during the phase-A+B pass described in
 
 | Thing | Value | How to re-check |
 |---|---|---|
-| Shipped version | the integer in `metadata.json` | `jq -r .version metadata.json` |
-| Branch state | `master`, ahead of `origin/master` by the commits listed below | `git status -sb` |
-| Unpushed | `2a4dad1` (AUTO title + reverse lookup) and `b4eefd7` (its docs) — **nothing was pushed by this pass** | `git log --oneline origin/master..HEAD` |
-| Working tree at session start | clean; the current edits are this pass's output, **uncommitted by design** | `git status --short` |
+| Shipped version | 14, bumped for D-029/D-030 (was 13 at the start of this pass) | `jq -r .version metadata.json` |
+| Branch state | `master`, ahead of `origin/master` | `git status -sb` |
+| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch **and** the C1 batch (D-029/D-030/D-031). Nothing was pushed — no authorization was given for it | `git log --oneline origin/master..HEAD` |
+| Working tree | clean after each commit; `npm test` and `npm run check:log` green at every step | `git status --short` |
 | Record gate | green, window `420251c..HEAD` | `npm run check:log` |
 | Test suite | green: unit, teardown guard, repo guards, signing cross-check, prefs layout | `npm test` |
 
@@ -36,15 +36,28 @@ Last updated 2026-10-09, during the phase-A+B pass described in
   point, the gated working method, evidence discipline, structural rules and the
   compatibility floor. Old rules that were simply wrong were deleted, not annotated.
 
+## C1 landed, and it found a dead feature
+
+The queued teardown fix (D-030) was written red-first, and the new L1 assertion then
+failed for a *different* reason: the dictionary enrich had never sent a request at all
+(D-029) because its spec omitted `method`, `Soup.Message.new` threw, and the caller's
+`catch` made a dead feature look like the documented best-effort fallback. Two more
+records came out of the same run:
+
+- **D-031 (guard)** — the integration harness could report exit 1 while its whole suite
+  passed: `rm` on this PATH is a gio trash wrapper that refuses to delete under `/tmp`,
+  and under `set -e` the EXIT trap's status replaced the verdict. Cleanup is now
+  `/bin/rm … || true` in both harness scripts.
+- `GLib.source_exists` is **not bound in GJS**, so "is the timer still alive" can only
+  be proven behaviourally: does the 6 s callback fire or not. Test 3i does exactly that.
+
 ## Open decisions for the maintainer
 
-1. **Commit or not, and in what split.** This pass touched no shipped code, so no
-   version bump and no `D-###` entry is required; the natural split is one commit for
-   the `docs/maintenance/` split + router, one for `INVARIANTS.md` + `check-log
-   --invariants`, one for the `repo.test.js` scope widening, one for `AGENTS.md`, one
-   for `docs/reports/`. Say the word and I stage explicit paths.
-2. **Push.** Two commits are still local from an earlier session and this pass adds
-   untracked work. Pushing needs your authorization for that specific action.
+1. **Next code step.** C2 is queued: make `onSwap` delegate to `swapLanguages`, so the
+   L0 guard that exists today actually covers the branch production runs.
+2. **Push.** `2a4dad1` and `b4eefd7` were already local, and this pass added ten more
+   commits on top. Pushing needs your authorization for that specific action — none was
+   given, and none is implied by "按计划推进".
 3. **Are `docs/reports/` tracked or ignored?** A sibling fork in this workspace
    gitignores its in-repo `reports/`; this one is currently **tracked** because
    `AGENTS.md` and `MAINTENANCE.md` link `STATE.md` as the session entry point, and a
@@ -56,15 +69,18 @@ Last updated 2026-10-09, during the phase-A+B pass described in
 
 ## Next step
 
-Phase C, one item at a time, in the order in
-[PLAN.md](PLAN.md): **C1** — hoist the dictionary-enrichment `cancellable` and
-`watchdogId` onto `this` so `destroy()` can reach them. Write it into
-`test/teardown-guard.test.js`'s `MUST_BE_GUARDED` first and watch that file fail
-before touching `extension.js`.
+Phase C continues in the order in [PLAN.md](PLAN.md): **C2** (single source of truth for
+the swap guard), **C3** (`PROVIDERS` metadata instead of prefs magic ints), **C4** (drop
+the synchronous icon `stat()`), **C5** (pixel-constant cross-references). Each one: guard
+red first, then implement, then report.
 
 ## What this pass did not verify
 
-- `npm run integration` and `npm run perf` were not re-run: no production JS changed.
+- `npm run integration` **was** re-run three times — red on the guard, red on the new
+  assertion, then green with `success:true` **and exit 0** — and `~/.config/dconf/user`
+  kept the same sha256 across all of them, so the zero-write property held.
+- `npm run perf` was not re-run: C1 changes when the enrich timer is removed, not the
+  steady-state cost, and the enrich now genuinely sends a request only for ZH→EN words.
   Any cost statement in these files is inherited from the recorded L1 baseline in
   [docs/maintenance/cost-measurement.md](../maintenance/cost-measurement.md).
 - GNOME 45–49 remain unrun here; the declared range is inherited from the upstream,

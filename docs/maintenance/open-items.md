@@ -111,10 +111,13 @@ not worth its cost, reopen only with new evidence.
   calls any other `Gio.Settings` method fails *here* first — which is the point,
   but it means no row, subtitle, default or reset behaviour is covered at L0.
 
-## 5. Privacy and settings defects, deferred by an explicit decision
+## 5. Deferred defects and their current status
 
-Decided on 2026-10-09: this round covers stability and structure only, so these
-are recorded rather than fixed. Each is verified by reading the code, not inferred.
+Decided on 2026-10-09: that round covered stability and structure only, so the
+privacy and settings group was recorded rather than fixed. Each item below is
+verified by reading the code, not inferred; two stability items that lived in the
+same list have since been fixed and are kept here with their record, so the
+discovery path is not lost.
 
 - **A failed translation in background mode is invisible.** `extension.js:716`
   requires `!isBackground` for the inline error path, and `fail()` only calls
@@ -140,11 +143,16 @@ are recorded rather than fixed. Each is verified by reading the code, not inferr
 - `updateServiceVisibility()` (`prefs.js:337-346`) hardcodes `service === 0/2/3`,
   duplicating the `PROVIDERS` table. **queued** as the enabler for the disclosure
   above.
-- **`_enrichZhToEnDict` leaks a source past `disable()`**: its `cancellable` and
-  `watchdogId` (`extension.js:813-823`) are function-local, so `destroy()`
-  (`:1299-1336`) cannot reach them — a 6 s timer and an in-flight request outlive
-  the extension. Callbacks are `_destroyed`-guarded, so this is residue, not
-  corruption. **queued** (the only teardown-symmetry item this round).
+- **`_enrichZhToEnDict` leaked a source past `disable()`** — its `cancellable` and
+  `watchdogId` were function-locals, so `destroy()` could not reach a 6 s timer and an
+  in-flight request. Fixed (D-030) and now pinned twice: at L0 by
+  `test/teardown-guard.test.js` and at L1 by `eval-test.js` Test 3i.
+- **Fixing that leak is what exposed a bigger one**: the enrich request had *never been
+  sent at all* (D-029). Its spec came from a builder that omitted `method`, so
+  `Soup.Message.new` threw and the caller's `catch` turned a dead feature into the
+  documented "best-effort, silently keeps the forward card" appearance. The standing
+  lesson is in `verification.md`: **a measurement taken outside the production call
+  chain proves nothing about the feature.**
 - Two synchronous `Gio.File.query_exists()` calls on the shell main thread per
   icon refresh (`extension.js:1286`, `:1289`). **queued**, low priority: the path
   runs only when the theme or `darktheme` changes.

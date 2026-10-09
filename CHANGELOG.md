@@ -213,3 +213,24 @@ Change   新增纯函数 `mergeEnrichedDict` 与 `_enrichZhToEnDict`：前向结
 Evidence L0+L1 本轮重跑：`Google dictionary parser tests passed successfully!`、`npm run integration` 报 `success:true`；以扩展同款 `Soup.Session` 实测 `银行→bank` 前向仅 noun:1，补查后 syn=2/def=2/ex=10
 Cost     每个中文词查英文会多发一次 Google 请求（约翻倍），失败/超时（6s）静默保留前向卡片；反查词头用 Google 的译文，词性可能与中文词原词性不完全对应（如「美丽」译文 beauty 为名词）；同义词/英英释义/例句仍是英文内容
 Commit   2a4dad1
+
+### D-029 · 2026-10-09 · fix · v14
+Symptom  中文词查英文的后台补查（D-028）在生产路径上从未发出过任何请求，卡片永远只有前向双语词表——与「补查失败静默保留前向卡片」这一文档化的 best-effort 行为外观完全相同，因此没有任何可见症状
+Change   `buildGoogleRequest` 现在自己返回 `method: 'POST'` 与 User-Agent（原先只有 url/body/contentType，`Soup.Message.new(undefined, url)` 在 GJS 直接抛 `Expected type string for argument 'method'`，被调用方的 catch 吞掉）；`_buildRequestSpec` 的 google 分支不再重拼自己的 method/UA，两个调用方共用同一份形状
+Evidence L0 新增断言先红（`got undefined`）后绿；`npm run integration` 报 `success:true`，Test 3i 现在能观察到补查的 watchdog 被真实挂上；gjs 侧独立探针实测 `spec.method="POST"` → message built
+Cost     补查真的开始发请求，中文词查英文每次多发一次 Google 往返（D-028 的 Cost 那条"约翻倍"从今天起才成立）；D-028 的 Evidence 是脱离生产调用链的手测探针，按其定义不回改
+Commit   e88b27d 60c6fef
+
+### D-030 · 2026-10-09 · fix · v14
+Symptom  `disable()` 之后仍有一个 6 秒 watchdog 与在途请求活着：`_enrichZhToEnDict` 的 cancellable 与 watchdogId 是函数局部变量，`destroy()` 拿不到句柄；回调有 `_destroyed` 守卫，所以表现为残留而非错乱
+Change   两个句柄提到 `this._enrichCancellable` / `this._enrichWatchdogId`（`_init` 里声明），`destroy()` 成对 cancel+remove，重挂前 `_dropEnrichSource()` 先丢旧源（照 `_armSafetyTimeout` 既有写法），settle 时按 cancellable 身份校验再清空，避免晚到的回调用抹掉新请求的句柄
+Evidence L0 `test/teardown-guard.test.js` 先加两步跑红（`step not found in destroy(): GLib.Source.remove(this._enrichWatchdogId)`）再实现，现报 `9 guarded, 2 intentionally bare`；L1 Test 3i 以行为证明存活（`GLib.source_exists` 在 GJS 未绑定）：对照看门狗到点必然回调 1 次，`destroy()` 后等过同一期限回调 0 次且句柄已清空
+Cost     快速连拷两次时前一次补查被直接放弃（其 onDone 不再触发）——该回调原本也只对仍是当前卡片的窗口有效，故无用户可见变化
+Commit   60c6fef
+
+### D-031 · 2026-10-09 · guard · v14
+Symptom  一整套断言已经 `success:true` 并打印通过，`npm run integration` 仍然以 1 退出：判决被清理步骤覆盖。本机 `rm` 解析到 gio 回收站包装，它拒绝删 `/tmp`（`Trashing on system internal mounts is not supported`），而 `set -e` 下 EXIT trap 在第一条失败命令处中断，trap 的状态码顶替真实结论；同一失败还让每次运行的临时树留在 `/tmp`
+Change   两个 harness 的 cleanup 统一改成绝对路径 `/bin/rm` 且每步 `|| true`，注释写明"清理永不改写判决"的两条机制
+Evidence 最小复现：`set -euo pipefail` + trap 内一条 `false` → `status=1`，加 `|| true` → `status=0`；改后 `npm run integration` 报 `success:true` 且 `exit=0`，`/tmp/ft-integration.*` 不再新增（残留的 7 棵时间戳均早于本次改动）
+Cost     只在测试层，不影响发行物；把 `/bin/rm` 换回 PATH 上的 `rm` 会立刻恢复这个假红
+Commit   61639e9

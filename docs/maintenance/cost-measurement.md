@@ -68,9 +68,17 @@ Each of these produced a wrong result that looked like a correct one:
 - Never write an unescaped apostrophe inside the `bash -c '...'` body: it ends
   the string and the remainder runs in the outer shell. That happened once and
   surfaced as a nonsense `trap: usage`.
-- After a run, check for leaked nested shells: `pgrep -af 'gnome-shell --headless'`.
-  Each holds ~230 MB and a few percent of a core, which will also distort your own
-  measurements.
+- After a run, check for leaked nested shells — but read the output, not the count:
+  `pgrep -f 'gnome-shell --headless'` matches the command line of the very shell
+  running that check, so it reports a leak that does not exist. Use `pgrep -x
+  gnome-shell` and inspect `/proc/<pid>/cmdline`, or filter the printed line. Each
+  real leftover holds ~230 MB and a few percent of a core, which also distorts your
+  own measurements.
+- **Cleanup must be `/bin/rm` and must tolerate failure.** On this machine `rm`
+  resolves to a gio trash wrapper that refuses to delete under `/tmp`
+  (`Trashing on system internal mounts is not supported`), and under `set -e` an
+  EXIT trap aborting there replaced the run's verdict: a passing suite exited 1 and
+  left its scratch tree behind. Every cleanup step is now `/bin/rm … || true`.
 
 ## 4. Sampling rules that make a number mean something
 

@@ -183,8 +183,12 @@ handbook: operational knowledge lives behind the router in
   covers commit counts, entry counts, section counts and dependency counts.
 - **Privacy in prose and in code alike.** No `Symptom`, log line, notification body or doc may
   quote clipboard content or credentials. Whatever is double-copied is sent to a third party —
-  the maintainer-facing boundary is `MAINTENANCE.md` §11, the user-facing disclosure is an open
-  item. Keys live in dconf only, never in git, logs or a URL query.
+  the maintainer-facing boundary is `MAINTENANCE.md` §11, and the settings window now says the
+  same thing per provider (D-038), so new outward calls must be added to *both*. Keys live in
+  dconf only, never in git, logs or a URL query. **Proving** the harness writes nothing to dconf
+  is done with `sha256sum ~/.config/dconf/user`; a `dconf dump`/`gsettings get` of this schema
+  prints the keys themselves into whatever log the run is redirected to, so no repo script may
+  run one — `test/repo.test.js` ("a probe reads the settings store only as a hash") enforces it.
 
 ## Recording conventions
 

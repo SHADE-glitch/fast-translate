@@ -87,7 +87,11 @@ disable/enable 不会重新 import 改过的 ES 模块。
 - **本机没有 `msgfmt`/`xgettext`**，所以只要 `po/` 存在，`gnome-extensions pack`
   就会硬失败。仓库里没有 `locale/` 也没有 `.mo`，因此翻译从未加载过：每个 `_()`
   都直接返回 msgid。为将来的打包版修 msgid 仍然有意义，但 `scripts/update-po*.sh`
-  在这台机器上跑不了。
+  在这台机器上跑不了——**所以目录是手工维护、由 `test/repo.test.js` 保证它诚实**：每个
+  `_()` 字面量都要出现在 `messages.pot` 与 de/es/nl 里，任何目录都不许带着模板已不认识的
+  msgid，源码里每条 `// Translators:` 注释都要以 `#.` 落到这四个文件。也就是说，加一条
+  用户可见的串，就得同时改四处目录，`npm test` 才会绿。还欠什么见
+  [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) 第 3 节。
 - `schemas/gschemas.compiled` 被 gitignore。**新克隆在跑过
   `glib-compile-schemas schemas/` 之前是坏的。** 不需要往系统装任何东西：壳会从扩展
   自己的 `schemas/` 目录建私有 schema source。
@@ -95,11 +99,13 @@ disable/enable 不会重新 import 改过的 ES 模块。
 
 ## 11. 隐私边界
 
-- 被双击拷贝的文本会通过 HTTPS 发给所选服务商：
-  `translate.googleapis.com/translate_a/single`、
-  `api-free.deepl.com/v2/translate`（host 可在 gsettings 改）、
-  `fanyi-api.baidu.com/api/trans/vip/translate`、`openapi.youdao.com/api`。这是产品
-  本身而非泄露——但不能被静默扩大。
+- 被双击拷贝的文本会通过 HTTPS 发给所选服务商。host 就是
+  `translation-helper.js` 里每条 `PROVIDERS` 行的 `host` 字段，由请求构建器自己用的
+  那批 endpoint 常量推出来：`clients5.google.com/translate_a/single?client=dict-chrome-ex`、
+  `api-free.deepl.com/v2/translate`（完整 URL 是 `url` 这个 gsetting，所以 DeepL 在表里
+  没有固定 host）、`fanyi-api.baidu.com/api/trans/vip/translate`、`openapi.youdao.com/api`。
+  这是产品本身而非泄露——但不能被静默扩大。`test/unit.test.js` 会把每条声明的 `host`
+  和它自己构建器发出的 URL 对比，所以这张表无法与请求脱节。
 - API key 与应用密钥**只存在 dconf**。git 里没有任何凭据；
   `test/unit.test.js` 与 `test/signing-crosscheck.js` 里的向量是合成的
   （`appid 20200101000000001`、`secretKey abcdefghijklmnop`、`testkey/testsecret`），
@@ -107,8 +113,11 @@ disable/enable 不会重新 import 改过的 ES 模块。
 - 扩展不写文件、不留剪贴板历史；缓存纯内存且 `disable()` 即清。
 - 若干错误分支会把服务商返回的 detail 文本拼进消息里并落到 journal。应当假定剪贴板
   内容可能出现在日志中。
-- 本节是**维护者**的边界。至于*用户*被告知了什么，是另一个仍未关闭的缺口——见
-  [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) 第 5 节。
+- 本节是**维护者**的边界。*用户*现在也在设置窗口里被告知同一件事：`prefs.js` 的
+  `updatePrivacyDisclosure()` 把所选服务商的 host 写进服务商那行的副标题，并为单词
+  词典查询点名 `clients5.google.com`；`test/repo.test.js` 守住"随仓库安装的 gsettings
+  默认值与那段文案的承诺一致"。用户*尚未*被告知的部分，仍要在新增任何对外请求前对着
+  这张清单核一遍。
 
 ## 12. 平台事实（每条都在 50.1 上验证过）
 
@@ -124,6 +133,15 @@ disable/enable 不会重新 import 改过的 ES 模块。
   `@define-color`，所以 SCSS 那种编译期颜色名不可引用。
 - 断言计算样式用
   `actor.get_theme_node().get_background_color()` / `.get_padding(St.Side.TOP)`。
+  `get_text_align()` 也是绑定的，取值是 `Pango.Alignment`（LEFT=0、CENTER=1、RIGHT=2）：
+  `start` 与 `end` 都读回 **0**，与一个不认识的关键词一模一样，把 `text-direction` 设成
+  RTL 也不变——St 认这两个词但一律映射到 LEFT，所以这里没法用壳的 CSS 表达"方向相关"的对齐。
+- **竖向 `St.ScrollView` 的滚动条拿走 8 px**，对照组是同一只盒子把策略关掉（300→292）。
+  这个 binding 里 `St.ScrollView` **没有** `get_vscrollbar()` / `get_hscrollbar()` /
+  `get_allocation()`——只有 `add_child`、`set_child`、`get_child`、`get_width`、`get_height`、
+  `get_children`、`get_theme_node`——所以宽度只能从"布局留给子元素多少"反推。
+  `extension.js` 里的 `SCROLLBAR_ESTIMATE` 刻意留 16，`test/eval-test.js` 的 Test 5 断言真实值
+  始终在这个上限内。
 - GNOME 50 上**无法从 JS 构造合成输入事件**：`Clutter.Event` 只暴露 `get_*`
   访问器，不能构造，也没有 setter。别想着在测试里注入点击或按键。
 - `Main.pushModal(..., SYSTEM_MODAL)` 与 `global.stage.set_key_focus()` 都被实测并

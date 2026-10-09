@@ -98,7 +98,12 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
   pack` hard-fails while `po/` exists. There is no `locale/` and no `.mo`, so no
   translation has ever loaded: every `_()` returns its msgid. Fixing msgids is
   still worthwhile for a future packed build, but `scripts/update-po*.sh` cannot
-  run here.
+  run here — **the catalogs are therefore edited by hand and kept honest by
+  `test/repo.test.js`**: every `_()` literal must appear in `messages.pot` and in
+  de/es/nl, no catalog may carry a msgid the template lost, and every
+  `// Translators:` comment must reach all four as a `#.` hint. Adding a user-visible
+  string means four `.po`-side edits before `npm test` goes green. See
+  [docs/maintenance/open-items.md](docs/maintenance/open-items.md) §3 for what is still owed.
 - `schemas/gschemas.compiled` is gitignored. A fresh clone is **broken until**
   `glib-compile-schemas schemas/`. Nothing needs installing system-wide: the
   shell builds a private schema source from the extension's own `schemas/` dir.
@@ -106,11 +111,15 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
 
 ## 11. Privacy boundary
 
-- Whatever text is double-copied is sent over HTTPS to the selected provider:
-  `translate.googleapis.com/translate_a/single`,
-  `api-free.deepl.com/v2/translate` (host configurable in gsettings),
-  `fanyi-api.baidu.com/api/trans/vip/translate`, `openapi.youdao.com/api`.
-  That is the product, not a leak — but it must never be widened silently.
+- Whatever text is double-copied is sent over HTTPS to the selected provider.
+  The hosts are the `host` field of each `PROVIDERS` row in
+  `translation-helper.js`, derived from the same endpoint constants the request
+  builders use: `clients5.google.com/translate_a/single?client=dict-chrome-ex`,
+  `api-free.deepl.com/v2/translate` (the full URL is the `url` gsetting, so DeepL
+  has no fixed host in the table), `fanyi-api.baidu.com/api/trans/vip/translate`,
+  `openapi.youdao.com/api`. That is the product, not a leak — but it must never be
+  widened silently. `test/unit.test.js` compares each declared `host` against the
+  URL its own builder emits, so the table cannot drift from the request.
 - API keys and app secrets live in **dconf only**. Nothing credential-bearing is
   in git, and the test vectors in `test/unit.test.js` / `test/signing-crosscheck.js`
   are synthetic (`appid 20200101000000001`, `secretKey abcdefghijklmnop`,
@@ -120,9 +129,13 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
   memory-only and cleared on `disable()`.
 - Some error branches interpolate provider detail text into messages that reach
   the journal. Assume clipboard content can appear there.
-- This section is the **maintainer's** boundary. What the *user* is told about it
-  is a separate, still-open gap — see
-  [docs/maintenance/open-items.md](docs/maintenance/open-items.md) §5.
+- This section is the **maintainer's** boundary. The *user* is now told the same
+  thing in the settings window: `updatePrivacyDisclosure()` in `prefs.js` writes
+  the selected provider's host into the service row's subtitle, names
+  `clients5.google.com` for single-word dictionary lookups, and `test/repo.test.js`
+  guards that the shipped gsettings defaults match what that copy promises.
+  What the user is *not* told is still worth checking against this list before
+  a new outward-facing call is added.
 
 ## 12. Platform facts, each verified on 50.1
 
@@ -139,6 +152,16 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
   `@define-color` in shell CSS, so SCSS-style compile-time names are unusable.
 - Read computed style for assertions with
   `actor.get_theme_node().get_background_color()` / `.get_padding(St.Side.TOP)`.
+  `get_text_align()` is bound too, and its values are `Pango.Alignment`
+  (LEFT=0, CENTER=1, RIGHT=2): `start` and `end` both read back **0**, identical to an
+  unrecognised keyword and unchanged under `text-direction = RTL` — St accepts the words but
+  maps them to LEFT, so direction-relative alignment is not expressible in shell CSS here.
+- **A vertical `St.ScrollView` scrollbar withholds 8 px**, measured against the same box with
+  the policy off (300→292). `St.ScrollView` exposes **no** `get_vscrollbar()` /
+  `get_hscrollbar()` / `get_allocation()` in this binding — only `add_child`, `set_child`,
+  `get_child`, `get_width`, `get_height`, `get_children`, `get_theme_node` — so the width can
+  only be taken from what the layout leaves the child. `SCROLLBAR_ESTIMATE` in `extension.js`
+  is 16 on purpose; `test/eval-test.js` Test 5 asserts the real figure stays inside it.
 - **Synthetic input events are impossible from JS** on GNOME 50: `Clutter.Event`
   exposes only `get_*` accessors, cannot be constructed, and has no setters. Do
   not attempt to inject a click or keypress in a test.

@@ -261,3 +261,87 @@ Change   每个常量旁注明它对应的 CSS 声明与行号；`test/repo.test
 Evidence 三条断言各自先红（CSS 宽度 650→700、深色 border 1px→2px、spacing 16→12）后绿；控制组：往同一条规则加 `min-width: 600px` 后守卡仍绿，证明它没把 `min-width` 误读成 `width`；红态消息带双方算式（`measures at 600, but CSS gives the card 700px - 2*24px padding - 2*1px border = 650px`）
 Cost     头部 48px 与动作行 44px 是只有真机能量回来的合成高度，按 L2 明确留在断言之外；`SCROLLBAR_ESTIMATE = 16` 与 St 实际滚动条宽度的关系仍未实测 *(needs manual confirmation)*，注释按「高估只会让测量宽度更宽」的方向记为安全侧
 Commit   f8d6fe9
+
+### D-036 · 2026-10-09 · fix · v16
+Symptom  后台模式（`floating-background-mode`）下翻译失败时用户得不到任何反馈：内联错误分支要求 `!isBackground`（`extension.js:721`），`fail()` 只在 `notifications` 为真时才 `Main.notify`（`extension.js:1014`），而该键的 schema 默认值是 **false**——按出厂配置，失败就是彻底的静默。`_showError()`（`extension.js:1282`）不受这个门控，但它只从 `extension.js:649` 的异常路径到达，服务商失败永远走不到它
+Change   `notifications` 的 schema 默认值 false→true；`test/repo.test.js` 新增 describe "the shipped defaults keep the promises the settings copy makes"，把两个布尔默认值与 Escape 键的默认值钉住。门控本身不动——它的逻辑是对的，错的是出厂值
+Evidence L0 断言先红（`expected: true / actual: false`）后绿；本轮又单独逼过一次：把默认改回 false → 红，按字节还原后 `git status` 显示 schema 干净；控制组（不改任何东西）绿；`npm run integration` 报 `success:true`
+Cost     新装且从未碰过这个开关的用户开始收到失败通知（此前一条都不会）。已存在的 dconf 值不受默认值影响，所以这条只改变出厂首启行为
+Commit   b4e4c77
+
+### D-037 · 2026-10-09 · fix · v16
+Symptom  后台成功的 toast 把用户自己的文本写进通知正文：`extension.js:687` 以 "Translated" 为标题、正文由 `requestText + " → " + toText` 拼成，原文与译文一起进了通知正文，而通知正文也显示在锁屏上。它同时与上面一行自相矛盾：`Double-copy Background Mode` 说的是 *silently*，而 `floating-background-toast` 的默认值是 true
+Change   `floating-background-toast` 默认 true→false；那一行的副标题改成明写正文的两半内容并点名锁屏（`prefs.js:236`）；`notifications` 的文案改成 "when a translation fails"，因为它实际门控的只有失败通知（`prefs.js:254`）。两个默认值由 D-036 那条守卡钉住，文案与门控的对应关系从此是断言而不是注释
+Evidence L0 先红（`expected: false / actual: true`）后绿；单独逼迫：默认改回 true → 红，还原后 schema 干净
+Cost     依赖后台完成提示的用户需要自己把这个开关打开；隐私立场是"默认不泄露，要就明说后果"
+Commit   b4e4c77
+
+### D-038 · 2026-10-09 · fix · v16
+Symptom  设置窗口对文本发往何处一字不提：没有任何用户可见的说明告诉用户"被拷贝的文本会离开这台机器"、会发给哪家服务商；此外单个词无论选什么都送去 Google 取词典卡（`_effectiveProvider`），同样未披露
+Change   `PROVIDERS` 每条声明 `host`，由构建器自己用的 endpoint 常量经 `hostOf()` 推出（DeepL 为 `null`，因为它的端点就是 `url` 这个设置本身）；`prefs.js:485` 的 `updatePrivacyDisclosure()` 据此组装服务商行的副标题——发到哪个 host、需不需要密钥、非 Google 时单词还发往 `clients5.google.com`，并在 `changed::url` 时重算（`prefs.js:506`）。只出现主机名，永不出现文本、永不出现密钥。*决定并仍然有效：只披露——不加新开关，也不收窄（收窄会让词典卡回归失效）*
+Evidence L0 `test/unit.test.js` 把每条声明的 `host` 与该构建器实际发出的 URL 用 `new URL().hostname` 对撞。本轮又逼了一次红线：把四行 `host` 字段从 helper 的一份副本上剥掉（`host: null` 与三处 `hostOf(...)`），让**未经修改的** `test/unit.test.js` 跑在那份副本上 → `exit=1`，`AssertionError: every provider must declare a host, even if only to say it has none`（`test/unit.test.js:228`）；把真实 helper 放回同一位置作控制组 → `🎉 All unit tests passed successfully!`。四家实际值全对；`gjs -m test/prefs-validator.js` 为四个服务商各渲染一次并断言副标题真包含那个 host，非 Google 还断言同时含 `clients5.google.com`（这组副标题断言没有单独逼红，清单见 D-043）
+Cost     `prefs.js` 现在 import `translation-helper.js` 的 `getProviderById`；披露是拼接的模板串，翻译者面对的是片段而非整句；披露会随选择变化，所以它必须由校验器逐服务商断言，不能只看一次渲染
+Commit   d2a2266
+
+### D-039 · 2026-10-09 · taste · v16
+Symptom  完全没有"恢复默认"的入口（改动前 `grep reset prefs.js` 无结果）：用户改过任何一项之后只能逐个手动还原，或者去动 dconf
+Change   四个非凭据分区各加一行 `Restore this section’s defaults`，调用 `settings.reset_keys()` 且只带本分区自己的键（`prefs.js:412` 的 `addResetRow`，`prefs.js:451-454`）；三个凭据分组改用 `addClearKeysRow`（`prefs.js:428`）——第一次点击只武装并把副标题换成确认提示，第二次才真正清空，因为 issued key 无法从默认值重新推出，把它静默抹掉不是"恢复默认"而是损失。控件状态一律不跟踪：`bind()` 与 `changed::` 处理器在键重置后自己刷新
+Evidence L1 校验器把点击分成两遍并按键集计数：第一遍四个分区各恰好重置一次、三个凭据集出现 0 次；第二遍三个凭据集各恰好一次、总数 7。见过红：按"每行一次"的假设记到 11 次重置——**是我的测试假设错了，实现是对的**，改成两遍计数后转绿
+Cost     分区的键集硬编码在校验器里，新增设置不会自动进入恢复列表；真机上按一次恢复的观感属 L2，本轮只证明接线正确
+Commit   d2a2266
+
+### D-040 · 2026-10-09 · fix · v16
+Symptom  打包进设置窗口的自相矛盾：`prefs.js` 的 "Project Homepage" 指向 `github.com/tazztone/translate-assistant`，而 `metadata.json` 的 `url` 指向本 fork；About 页也没有许可证一行
+Change   fork 那一行改读 `this.metadata.url`（`prefs.js:352`），两处不可能再各说各话；上游另占一行保留署名（`prefs.js:372`）；新增 License 行（`prefs.js:331`）陈述 MIT 与 `LICENSE` 里署名的持有者。`LICENSE` 文件本身不动，这里不下任何法律结论。同一轮把三个凭据分组的 description 改成明写"两个字段里哪个是密钥"与"以明文存进 dconf"
+Evidence L1 校验器为四个服务商各渲染并销毁一次窗口，行标题匹配覆盖主页与 License 两行的存在；新增的用户可见串全部进 `po/messages.pot`（见 D-042）
+Cost     链接行沿用既有 `launch_default_for_uri` 写法，没有换成 `Adw.ActionRow:activatable-uri`——该属性的引入版本在本机不可证（`docs/maintenance/open-items.md` §6）
+Commit   d2a2266
+
+### D-041 · 2026-10-09 · taste · v16
+Symptom  `keybinding-close-floating-window` 是活的（`extension.js:49`、`extension.js:384`），却完全没出现在 prefs 里；要暴露它，常规做法需要一个按键编辑器控件
+Change   改成一行开关（`prefs.js:283-298`）：关闭时先把当前绑定存下来、写入空 `strv`，再开时还原存下的那个，没有存过就回落到 schema 自己的默认值（`defaultBinding()` 走 `settings_schema.get_key(...).get_default_value().deep_unpack()`，不在代码里另写一份 `Escape`）。刻意**不做**按键编辑器
+Evidence L1 校验器按 `get_name()==='AdwSwitchRow'` 与标题找到这行，驱动两种转换（off 必须写空数组、on 必须写回 `Escape`），再用 `['<Primary>Escape']` 跑一次关→开往返，断言自定义绑定没有被丢掉。这三组 strv 断言同样没有单独逼红（见 D-043 的未逼红清单）
+Cost     用户只能取舍"要不要 Escape"，不能自定义成别的组合键；如果 schema 默认值被改动而这个开关照旧，它会写回错误的绑定——该风险由 D-036 的守卡覆盖
+Commit   d2a2266
+
+### D-042 · 2026-10-09 · guard · v16
+Symptom  `_()` 是唯一的翻译入口，而本机没有 gettext（`MAINTENANCE.md` §10），目录从不重生成：代码可以加一条串、发出去、`po/` 里根本没有它——UI 悄悄保持英文，翻译者拿到的是不完整目录。**规模要当场打印**：源码现在请求 115 条串，模板在补录前只有 103 条内容 msgid。我在提方案时把缺口说成"71 条"，那是**低报**；实际补录 91 条（`git show b4e4c77 -- po/messages.pot | grep -c '^+msgid "'`）。同一轮里"de/es/nl 全是空的"也不成立：三家各有 103 条 msgid，其中已翻译 17/56/17 条
+Change   `test/repo.test.js` 新增 describe "the translation catalogs cover the strings the code asks to translate"：从三个源文件抽取所有 `_()` 字面量（先剥整行注释；JS 转义→原文→PO 转义；PO 续行拼接），断言 `po/messages.pot` 覆盖它们，并断言 de/es/nl 不带模板已不认识的 msgid。另加一条防空转的下限：抽取数必须 > 50，否则匹配器坏了就会让覆盖断言假绿。`po/messages.pot` 手工追加 91 条空 msgstr 条目并计算 `#: file:line` 引用（数量见上一条的打印命令）。*de/es/nl 有意未动*，等维护者决定
+Evidence 覆盖断言先红后绿：把 pot 里一条 msgid 改名 → 红，随后还原。空转下限也见过红：把**未经修改的同一份守卡**跑在三处源文件为空壳的临时目录树上 → 红，报 `only 0 msgid(s) extracted — the _() matcher stopped working, so this guard is checking nothing`。这条守卫的初版还断言 locale 完整性与陈旧清除，那会要求批量改写 de/es/nl——被拦下后重新定形成"只让 pot 变红"
+Cost     追加是手工的，`scripts/update-po*.sh` 本机仍跑不了；补录完成那一刻模板有 194 条内容 msgid 而源码只请求 115 条，也就是**约 79 条源文件已经不用的 msgid 留在 pot/locales 里**（其中 5 条是本仓自己那一刻加进去、随后又被同轮的 prefs 改动变成死串的——它们的清理记在后面的条目），清剩下的要动别人写的目录；守卡保证的是覆盖关系，不是目录质量
+Commit   b4e4c77
+
+### D-043 · 2026-10-09 · guard · v16
+Symptom  `test/prefs-validator.js` 只断言 `fillPreferencesWindow()` 不抛异常，对控件绑定、副标题、默认值与恢复行为一句不断——而这一轮新增的恰恰全是行为
+Change   驱动改为按 `PROVIDERS` 循环渲染四个服务商；窗口用 `get_first_child()/get_next_sibling()` 走成控件树收集副标题（这个 binding 里 `AdwPreferencesWindow` 没有 `get_pages()`），行按 `get_name()` 识别；断言披露的主机名、7 条恢复/清除行、两遍点击的重置计数，以及 Escape 开关的 off/on 与自定义绑定往返。mock 补 `get_string`、`reset_keys`、`set_strv`、`get_default_value`，导出 `__setServiceEnum` / `__resetLog` / `__setBinding` / `__strvLog` 一类钩子
+Evidence 三处见过红，且都是**校验器自己**错而不是实现错：用 `get_css_classes().includes('row')` 找不到任何一行（0/7）→ 改按 `get_name()==='AdwActionRow'`；第一遍计数记到 11 → 我的"每行只触发一次"假设错了（恢复行按点击触发、清除行只武装一次），实现是对的，计数改成两遍后转绿；给 `AdwEntryRow` 传副标题直接抛 `TypeError: No property subtitle on AdwEntryRow`，这条测量把"给 6 个密钥行加大白话副标题"判为本机**做不到**，说明文字改放分组 description。现报 `✅ Preferences layout validation successful! (4 providers rendered)`。**未逐条逼红**：披露主机名、恢复/清除的两遍计数、Escape 的 off/on 与 `<Primary>Escape` 往返这四组断言是照着已实现的代码写的，本轮试图在临时目录里把 `serviceRow.subtitle` 写死来逼披露变红，被权限分类器拦下（不改仓库文件也不行，因为要跑 `gjs`），所以它们仍属"写过但没见过失败" *(needs manual confirmation)*
+Cost     mock 不校验键名是否真实存在于 schema，写错的键名要到真机上才暴露；`Gio.Settings` 是假的，所以这仍是一个桌面门，留在 CI 之外
+Commit   d2a2266
+
+### D-044 · 2026-10-09 · chore · v16
+Symptom  三份 locale 停在模板补录之前的状态：源码请求的串里有 86 条在 de/es/nl 根本没有条目；模板还留着 5 条本仓自己写下、随后被同轮 prefs 改动变成死串的 msgid；四份目录都没有 `#. ` 译者提示（HEAD 里命中 0 行），源码那 13 条 `// Translators:` 到不了译者
+Change   三份 locale 各**纯追加** 86 条空 msgstr（删除行 0），模板删掉那 5 条死 msgid，活条目的 `#: file:line` 按当前源码重算（113 行加 / 120 行删），四份各带上逐字取自源码的 13 条 `#. ` 提示。**没有编造任何译文**：diff 里 `+msgstr "[^"]` 命中 0 行，未译按 gettext 规则回落到英文 msgid；既有译文逐字节保留（17/56/17 条，`^msgstr "[^"]` 那几行的 sha256 与 HEAD 分别同为 `8d757954eb5d` / `1e5890821617` / `af753ab9a13b`）
+Evidence L0 — `node test/repo.test.js` 的覆盖断言转绿；上面每个数字都是一条 `git diff --cached | grep -c` 的现场输出而不是估算。四份目录现在各 190 条 `msgid`（含 header），即 189 条内容串
+Cost     本机没有 gettext，`scripts/update-po*.sh` 仍跑不了，所以这三份是手写的——正因如此才需要 D-045；另外**源码已不再请求的 74 条 msgid 没有删**（它们随冻结上游的模板一起来），删它们等于改三位署名译者拥有的文件，等维护者拍板
+Commit   9bffcbc
+
+### D-045 · 2026-10-09 · guard · v16
+Symptom  目录是手维护的（无 gettext），于是"加一条 `_()` 串却忘了四份目录"没有任何东西拦着：UI 安静地保持英文，译者拿到不完整的目录，而下一次手工编辑会把上一次的漂移当成正常状态。补录完成反而让这个风险变大——四份文件此刻是齐的，谁都能照着改
+Change   `test/repo.test.js` 的 catalogs describe 扩三处：每个 locale 必须带上源码请求的每一条串；源码的 `// Translators:` 必须逐条落到模板与三份 locale 的 `#. `，且落地文本必须与源码同文；原来那条"只让 pot 变红"的孤儿断言改成"目录里不许留模板已不认识的 msgid"。防空转的下限写成无边界不变式：抽取 msgid > 50 且 `#. ` 提示 >= 10，否则匹配器坏了会让覆盖断言假绿
+Evidence L0 — 先红后绿：这两条写在补齐目录**之前**，所以自己就红了（`13 "Translators:" comment(s) never reached po/messages.pot`，外加每个 locale 各一条覆盖红），条目与提示落地后转绿。下限也见过红：未经修改的同一份守卡跑在三处源文件为空壳的临时目录树上 → `only 0 msgid(s) extracted — the _() matcher stopped working, so this guard is checking nothing`
+Cost     抽取器只认 `_()` 字面量和紧邻其上的 `// Translators:`，跨行或别名写法不在覆盖范围内；守卡保证的是覆盖关系，不是目录质量（术语一致性、fuzzy 标记都管不到）
+Commit   cffa892
+
+### D-046 · 2026-10-09 · guard · v16
+Symptom  给"测试壳零写入"做成对取证有两个手段：取库的摘要，或者把库打印出来。本轮一对临时前后对照用的是后者，而本 schema 的 6 个字符串键（`apikey`、`baidu-appid`/`baidu-secret`、`youdao-appid`/`youdao-secret`、`url`）每一个都可能装着凭据，于是一条被重定向的日志就成了凭据的落盘点。至于到底有没有落到盘上**已不可复核**：临时文件都删了，而为了搜索密钥把密钥读回来这一步本身就违反这条规则——所以这里既不主张泄漏，也不主张没泄漏
+Change   `test/repo.test.js` 新增 describe "a probe reads the settings store only as a hash"：仓库里任何 `.sh`/`.js`/`.mjs`/`.cjs`（先剥掉自己的整行注释）都不许再出现 `dconf dump`/`dconf read` 或 `gsettings get`/`list`；零写入性质一律用 `sha256sum ~/.config/dconf/user` 在**断言它的那一条命令里**成对取证。方法本身写进 `docs/maintenance/verification.md` §3 的仪器规矩，`AGENTS.md` 的隐私条目改为直接指向这条守卡
+Evidence L0 — 两条断言各自逼红，都在 tar 出来的一次性副本里（不带 `.git`，入口模块是真文件）：可执行的 `dconf dump /org/gnome/shell/extensions/fast-translate/` 进 `test/integration.sh` → 红并点名该文件；`gsettings get … apikey` 进 `test/perf-probe.sh` → 红并点名该文件；删掉 `test/perf-probe.sh` → 覆盖下限红 `the scan saw 20 executable file(s) … perf-probe.sh=false`。控制组：**同样这两行**前面加 `#` 必须保持绿（33 pass / 0 fail），还原后也绿——守卡量的是代码不是散文
+Cost     只扫可执行文件，所以散文里教的写法归 `AGENTS.md` 管；这条守卡拦不住一次性手敲的 ad-hoc 命令，拦的是被提交进仓库的做法
+Commit   cffa892
+
+### D-047 · 2026-10-09 · guard · v16
+Symptom  两个长期挂着"待确认"的 St 未知量：浮窗的 RTL 对齐能不能在 CSS 里改，以及 `SCROLLBAR_ESTIMATE = 16` 到底覆盖了多宽的滚动条。两者此前只被注释和文档"估计"过，从没在真壳里量过
+Change   `test/eval-test.js` 新增 Test 5：用 `StThemeNode.get_text_align()` 读回 `Pango.Alignment` 并断言 `center`=1 / `right`=2，而 `start`/`end` 在 LTR 与 RTL 下都回 0（与一条 `text-align: banana;` 同值）——St 不做方向敏感，所以 RTL 只能从 JS 按语言对选 `left`/`right`（行为改动，等维护者拍板）。滚动条宽度按布局效果量：合成 300px 的 `St.ScrollView` 被扣走 8px（292），真卡片 650→642，`vscrollbar_policy=NEVER` 的控制组扣 0；该 binding 里既没有 `get_vscrollbar`/`get_hscrollbar` 也没有 `get_allocation`，所以宽度只能这样量。`extension.js` 里 `SCROLLBAR_ESTIMATE` 上方注释改成实测结果，常量与其余代码一个字节都没改
+Evidence L1 — `npm run integration` 两次 exit 0 且 `success:true`（22:35、22:44）；22:44 那次在同一条命令里取摘要，`~/.config/dconf/user` 前后同为 `291c5f98…`，`extension.js` 前后同为 `8773f1ed…`。"纯注释"另外用 `grep -vE '^\s*//'` 前后同为 `b4a2bdfb49a8` 证明。每条新断言都先逼红：卡片扣宽与合成扣宽不一致会红，`synthStolen > 16` 会红，`start` 若哪天变成方向敏感会红
+Cost     `text-align` 的读数只说明 St 怎么解释 CSS，不说明视觉上真的右对齐了（视觉属 L2）。`SCROLLBAR_ESTIMATE` 故意保持 16 而不是改成实测的 8：收紧到 8 会让高度预算在最坏情况下少留一条行高，那是行为改动，本轮不动
+Commit   440f56a

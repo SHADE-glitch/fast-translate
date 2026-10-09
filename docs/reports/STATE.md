@@ -5,19 +5,20 @@
 **Read this first in any new session.** It carries what a fresh context cannot see:
 what is settled, what is committed but unpushed, and what the next step is.
 
-Last updated 2026-10-09, at the end of the C queue described in
-[PLAN.md](PLAN.md).
+Last updated 2026-10-09, after the privacy-and-settings batch (D-036…D-043), the `po/` locale
+sync, the two `St` measurements, and a final pass that turned one of my own forensic habits into a
+repository guard. PLAN.md describes the batches.
 
 ## Where the repo stands
 
 | Thing | Value | How to re-check |
 |---|---|---|
-| Shipped version | 15 — the one bump covering C2…C5 (was 14 at the start of this pass) | `jq -r .version metadata.json` |
+| Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
 | Branch state | `master`, ahead of `origin/master` | `git status -sb` |
-| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031) and C2–C5 (D-032…D-035). Nothing was pushed — no authorization was given for it | `git log --oneline origin/master..HEAD \| wc -l` |
-| Working tree | clean after each commit; `npm test` and `npm run check:log` green at every step | `git status --short` |
+| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031), C2–C5 (D-032…D-035), the privacy batch (`b4e4c77`, `d2a2266`), and this pass — `9bffcbc` (po), `cffa892` (the two guard batches), `440f56a` (the `St` measurements) and this record commit. **Nothing was pushed**: no push authorization was given, and "提交完成" does not imply it | `git log --oneline origin/master..HEAD \| wc -l` |
+| Working tree | clean — the po batch, the guards, the measurement, the version-16 debt and this record pass are all committed | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
-| Test suite | green: unit, teardown guard, repo guards (5 describes), signing cross-check, prefs layout | `npm test` |
+| Test suite | green: unit, teardown guard, repo guards, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the guard count prints itself: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail)'` |
 
 ## Settled — do not re-open
 
@@ -27,9 +28,14 @@ Last updated 2026-10-09, at the end of the C queue described in
   directory, so a topic pair that drifts goes red.
 - `INVARIANTS.md` is a pointer file. The recorded behaviour fixes are printed from the
   record with `npm run check:log -- --invariants`; never copy them into the file.
-- This round's code scope was **stability + structure**. Privacy/settings and
-  aesthetics are the next gate, and Google-routing disclosure is **disclose-only** —
-  no new switch, no narrowing.
+- The C round's code scope was **stability + structure**; the following round took the
+  **privacy and settings** group (D-036…D-043). Google-routing disclosure is
+  **disclose-only** — no new switch, no narrowing — and that decision is now implemented,
+  not just recorded.
+- The **aesthetics** group was examined and closed for lack of a provable win: native
+  style-class/palette rewrite, symbolic icons for `⇄`/`➜`/flags, `St.ScrollView`→`St.Clip`,
+  `Adw.ActionRow:activatable-uri` and a key editor all live in
+  `docs/maintenance/open-items.md` §6 with the reason each was refused.
 - `AUDIT.md` is a snapshot as of its commit. Unfixed work exists in exactly one place:
   `docs/maintenance/open-items.md`.
 - `docs/maintenance/*` are bilingual pairs, English first. `docs/reports/*` are
@@ -70,15 +76,36 @@ Two findings that are not code defects:
   the failure reads like a prefs defect. Fixed by rebinding relative imports to absolute
   `file://` URLs (D-033).
 
+## P — privacy and settings landed
+
+| Record | Change | What it actually proved |
+|---|---|---|
+| D-036 | `notifications` default false→true | With the old default a background-mode failure produced **nothing at all**: the inline error branch needs `!isBackground` (`extension.js:721`) and `fail()` gates on `_notifications` (`extension.js:1014`). The gate was right; the shipped default was wrong. Now pinned by a repo guard that reads the schema |
+| D-037 | `floating-background-toast` default true→false, and both rows' copy made honest | The toast body is `requestText + " → " + toText`, i.e. the user's own text, and notification bodies show on the lock screen (`extension.js:687`). The row that promises *silently* no longer contradicts a default that toasts |
+| D-038 | `PROVIDERS` declares `host`; `updatePrivacyDisclosure()` composes the service row's subtitle per provider | The settings window now names the machine the copied text goes to, whether that provider needs a key, and that single words additionally go to `clients5.google.com`. Each declared host is cross-checked against the URL its own builder emits, because a privacy line naming the wrong party is worse than none |
+| D-039 | Four `Restore this section’s defaults` rows + three two-click `Clear the keys` rows | Credential values cannot be re-derived from a default, so they get an armed row instead of a silent reset. Proven by click-count, not by reading the code |
+| D-040 | About reads `this.metadata.url`; separate upstream row; License row | The packaged settings window no longer contradicts its own `metadata.json`, and attribution to upstream survives as its own row. `LICENSE` untouched, no legal conclusion drawn |
+| D-041 | Escape binding exposed as an on/off switch that stores and restores the binding it removes | The keybinding was live (`extension.js:49`, `extension.js:384`) and unreachable from prefs. Deliberately **not** a key editor — see open-items §6 |
+| D-042 | Catalog-coverage guard + 91 msgid entries backfilled into `po/messages.pot` | On a machine without gettext a `_()` string can ship and never enter the catalog. The guard makes that a red test, and carries an anti-vacuity floor so a broken matcher cannot pass silently. My "71 missing" figure from earlier in the session was an undercount — the appended total is what `git show b4e4c77 -- po/messages.pot \| grep -c '^+msgid "'` prints |
+| D-043 | `test/prefs-validator.js` upgraded from "does not throw" to behaviour over all four providers | Two of its reds were **my** wrong assumptions, not implementation bugs (`get_css_classes()` vs `get_name()`, one-click-per-row counting). It also produced the measurement that killed one requested item: `AdwEntryRow` has no `subtitle` property |
+
 ## Open decisions for the maintainer
 
-1. **The next gate.** The C queue is empty. What remains inside the brief is the deferred
-   **privacy and settings** group (background-mode failure is silent with defaults, the
-   success toast quotes the user's own text, no statement of where text goes, no
-   restore-to-defaults, the About page has no license row, six key rows have no
-   plain-language subtitle, the Escape keybinding is not exposed) and the **aesthetics**
-   group. Both need your go-ahead before code, per the working method.
-2. **Push.** `2a4dad1` and `b4eefd7` were already local, and both passes added commits on
+1. **`po/` — what is left of it.** Ordered and done on 2026-10-09: each locale now carries every
+   string the sources request (86 entries appended per file, empty `msgstr` — **no translation
+   text was invented**, and gettext falls back to the English msgid anyway), the 5 dead template
+   entries this fork had itself created were deleted, all 13 `// Translators:` hints reach the
+   four files as `#. ` comments, and every `#:` reference on a live template entry was
+   recomputed (119 tokens, 0 stale). Two new guards hold that state in place, so a future string
+   added without its four catalog edits goes red. **Still yours to decide:** the **74 msgids the
+   sources no longer request**, inherited with the frozen upstream's template — deleting them
+   means editing what three named translators wrote. Their stale `#:` references go with them
+   (measured per locale: 38 tokens on 27 still-live entries point somewhere other than the call).
+   And the actual German/Spanish/Dutch text, which is not derivable from anything in this repo:
+   de/es/nl still carry only 17/56/17 translations out of 189, so the UI stays English — no
+   `.mo` is built here either (`MAINTENANCE.md` §10), and `scripts/update-po*.sh` still cannot
+   run (gettext absent).
+2. **Push.** `2a4dad1` and `b4eefd7` were already local, and every pass since has added more on
    top. Pushing needs your authorization for that specific action — none was given, and
    none is implied by "按计划推进".
 3. **Are `docs/reports/` tracked or ignored?** Currently **tracked**, because
@@ -89,12 +116,19 @@ Two findings that are not code defects:
 4. **README's `🤝 Contributing` section** still describes fork → branch → pull-request,
    which the brief explicitly disclaims ("不需要团队流程"). Flagged, not removed —
    it is user-facing prose in a file another session just edited.
+5. **A sibling project's harness is what leaves the safe-mode marker in `/run/user/1000`.**
+   Cause established this pass (journal + `copyous@local/test/headless/up.sh:121`, which exports
+   `WAYLAND_DISPLAY` but not a private `XDG_RUNTIME_DIR`). Fixing it means editing another
+   project's test scripts, which this brief's boundary forbids acting on unasked — so it is
+   reported here and nowhere else. Your call whether to fix it there.
 
 ## Next step
 
-Nothing is queued. Which gate opens is yours: privacy/settings, aesthetics, or a
-live-session pass over the L2 list first. If code starts again, one small change at a
-time with its diff and verification method, guard red first.
+Nothing is queued. The privacy/settings gate is closed, both St unknowns are measured facts pinned
+by L1 assertions, and the last pass turned one of my own forensic habits into a guard. What remains
+inside the brief is the `po/` decision above, a live-session pass over the L2 list (nothing in the
+settings window has been seen by a human since C3), and task #8's older deferred items. If code
+starts again, one small change at a time with its diff and verification method, guard red first.
 
 ## What this pass did not verify
 
@@ -106,21 +140,46 @@ time with its diff and verification method, guard red first.
   reached the network for the first time as of D-029); settings-window group visibility
   for each of the four providers after D-033; the active panel icon in light and dark
   after D-034; live light/dark switch, Esc, multi-monitor, latency.
+- **Nothing in the settings window has been seen by a human since C3, and this batch made it
+  bigger, not smaller.** The disclosure sentence, the seven restore/clear rows and the Escape
+  switch are covered by a validator that runs against a **mocked** `Gio.Settings`: it accepts
+  key names the real schema may not have, and three of its assertion groups (hostname
+  disclosure, the two-pass reset counts, the `strv` round trip) have been *written, never
+  provoked red* — see `docs/maintenance/verification.md` §3. Whether the composed disclosure
+  reads well at a narrow window width, whether a reset row looks right, and whether a
+  background failure now actually arrives as a notification are all L2.
 - GNOME 45–49 remain unrun here; the declared range is inherited from the upstream, and
   `Adw-1.typelib` being versionless means this machine cannot prove a symbol's
-  introduction version. Marked *(needs manual confirmation)* wherever it bites.
+  introduction version. Marked *(needs manual confirmation)* wherever it bites. That floor is
+  exactly why `Adw.ActionRow:activatable-uri` and a key-capture widget were refused.
 - Baidu and Youdao are still never exercised end to end (no credentials).
-- `St`'s real scrollbar width vs `SCROLLBAR_ESTIMATE = 16` has never been measured; the
-  constant sits on the safe side of that unknown, and the header/actions heights stay
-  outside the geometry guard precisely because only a live shell can re-derive them.
+- `St`'s real scrollbar width is **measured now: 8 px** (policy-off control; 300→292 synthetic,
+  650→642 on the card through `_applyHeightCaps()`). `SCROLLBAR_ESTIMATE = 16` stays as the
+  deliberate over-cover and `test/eval-test.js` Test 5 asserts the real figure stays inside it,
+  so a wider scrollbar on an unrun theme trips a red suite instead of clipping the last line.
+  The header/actions heights stay outside the geometry guard because only a live shell can
+  re-derive those.
+- **RTL alignment is measured too, and the answer is "not expressible in CSS"**: `start` and
+  `end` both read back LEFT (0) under LTR *and* RTL, identical to an unknown keyword, while
+  `center`/`right` read back 1/2. Changing the popup's alignment therefore means choosing
+  `left`/`right` from JS by language pair — a behaviour change, not a fact, so it waits for the
+  maintainer. Test 5 pins the values so a future St that honours them goes red rather than
+  making the fix silently possible.
 - **Two machine observations, neither caused by this batch**, both timestamped in
   [VERIFY.md](VERIFY.md): `/run/user/1000/gnome-shell-disable-extensions` exists, and
   `~/.config/dconf/user` moves on its own. Evidence that neither is ours: this round's runs
   leave the dconf hash unchanged *within* the run (before/after pair, `1478d718…` at
-  18:06–18:12), yet it had changed again by 18:18 with no harness involved; and the marker
-  reappeared at **18:48:12** while no user process started in that minute (`ps --sort=start_time`
-  shows only kernel workers) and no shell of ours was running — the harness boots its shell
-  inside a private `XDG_RUNTIME_DIR`, so it cannot write there at all. Cause unknown, and the
-  file is outside this project's boundary, so it was left in place rather than deleted. What
-  matters for the next session: **do not treat any recorded hash or timestamp as a live
-  baseline — re-measure in the same command that asserts it.**
+  18:06–18:12, `f0a24a19…` around the integration re-run after D-036…D-043, and `291c5f98…`
+  around the run that verified the `SCROLLBAR_ESTIMATE` comment edit), yet it had changed again by
+  18:18 with no harness involved. The marker **now has a cause, and it is a sibling project's
+  harness**: the journal records a nested `gnome-shell --headless --wayland-display=wayland-c…`
+  starting at 18:47:03 and again at 20:46:24 (16 such boots between 18:40 and 21:00), and the
+  marker's mtime is **20:46:23.650** — that prefix is `wayland-copyous-harness`, and
+  `copyous@local/test/headless/up.sh:121` exports `WAYLAND_DISPLAY` but never isolates
+  `XDG_RUNTIME_DIR`, so its nested shell writes into the shared runtime dir. The earlier line here
+  claimed "no user process started in that minute": that was a `ps` snapshot taken after the shell
+  had already exited, and it was wrong — the journal answers it. This project's two harnesses do
+  isolate the dir, and the proof is negative and measured: the marker's mtime did not move across
+  the 22:35 and 22:44 integration runs. The file sits in another project's boundary, so it was left
+  in place rather than deleted. What matters for the next session: **do not treat any recorded hash
+  or timestamp as a live baseline — re-measure in the same command that asserts it.**

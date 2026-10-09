@@ -9,7 +9,7 @@ tiers depend on lives in [cost-measurement.md](cost-measurement.md).
 
 | Command | Time | Reaches | Writes |
 |---|---|---|---|
-| `npm test` | seconds | `translation-helper.js` exports, `destroy()` totality, GLib-vs-node crypto known answers, `prefs.js` layout, repository guards (`test/repo.test.js`: bilingual pairing, call-site list, provider registry, no main-thread stat, JS↔CSS geometry contract) | nothing |
+| `npm test` | seconds | `translation-helper.js` exports, `destroy()` totality, GLib-vs-node crypto known answers, `prefs.js` layout, repository guards (`test/repo.test.js`: bilingual pairing, call-site list, provider registry, no main-thread stat, JS↔CSS geometry contract, shipped defaults vs the settings copy, catalog coverage across the template **and** all three locales, translator-hint propagation) | nothing |
 | `npm run integration` | ~2–4 min | a real headless shell: ACTIVE, panel button, popup structure, double-copy behaviour | nothing (memory backend) |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 min | cost per event and idle CPU/RSS | nothing; writes JSON to `~/.cache/fast-translate-perf/` |
 | `npm run check:log` | seconds | the record: `D-###` ids unique and gapless, code commits cited and resolvable, every `D-###` cited by a tracked doc resolves, five fields per entry, `kind` in the allowed set | nothing |
@@ -18,10 +18,19 @@ tiers depend on lives in [cost-measurement.md](cost-measurement.md).
 lines): it never loads under plain Node, because `gi://` is unavailable there.
 Runtime paths are only exercised by `npm run integration`.
 
-`test/prefs-validator.js` smoke-tests that `fillPreferencesWindow()` does not
-throw. It asserts nothing about widget bindings or the credential groups. It also
-needs a display plus the GTK4 and libadwaita typelibs, which is why it is a local
-desktop gate and is kept out of CI.
+`test/prefs-validator.js` renders `fillPreferencesWindow()` once per provider and
+asserts what the window *shows and does*: that a row's subtitle names the endpoint
+that provider actually sends text to (and, for every non-Google provider, also names
+`clients5.google.com` for the single-word dictionary path); that all seven
+restore/clear rows exist; that a first click resets exactly the four sections' own
+key sets and erases no key, and the confirming click clears exactly the three
+credential sets once each; and that the Escape switch writes an empty `strv` off,
+restores the binding it removed on, and survives an off/on round trip with a custom
+`<Primary>Escape`. It still needs a display plus the GTK4 and libadwaita typelibs,
+which is why it is a local desktop gate and is kept out of CI. Its limits are the
+mock's limits: `Gio.Settings` is faked, so a key name that does not exist in the real
+schema passes here, and the widget tree is walked by `get_first_child()` because this
+binding exposes no page list.
 
 ## 2. Evidence tiers
 
@@ -73,6 +82,8 @@ Grep for the anchor before restructuring the popup; line numbers drift.
 | `w.overlay.reactive !== false` after `_dismiss()` | a dismissed backdrop must stop swallowing clicks |
 | `w._winDestroyed` after an 800 ms wait | teardown must not depend on the tween's `onComplete` (headless never completes it) |
 | Test 3i `fired === 1`, then `fired === 0` after `destroy()` | the dictionary enrich arms a real watchdog, and `destroy()` removes the live source. Behavioural because `GLib.source_exists` is **not bound in GJS** — liveness can only be shown by whether the 6 s callback arrives |
+| Test 5 `synthStolen >= 1`, `cardStolen === synthStolen`, `synthStolen <= 16` | a vertical scrollbar really withholds width (8 px measured), the production card and a plain `St.ScrollView` agree on that number, and `SCROLLBAR_ESTIMATE` still over-covers it. Provoked red by tightening the bound to 4: `a vertical scrollbar withholds 8px, more than SCROLLBAR_ESTIMATE (16) covers` |
+| Test 5 `center === 1 && right === 2`, then `start(LTR) === banana` and `start(RTL) !== right` | the alignment reader can distinguish values, and `start`/`end` are still not direction-relative — the fact that keeps the RTL decision in JS rather than CSS. Provoked red by flipping one comparison: `text-align start/end changed behaviour: start gives 0 under LTR and 0 under RTL, an unrecognised keyword gives 0, right gives 2` |
 
 ### Request-sanity guards now in force
 
@@ -107,9 +118,27 @@ constant going stale*, not a behaviour breaking:
 | the settings window reads the provider registry, not enum integers | `prefs.js` hardcodes `service === 0/2/3` again, or stops importing `getProvider` | writing a decoy `service === 2` back into `prefs.js` |
 | the main thread never touches the disk | an active icon stops shipping, or `extension.js` gains a `.query_exists(` call | injecting a real `probe.query_exists(null)` into `_get_icon()` (red: 10 pass / 1 fail) — and, as a control, the same text in a comment line stays green |
 | the card's geometry constants still match the CSS they mirror | card width / padding / border / spacing / divider / actions margin change without the JS arithmetic following | `width: 650px`→`700px`; dark `border: 1px`→`2px`; `spacing: 16px`→`12px`. Control: adding `min-width: 600px` to the same rule must NOT redden it |
+| the shipped defaults keep the promises the settings copy makes | `notifications` defaults back to false (a background failure then produces no card *and* no notification), `floating-background-toast` defaults back to true (its row says silent), or the Escape key's default loses `Escape` (the prefs switch then writes the wrong binding) | each one alone, in the working-tree schema: `notifications` true→false (`expected: true / actual: false`), `floating-background-toast` false→true, CDATA `[['Escape']]`→`[['']]`. Control: no mutation → green. Each was restored byte-identically and `git status` showed the schema clean |
+| the translation catalogs cover the strings the code asks to translate | a `_()` literal in `extension.js` / `prefs.js` / `translation-helper.js` is absent from `po/messages.pot` **or** from any of de/es/nl; a catalog carries a msgid the template no longer knows; a `// Translators:` comment never reached an entry as `#.`; the hint in the catalog says something else than the source; or the extraction stops matching (floors: > 50 msgids, ≥ 10 hints) | pot coverage: one msgid renamed in `po/messages.pot` → red, restored. Locale coverage and hints: written **before** the catalogs were synced, so they went red on their own (`13 "Translators:" comment(s) never reached po/messages.pot`, plus one per locale) and turned green when the entries and hints landed. Vacuity: the *same unmodified* guard file run against a scratch tree whose three sources were empty → red with `only 0 msgid(s) extracted — the _() matcher stopped working, so this guard is checking nothing` |
 | documentation conventions hold | a bilingual pair drifts in section count or order, or a tracked doc uses task checkboxes | — (established when the pair rule was widened to every directory) |
+| a probe reads the settings store only as a hash | any `.sh`/`.js`/`.mjs`/`.cjs` file in the repo runs `dconf dump`/`dconf read` or `gsettings get`/`list`, i.e. prints a settings **value** — all six string keys of this schema can hold a provider credential — or the scan stops covering `test/integration.sh` and `test/perf-probe.sh` (floors: those two files, ≥ 10 executables) | in a scratch copy of the repo (`tar`, no `.git`, entry module a real file): an executable `dconf dump /org/gnome/shell/extensions/fast-translate/` appended to `test/integration.sh` → `not ok — test/integration.sh reads a settings value…`; a separate `gsettings get … apikey` in `test/perf-probe.sh` → same message naming that file. Controls: the *same two lines* prefixed with `#` stay green (33 pass / 0 fail), and the tree restored stays green |
 
-Two rules these provocations earned:
+Provoked this round, and what is still only "written, never seen failing":
+
+- The `PROVIDERS.host` cross-check in `test/unit.test.js` was reddened by stripping all four
+  `host:` fields from a **copy** of `translation-helper.js` and running the unmodified shipped
+  test against it → `exit=1`, `every provider must declare a host, even if only to say it has
+  none` (`test/unit.test.js:228`); putting the real helper back in that position is the green
+  control. The scratch copy has to be a real file: Node resolves the entry module's **symlink**
+  to its repository path, so `../translation-helper.js` then points back at production and the
+  experiment proves nothing — the first attempt did exactly that and came back green.
+- **Not provoked:** the prefs validator's hostname-disclosure assertion, its two-pass
+  reset/clear counts, and the Escape `strv` round trip. They were written against code that
+  already shipped, so they have been *seen passing* only. A scratch attempt to hard-code
+  `serviceRow.subtitle` and re-run the validator was blocked, so this stays open:
+  *(needs manual confirmation — provoke each before trusting it as a guard.)*
+
+The rules these provocations earned:
 
 - **A guard must measure code, not prose.** The `query_exists` guard first matched the
   comment explaining that the call was removed, so it reported the fix as the defect.
@@ -123,6 +152,30 @@ Two rules these provocations earned:
   `shell-internals` relocated (C1–C5 had shifted everything past `extension.js:1316`),
   3 stale `prefs.js` ranges corrected. `docs/reports/AUDIT.md` is a snapshot as of its
   commit and is deliberately not renumbered.
+- **Hand-writing what a generator owns means re-implementing the generator's rules, so every
+  one of them needs its own measurement.** Editing `po/` without gettext produced three defects
+  in a row, each caught by checking the output rather than trusting the script: line numbers
+  taken from the **comment-stripped** source were shifted (one reference landed on a comment
+  that merely quotes `"Cancelled"` instead of the call at `extension.js:1262`); a hand-rolled
+  continuation split of a long msgid **ate the spaces**, because gettext concatenates adjacent
+  strings without inserting any (16 corrupted msgids per locale); and a hint emitted as
+  `#.text` instead of `#. text` is not a hint at all — the guard's own `^#\.\s` did not match
+  it. Copy a generated file's lines verbatim whenever the template already has them, and after
+  any such edit re-measure counts (`msgid`, `msgstr`, `#:`, `#.`) with **escaped** patterns —
+  an unescaped `^#. ` in grep matches every `#: ` line too, which is how a correct file briefly
+  looked like it had 317 hints.
+- **A proof method can itself be the wrong instrument.** The zero-write property is proven by
+  `sha256sum ~/.config/dconf/user` before and after, in the same command that asserts it. One
+  ad-hoc before/after pair this round printed the settings store's *contents* instead of its
+  digest, which is a method that would put all six string keys of this schema (`apikey`,
+  `baidu-appid`/`baidu-secret`, `youdao-appid`/`youdao-secret`, `url`) into whatever log the run
+  is redirected to. Whether any of it reached disk is **no longer checkable**: every scratch file
+  of the round was deleted, and reading the key back in order to search for it would itself break
+  the rule. So neither "a key leaked" nor "nothing leaked" is claimed here — what is claimed is
+  that a value-printing read is never the right取证 tool for an *unchanged* property. The run's
+  own log was checked and holds no credential value (its three `apikey|secret|appid` matches are
+  all `org.freedesktop.secrets` D-Bus noise), the pair was re-proven by digest, and no repo script
+  may now run `dconf dump`/`read` or `gsettings get`/`list` — that is a guard.
 
 ## 4. Live session verification
 

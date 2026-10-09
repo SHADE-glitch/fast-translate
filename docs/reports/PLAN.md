@@ -13,7 +13,7 @@ below are **his**, recorded so a later session does not re-open them.
 | `docs/maintenance/` layout | split the three named manuals out and make `MAINTENANCE.md` a router / add only what is genuinely missing / declare the existing handbook already satisfies the brief | **split, router** |
 | What happens to the 9 Chinese sections that the split would orphan | make `docs/maintenance/` bilingual and widen `test/repo.test.js` pairing to every directory / keep the Chinese handbook whole and let English split / don't split | **bilingual topic files + widened pairing guard** |
 | `INVARIANTS.md` | create as a thin pointer backed by a `check-log.mjs --invariants` print mode / create as a prose copy / do not create | **thin pointer + print mode** |
-| This round's code scope | stability+structure only / add the privacy-and-settings group / add aesthetics / docs only | **stability + structure** |
+| This round's code scope | stability+structure only / add the privacy-and-settings group / add aesthetics / docs only | **stability + structure** — later widened by the maintainer on 2026-10-09 ("全部开始工作") to the privacy-and-settings group, which is the gate recorded below; aesthetics stayed out, and why is in open-items §6 |
 | Single words routed to Google regardless of provider | disclose only / add a `dictionary-lookup` switch / narrow to "Google selected" | **disclose only** — narrowing regresses D-021/023/025/028 |
 | AGENTS.md | keep as-is / adapt to the new brief and delete or amend stale rules | **adapt, deleting what is stale** |
 
@@ -71,19 +71,48 @@ the keybinding editor row (needs a real key editor), and splitting `extension.js
 (no measured pain yet, and `CODE_PATHS` plus the teardown guard match on paths and
 text so it is a coordinated change).
 
-## Deferred to the following gate (privacy and settings)
+## The privacy-and-settings gate (D-036…D-043) — landed
 
-Background-mode failure silence, the success toast quoting the user's text, the
-user-facing disclosure of where text goes, restore-to-defaults, the About page's
-wrong homepage and missing license row, and the credential rows' plain-language
-subtitles. All recorded with file:line in
-[docs/maintenance/open-items.md](../maintenance/open-items.md) §5 so nothing is
-lost between sessions. Every one of them needs new `_()` msgids, and `msgfmt` is not
-installed here — that is why they move as one group, after the C queue.
+Landed as `b4e4c77` (schema defaults, the two new repo guards, the `messages.pot` backfill)
+and `d2a2266` (disclosure, restore/clear, Escape switch, About, helper `host`, prefs
+validator). `AGENTS.md`/`MAINTENANCE.md` §11 now point at each other instead of at an open item.
+
+The maintainer answered each choice with one token ("全按推荐"), then decided the one item the
+recommendation could not cover ("选 A，追加 71 条到 pot"):
+
+| Question put | Chosen | What actually happened |
+|---|---|---|
+| Background failure is silent with defaults | **1a** — flip `notifications` to true, keep the gate | Landed (D-036). The gate was correct; the shipped default was the defect |
+| The toast quotes the user's own text | **2b** — default off, and name both halves of the body in the row's copy | Landed (D-037), and it exposed that the neighbouring row promised silence while defaulting to toast |
+| Where does the text go? | **3a** — compose the disclosure per provider from `PROVIDERS`, no new switch | Landed (D-038). DeepL needed a special case: its endpoint *is* the `url` setting, so `host` is `null` there and the row reads the setting |
+| Restore-to-defaults | **4b** — one row per section, plus a two-click clear for credentials | Landed (D-039) |
+| About page contradiction | **5a** — fork row + upstream row + license row, `LICENSE` untouched | Landed (D-040) |
+| Six credential rows need plain-language subtitles | **6b** — only the two appid/secret ID rows | **Could not be done.** `AdwEntryRow` has no `subtitle` property; measured as a `TypeError` under the validator. The prose went into each group's `description` instead (D-043) |
+| Escape binding in prefs | **7a** — on/off switch, no key editor | Landed (D-041), storing and restoring the binding it removes |
+| Hand-made link buttons | **8a** — native `activatable-uri` rows | **Not shipped.** The property's introduction version cannot be proven here while `Adw-1.typelib` is versionless — a cosmetic win traded for a crash on the oldest declared release |
+| `⇄` / `➜` / flag emoji → symbolic icons | **9a** — leave | Left, in open-items §6 |
+| Catalog debt | **10b** — a msgid↔template guard, no gettext | Landed (D-042). Its first draft also demanded locale completeness; that version would have rewritten `po/de.po`/`es.po`/`nl.po`, so it was re-scoped to pot-coverage + locale orphans |
+| Source strings missing from `po/messages.pot` (I quoted 71 at the time; the real gap was larger) | **A** — append them with empty `msgstr`, by hand, no committed generator | **91 entries appended** (`git show b4e4c77 -- po/messages.pot \| grep -c '^+msgid "'`). Afterwards the same round's own prefs edits made 5 of those 91 dead, and they were dropped again — see the `po/` sync row below |
+| Sync `de/es/nl` with the template, and the `#.` translator hints | (both were on my "needs your call" list) | **He said continue.** Measured first: of those 91, **86** are strings the sources still request and **5** are dead pot entries this fork had authored — so 86 went into each locale with an empty `msgstr`, and the 5 were deleted from the template rather than handed to a translator. The 13 `// Translators:` comments were copied into all four files as `#. ` hints, and every `#:` reference on a live template entry was recomputed from the current sources. **Both new guards were written first and seen red** (locale coverage, hint propagation), so the catalogs now stay in step: a new `_()` string has to land in four files before `npm test` is green. Deliberately not done: inventing German/Spanish/Dutch text (an empty `msgstr` already falls back to English), deleting the 74 upstream-era msgids the code no longer requests, and rewriting the 38 stale `#:` tokens that sit inside translator-authored entries |
+| Forensic method for the zero-write property: hash the store, or print it | (not asked — it was my own instrument that was wrong) | **Retired the printing form, and made the rule a guard.** A before/after pair can be taken by digest or by contents, and contents here means `apikey`, `baidu-appid`/`baidu-secret`, `youdao-appid`/`youdao-secret` and `url`. No repo script may now run `dconf dump`/`read` or `gsettings get`/`list`; the property is proven with `sha256sum ~/.config/dconf/user` inside the asserting command (`291c5f98…` before and after the run that verified the `SCROLLBAR_ESTIMATE` comment edit). Whether a value ever reached disk under the old method is **not claimed either way** — see VERIFY.md's last section. Both assertions of the new guard were provoked red, with comment-only controls kept green |
+
+## What still has no owner
+
+Nothing in the queue above is open. The remaining deferred list is task #8 (A7/A8/A9/B6/A11,
+po regeneration — blocked on gettext being absent here) plus the two `po/` decisions and
+`docs/reports/` tracked-vs-ignored, all recorded in [STATE.md](STATE.md). Two more have no
+owner as of this pass: codifying the docs link/anchor sweep into `test/repo.test.js` (cost and
+refusal reasons in `docs/maintenance/open-items.md` §4), and a **sibling project's** headless
+harness that leaves `/run/user/1000/gnome-shell-disable-extensions` behind because it isolates
+`WAYLAND_DISPLAY` but not `XDG_RUNTIME_DIR` — fixing that belongs to the other repo, so it is
+reported, not touched.
 
 ## What still needs a real session (L2)
 
 The popup in light and dark after a live theme switch, Esc, multi-monitor placement,
-and perceived latency; plus dest-pane whitespace after the per-region cap fix, and
-whether `text-align: start` is accepted by St at all. `scripts/reload.sh` cannot show
-any of it — logging out and in again is the only way to load edited ES modules.
+and perceived latency; plus dest-pane whitespace after the per-region cap fix. Whether St
+accepts `text-align: start` is **no longer on this list** — it is measured (Test 5: `start`
+and `end` both read back LEFT, under LTR and RTL alike); what stays L2 is only how an RTL
+pair *looks*, and that is a decision to change alignment from JS, not a fact to observe.
+`scripts/reload.sh` cannot show any of it — logging out and in again is the only way to load
+edited ES modules.

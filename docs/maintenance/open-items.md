@@ -28,16 +28,22 @@ not worth its cost, reopen only with new evidence.
 
 ## 2. Behaviour that is unverified, not fixed
 
-- **RTL is unverified, not fixed.** No `text-align` value table could be read out
-  of `libst`, and Yaru's CSS offers no precedent, so whether St accepts
-  `text-align: start` is unknown. The warning label is left `left`-aligned and the
-  header arrow still points `➜` for RTL pairs. Do not change this without proving
-  the value is accepted.
-- **Dest-pane whitespace after the per-region cap fix is unmeasured.** The bug was
-  a few px of slack rather than a functional failure, and asserting it in the shell
-  would mean duplicating private layout maths, so no dedicated test was added.
-  Existing suites prove no regression only; whether the destination pane still
-  shows stray blank space needs a human look in a real session.
+- **RTL: measured, and CSS cannot express it.** `StThemeNode.get_text_align()` is bound in this
+  stack, so the value table was read directly on 50.1: `left`→0, `center`→1, `right`→2, but
+  `start`→0 and `end`→0 — identical to an unrecognised keyword (`banana`→0) and unchanged when
+  the actor's `text-direction` is set to RTL. So St parses the keywords and maps them to LEFT;
+  `text-align: start` is **not** direction-relative here and cannot fix the warning label. The
+  only lever is choosing `left`/`right` from JS by language pair, which is a behaviour change
+  waiting for the maintainer; the header arrow still points `➜` for RTL pairs.
+  `test/eval-test.js` Test 5 pins these values, so if a future St becomes direction-aware the
+  suite goes red instead of the fix quietly becoming possible by accident.
+- **Dest-pane whitespace: the mechanism is now measured, the look is not.** A vertical scrollbar
+  withholds **8 px** (asserted at L1: a 300 px `St.ScrollView` lays its child out at 292, and
+  the card's destination label goes 650→642 through `_applyHeightCaps()`), while
+  `SCROLLBAR_ESTIMATE` is deliberately 16 — so the wrap is measured 8 px narrower than it will
+  be, which makes the pinned height a little too tall. That is the slack. Whether any of it is
+  visible on a real card still needs a human look in a live session; the number itself is no
+  longer an unknown.
 - The popup's real-session behaviours and the ~40 ms/30 s idle delta source
   (if it resolves at all with more windows) remain unattributed.
 - **`shell-version` declares 45–50, but 45–49 have never been run.** Every number
@@ -86,9 +92,19 @@ not worth its cost, reopen only with new evidence.
   `keybinding-translate-clipboard`, `shortcut-enabled`) are annotated in the
   schema but deliberately **not removed** — deleting them would discard stored
   values and constitutes feature removal.
-- New `_()` part-of-speech msgids (D-021) are not in `po/` (gettext absent) —
-  inert today, like the rest of the catalog (no `.mo` files exist).
-- `po/` cannot be regenerated on this machine (gettext absent).
+- **`po/` is hand-maintained and the guards are the regeneration.** `msgfmt`/`xgettext` are
+  absent here, so `scripts/update-po*.sh` cannot run; instead `test/repo.test.js` asserts that
+  every `_()` literal appears in `messages.pot` **and** in each of de/es/nl, that no catalog
+  carries a msgid the template has lost, and that every `// Translators:` hint in the sources
+  reaches all four files as a `#.` comment. The D-021 part-of-speech msgids are in the
+  catalogs now; they stay inert at runtime only because no `.mo` is ever produced here.
+- What is still owed on `po/` is **74 msgids the sources no longer request**, inherited with
+  the frozen upstream's template. Deleting them means editing what three named translators
+  wrote, so it waits for the maintainer. Their `#:` references are also upstream-era line
+  numbers: measured per locale, 38 of the reference tokens on *live* strings point somewhere
+  other than the actual `_()` call, across 27 entries. The template itself is clean (119
+  tokens on live entries, 0 stale), because the fork recomputed refs wherever it added or
+  changed an entry and left the translator's lines alone.
 
 ## 4. A guard that does not guard the branch production runs
 
@@ -107,11 +123,24 @@ not worth its cost, reopen only with new evidence.
   no credentials to probe. They are deliberately absent from the call-site list in
   `test/repo.test.js`, which currently covers the five decisions whose behaviour a
   user can hit; adding them there is the cheap half of what is still owed.
-- `test/prefs-validator.js` asserts only that `fillPreferencesWindow()` does not
-  throw. Its settings mock implements `get_key`, `get_range`, `get_enum`,
-  `set_enum`, `connect`, `bind`, `get_strv` and nothing else, so a `prefs.js` that
-  calls any other `Gio.Settings` method fails *here* first — which is the point,
-  but it means no row, subtitle, default or reset behaviour is covered at L0.
+- `test/prefs-validator.js` no longer just checks that `fillPreferencesWindow()` does not
+  throw: it renders all four providers, asserts the disclosed hostname in each, counts the
+  seven restore/clear rows and drives them in two clicks, and toggles the Escape switch
+  both ways. What it still cannot do is validate key *names* — `Gio.Settings` is a mock that
+  records calls, so a reset list containing a key the schema does not have passes here and
+  only shows up on a live shell. Three of its assertion groups (hostname disclosure, the
+  two-pass reset counts, the `strv` round trip) were written against code that already
+  existed and have not each been provoked red; see `verification.md` §3.
+- **The relative-link and anchor sweep has no home in the repo.** Every session that edits
+  `docs/` re-writes a throwaway checker in `/tmp`, runs it, and deletes it — this pass measured
+  106 links over 24 markdown files, 0 broken, with a script that no longer exists. The result is
+  real but unrepeatable: the next session cannot re-run the check that certifies it.
+  **Deferred, and yours to call**: codifying it costs one `describe` in `test/repo.test.js`
+  (walk `*.md`, resolve each `](target)` and `#anchor` against the filesystem and the heading
+  slugs, plus a floor so an empty scan cannot pass), roughly 40 lines and no new dependency.
+  Against it: it slows every prose edit, and GitHub-style slug rules differ from a hand-written
+  checker's, so a heading reworded by hand can go red for a reason nobody intended. The bilingual
+  *pairing* half of this problem is already a guard; only the link half is missing.
 
 ## 5. Deferred defects and their current status
 
@@ -120,28 +149,50 @@ privacy and settings group was recorded rather than fixed. Each item below is
 verified by reading the code, not inferred; the items fixed since are kept here with
 their record rather than deleted, so the discovery path is not lost.
 
-- **A failed translation in background mode is invisible.** `extension.js:721`
+- **A failed translation in background mode was invisible.** `extension.js:721`
   requires `!isBackground` for the inline error path, and `fail()` only calls
-  `Main.notify` when `notifications` is true, whose schema default is **false**.
-  With defaults, nothing at all happens on failure.
-- **The background success toast quotes the user's own text.**
-  `extension.js:687` calls `Main.notify` with the title "Translated" and a body
-  built as `requestText + " → " + toText` — the source and the translation in one
-  notification body, which also shows on the lock screen. This sits against the
-  repo's own privacy stance.
-- **prefs says nothing about where the text goes.** No user-visible statement that
-  the copied text leaves the machine, per provider. Single words additionally go to
-  Google regardless of the selected service (§3 above), undisclosed. *Decided: disclose
-  only — no new switch, no narrowing (narrowing would regress the dictionary card).*
-- **No restore-to-defaults affordance exists at all** (`grep reset prefs.js` → nothing).
-- `prefs.js:306-319` "Project Homepage" points at `github.com/tazztone/translate-assistant`
-  while `metadata.json url` points at this fork — a contradiction inside the shipped
-  settings window. The About page has no license row.
+  `Main.notify` when `notifications` is true, whose schema default was **false**, so
+  with defaults nothing at all happened on failure. `_showError()` (`extension.js:1282`)
+  notifies unconditionally but is reached only from the exception path at `:649`, never
+  from a provider failure. Fixed (D-036): the default is now true, and
+  `test/repo.test.js` pins the default against the copy that describes it.
+- **The background success toast quoted the user's own text.**
+  `extension.js:687` calls `Main.notify` with the title "Translated" and a body built as
+  `requestText + " → " + toText` — source and translation in one notification body, which
+  is also readable from the lock screen. It also contradicted the row above it: the
+  background-mode switch says *silent* while `floating-background-toast` defaulted to true.
+  Fixed (D-037): the default is now false and that row's subtitle names both halves of the
+  body, so the choice is made with the leak described rather than hidden.
+- **prefs said nothing about where the text goes.** There was no user-visible statement
+  that the copied text leaves the machine, and single words additionally went to Google
+  regardless of the selected service (§3 above) undisclosed. Fixed (D-038): the service
+  row's subtitle is now built per provider from `PROVIDERS.host` and names the endpoint the
+  `url` setting holds for DeepL, plus the single-word routing. *Decided and still in force:
+  disclose only — no new switch, no narrowing (narrowing would regress the dictionary
+  card).* The disclosed host is cross-checked against the URL each builder actually
+  produces (`test/unit.test.js`), because a privacy line that names the wrong party is
+  worse than none.
+- **No restore-to-defaults affordance existed at all.** Fixed (D-039): every
+  non-credential section carries a row that calls `reset_keys` with exactly its own keys,
+  and the three credential sections carry a two-click row (first arms, second erases)
+  instead — a reset that silently discards an issued key is not a restore.
+- **The shipped settings window contradicted its own package**: `prefs.js` "Project
+  Homepage" pointed at `github.com/tazztone/translate-assistant` while `metadata.json`'s
+  `url` names this fork, and the About page had no license row. Fixed (D-040): the fork row
+  reads `this.metadata.url` so the two cannot disagree, the upstream keeps its own
+  clickable row for attribution, and a License row states MIT plus the holders named in
+  `LICENSE`. `LICENSE` itself is untouched and no legal conclusion is drawn here.
 - The six `Adw.EntryRow`s (DeepL URL, DeepL key, Baidu appid/secret, Youdao
-  appid/secret) carry no plain-language subtitle, while 14 of the 23 rows do.
-- `keybinding-close-floating-window` is live (`extension.js:49`, `:384`) but is not
-  exposed in prefs; a key-editor row is what it would actually need.
-- **`updateServiceVisibility()` hardcoded `service === 0/2/3`** (`prefs.js:336-353`
+  appid/secret) carry no plain-language help **because they cannot**: `AdwEntryRow` has no
+  `subtitle` property, and adding one to the constructor failed with
+  `TypeError: No property subtitle on AdwEntryRow` under `gjs -m test/prefs-validator.js`.
+  The explanation therefore lives in each group's `description`, which now names which of
+  the two fields is the secret one (§6).
+- `keybinding-close-floating-window` is live (`extension.js:49`, `:384`) and is now
+  reachable from prefs as an on/off switch (D-041): disabling stores the binding it
+  removed and re-enabling restores that, falling back to the schema's own default. It is
+  deliberately **not** a key editor — see §6.
+- **`updateServiceVisibility()` hardcoded `service === 0/2/3`** (`prefs.js:468-476`
   today), duplicating the `PROVIDERS` table in a second file: reorder or append a
   provider and the settings window shows another provider's key fields. Fixed (D-033)
   — `PROVIDERS` now declares `credentialGroup` and `supportsFormatting` and prefs reads
@@ -165,7 +216,7 @@ their record rather than deleted, so the discovery path is not lost.
   describing the removal: whole-line comments are now stripped before any "this call is
   gone" assertion (`srcCode()` in `test/repo.test.js`).
 
-## 6. Examined and judged not worth the cost (reopen only with new evidence)
+## 6. Examined: not worth the cost, or not achievable from this machine (reopen only with new evidence)
 
 - **`St.ScrollView` → `St.Clip`**: won't. `St.Clip` has no scrollbars or kinetic
   scrolling, and the two call sites are entangled with the measured height/cap
@@ -177,6 +228,20 @@ their record rather than deleted, so the discovery path is not lost.
 - **Replacing `⇄`, `➜` and the flag-emoji language labels with symbolic icons**:
   won't yet. `➜` is also the unresolved RTL question in §2; flag emoji live in 27+28
   schema enum nicknames, so changing them is a schema change for an aesthetic gain.
+- **A per-field subtitle on the credential rows**: cannot, not merely declined.
+  `AdwEntryRow` exposes no `subtitle` property (measured: the validator raises
+  `TypeError: No property subtitle on AdwEntryRow`), so group `description` is the only
+  slot that renders explanatory prose for those rows.
+- **Replacing the link rows' hand-made buttons with `Adw.ActionRow:activatable-uri`**:
+  won't from this machine. It would drop two `Gtk.Button` suffixes and a
+  `launch_default_for_uri` call, but `shell-version` declares 45 and `Adw-1.typelib` is a
+  versionless namespace, so the property's introduction version cannot be proven here —
+  shipping an unprovable symbol trades a cosmetic win for a crash on the oldest declared
+  release. *(needs manual confirmation against GNOME 45 before it can be reconsidered.)*
+- **A key editor for the Escape binding**: won't. libadwaita's key-capture widget carries
+  the same unprovability problem, and hand-rolling one means a new fragile dependency on
+  private keybinding plumbing to change a single accelerator. The on/off switch (D-041)
+  covers the case a user can actually state: "I do not want Escape taken".
 - **Undoing the JS↔CSS pixel coupling** (`CHROME = 232`, `budget*0.60`,
   `SCROLLBAR_ESTIMATE = 16`, `width: 650px`): won't. Unifying the two sides means
   reading geometry out of CSS at runtime, which is the main-thread IO this file lists

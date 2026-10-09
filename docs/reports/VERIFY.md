@@ -90,7 +90,13 @@ disk only, and `/tmp` clears at the next boot.
 | `npm run integration` | exit 0, `Test response: (true, "{"success":true}")` — run with C2, C3 and C4 all in the tree, so the panel-icon path, `onSwap` and the enrich teardown were all exercised in a real shell |
 | `npm run perf cost` | exit 0; `window#20built` 7830 µs/window, `cache#200inserts-x-2000chars` 4.8 ms wall (+236 KB), `clipboard#500events-syncpart` 1 tick / 6.4 ms; RSS after 20 enable/disable cycles 239640 KB against 237988 KB idle-with-extension |
 | `npm run check:log` | exit 0 — `35 entries, 30 distinct commit(s) cited` over 29 code-touching commits |
-| `sha256sum ~/.config/dconf/user` immediately before and after `npm run perf cost` | identical (`1478d718…`) — zero-write holds for this round's runs |
+| `sha256sum ~/.config/dconf/user` immediately before and after `npm run perf cost` | identical (`1478d718…`, measured 18:06–18:12) — zero-write holds for this round's runs |
+
+`~/.config/dconf/user` is written by the live session continuously, so **`1478d718…` is a
+timestamped observation, not a baseline**: it had already moved to `c6e4261…` by 18:18 with
+no harness run in between. The claim that survives is the *pair* — same value immediately
+before and immediately after one of our runs — so always capture both sides in the same
+command, and never compare against a hash recorded in an earlier hour.
 
 ### Two environment observations, both pre-dating this batch's runs
 

@@ -114,9 +114,13 @@ time with its diff and verification method, guard red first.
   constant sits on the safe side of that unknown, and the header/actions heights stay
   outside the geometry guard precisely because only a live shell can re-derive them.
 - **Two machine observations, neither caused by this batch**, both timestamped in
-  [VERIFY.md](VERIFY.md): `/run/user/1000/gnome-shell-disable-extensions` exists
-  (mtime 17:53:46 — before this pass's 18:04:59 nested shell, which cannot reach the
-  shared runtime dir anyway), and `~/.config/dconf/user` moved off the baseline recorded
-  under C1 (17:57:21). Attribution unknown; what is proven is that these runs do not write
-  it. The marker is outside this project's boundary, so it was left in place rather than
-  deleted.
+  [VERIFY.md](VERIFY.md): `/run/user/1000/gnome-shell-disable-extensions` exists, and
+  `~/.config/dconf/user` moves on its own. Evidence that neither is ours: this round's runs
+  leave the dconf hash unchanged *within* the run (before/after pair, `1478d718…` at
+  18:06–18:12), yet it had changed again by 18:18 with no harness involved; and the marker
+  reappeared at **18:48:12** while no user process started in that minute (`ps --sort=start_time`
+  shows only kernel workers) and no shell of ours was running — the harness boots its shell
+  inside a private `XDG_RUNTIME_DIR`, so it cannot write there at all. Cause unknown, and the
+  file is outside this project's boundary, so it was left in place rather than deleted. What
+  matters for the next session: **do not treat any recorded hash or timestamp as a live
+  baseline — re-measure in the same command that asserts it.**

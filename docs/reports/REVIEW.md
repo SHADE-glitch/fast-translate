@@ -30,10 +30,11 @@ fields untouched: `uuid`, `extension-id`, `shell-version`, `gettext-domain` — 
   (steals focus, so the double Ctrl+C that triggers us loses its key-release and the app
   below auto-repeats) and `Main.pushModal(SYSTEM_MODAL)` (kills Super / Alt+Tab globally).
 - Stylesheet filename contract unchanged; no `stylesheet.css` added; no un-prefixed CSS.
-- No new dependency, build step, private-API use or feature removal. Nothing outside the
-  repo was written: `~/.config/dconf/user` is byte-identical immediately before and after
-  this round's `npm run perf cost` (`1478d718…`), and both nested-shell harnesses run on a
-  private `XDG_RUNTIME_DIR` with the memory settings backend.
+- No new dependency, build step, private-API use or feature removal. Nothing outside the repo
+  was written **by our runs**: `~/.config/dconf/user` is byte-identical immediately before and
+  immediately after this round's `npm run perf cost` (a within-run pair — the live session
+  writes that file on its own, so no hash in these docs is a usable baseline), and both
+  nested-shell harnesses run on a private `XDG_RUNTIME_DIR` with the memory settings backend.
 - `docs/`, `test/`, `scripts/` and root `*.md` are not in `scripts/pack.sh`'s explicit copy
   list, so nothing ships differently.
 
@@ -59,6 +60,9 @@ fields untouched: `uuid`, `extension-id`, `shell-version`, `gettext-domain` — 
    number behind a false assertion.
 3. **`parseLanguageName` / `detectLang` are still tested but unreferenced** by production,
    and deliberately absent from the call-site list. Deferred with a reason in open-items §4.
-4. **`/run/user/1000/gnome-shell-disable-extensions` exists on this machine** (mtime
-   17:53:46, before this pass's nested shell at 18:04:59, which cannot reach the shared
-   runtime dir). Unattributed, outside the repo, deliberately not deleted.
+4. **`/run/user/1000/gnome-shell-disable-extensions` keeps existing on this machine**, and it
+   reappeared at 18:48:12 when nothing of ours was running (no user process started in that
+   minute) — our nested shell boots inside a private `XDG_RUNTIME_DIR`, so it cannot write
+   there. Unattributed and outside the repo, so deliberately not deleted. While it exists, a
+   shell restart in this login session starts with every extension disabled — worth knowing
+   before you debug "the extension disappeared".

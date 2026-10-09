@@ -119,6 +119,24 @@
     font-style: italic;
 }
 
+.translate-dict-section {
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 4px;
+}
+
+.translate-dict-syn {
+    font-size: 14px;
+}
+
+.translate-dict-def-row {
+    spacing: 2px;
+}
+
+.translate-dict-def {
+    font-size: 14px;
+}
+
 .translate-floating-actions {
     spacing: 12px;
     margin-top: 8px;

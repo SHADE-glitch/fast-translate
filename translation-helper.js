@@ -616,13 +616,19 @@ function stripTags(s) {
  *   d[0][1][3]   source-language phonetic ("hello" -> "həˈlō")
  *   d[1]         bilingual dictionary: [ [pos, [terms], [reverse…], …], … ]
  *   d[2]         detected source language
+ *   d[11]        synonyms: [ [pos, [ [ [words…], id, [[register]] ], … ] ], … ]
+ *   d[12]        monolingual definitions: [ [pos, [ [def, id, example], … ], … ] ]
  *   d[13]        example sentences: [ [ [html, …], … ] ]
  * Dictionary and example sections are simply absent for sentences and for
- * words Google does not know, which is what `isDictionary` reports.
+ * words Google does not know, which is what `isDictionary` reports. Synonyms
+ * and definitions are English-only: Google returns none for a Chinese headword,
+ * so a ZH->EN card is inherently terser than an EN->ZH one.
  * @param {*} json - the parsed reply body
  * @returns {{translation:string, phonetic:?string, detectedLang:?string,
- *            entries:Array<{pos:string, terms:string[]}>, examples:string[],
- *            isDictionary:boolean}}
+ *            entries:Array<{pos:string, terms:string[]}>,
+ *            synonyms:Array<{pos:string, words:string[]}>,
+ *            definitions:Array<{pos:string, defs:Array<{text:string, example:string}>}>,
+ *            examples:string[], isDictionary:boolean}}
  */
 export function parseGoogleDict(json) {
     const result = {
@@ -630,6 +636,8 @@ export function parseGoogleDict(json) {
         phonetic: null,
         detectedLang: null,
         entries: [],
+        synonyms: [],
+        definitions: [],
         examples: [],
         isDictionary: false,
     };
@@ -662,6 +670,47 @@ export function parseGoogleDict(json) {
                 : [];
             if (terms.length === 0) continue;
             result.entries.push({ pos, terms });
+        }
+    }
+
+    // d[11]: synonyms, one block per part of speech. [1] is a list of groups,
+    // each [ [words…], id, [[register]] ]; flatten them, de-duplicated, and
+    // drop a block that yields nothing.
+    const syn = json[11];
+    if (Array.isArray(syn)) {
+        for (const block of syn) {
+            if (!Array.isArray(block)) continue;
+            const pos = typeof block[0] === 'string' ? block[0] : '';
+            const groups = Array.isArray(block[1]) ? block[1] : [];
+            const words = [];
+            for (const group of groups) {
+                if (!Array.isArray(group) || !Array.isArray(group[0])) continue;
+                for (const w of group[0]) {
+                    if (typeof w === 'string' && w.trim() !== '' && !words.includes(w))
+                        words.push(w);
+                }
+            }
+            if (words.length > 0) result.synonyms.push({ pos, words });
+        }
+    }
+
+    // d[12]: monolingual definitions, one block per part of speech. [1] is a
+    // list of [definition, id, example]; keep the text and the example.
+    const def = json[12];
+    if (Array.isArray(def)) {
+        for (const block of def) {
+            if (!Array.isArray(block)) continue;
+            const pos = typeof block[0] === 'string' ? block[0] : '';
+            const list = Array.isArray(block[1]) ? block[1] : [];
+            const defs = [];
+            for (const d of list) {
+                if (!Array.isArray(d) || typeof d[0] !== 'string' || d[0].trim() === '') continue;
+                defs.push({
+                    text: d[0].trim(),
+                    example: typeof d[2] === 'string' ? d[2].trim() : '',
+                });
+            }
+            if (defs.length > 0) result.definitions.push({ pos, defs });
         }
     }
 

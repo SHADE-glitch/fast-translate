@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -75,9 +75,15 @@ const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
 // Dictionary-card caps. The card is a fixed pool of DICT_MAX_POS part-of-speech
 // rows plus DICT_MAX_EXAMPLES example lines, built once and toggled by
 // visibility; the caps keep it compact inside the 60%-of-work-area clamp.
-const DICT_MAX_POS = 4;
-const DICT_MAX_TERMS = 6;
-const DICT_MAX_EXAMPLES = 2;
+// Google returns far more than this (up to ~20 terms per part of speech, ~30
+// examples), so these are the display cut, not the provider's limit.
+const DICT_MAX_POS = 6;
+const DICT_MAX_TERMS = 15;
+const DICT_MAX_EXAMPLES = 5;
+const DICT_MAX_SYN_POS = 2;
+const DICT_MAX_SYN_WORDS = 12;
+const DICT_MAX_DEF_POS = 2;
+const DICT_MAX_DEFS_PER_POS = 2;
 
 // Part-of-speech labels, translated. Built lazily and memoised because
 // gettext's domain is bound during enable(): a module-level _() call would run
@@ -467,7 +473,7 @@ var FastTranslate = GObject.registerClass(
             }
         }
 
-        _triggerFloatingTranslation(fromText) {
+        _triggerFloatingTranslation(fromText, dir) {
             if (this._floatingWindow) {
                 this._floatingWindow.destroy();
                 this._floatingWindow = null;
@@ -497,11 +503,18 @@ var FastTranslate = GObject.registerClass(
                 ? safeTruncate(fromText, charLimit)
                 : fromText;
 
-            const reTranslate = () => {
+            // Direction actually used for this request. An explicit dir (set by
+            // the swap button) wins; otherwise auto-direction may flip a word
+            // lookup whose language matches the configured target. The window
+            // header is built from this, so the title can no longer disagree with
+            // the card.
+            const effDir = dir ?? this._effectiveDirection(requestText);
+
+            const reTranslate = (text = requestText, useDir = effDir) => {
                 // Same identity guard as the main reply path: the window that was
                 // open when swap was pressed may be gone by the time we answer.
                 const targetWin = this._floatingWindow;
-                this._translateTextIndependent(requestText, (toText, errMsg, dict) => {
+                this._translateTextIndependent(text, (toText, errMsg, dict) => {
                     if (this._destroyed) return;
                     if (targetWin && this._floatingWindow !== targetWin) return;
                     const w = this._floatingWindow;
@@ -515,7 +528,7 @@ var FastTranslate = GObject.registerClass(
                             }
                         } catch (_e) {}
                     }
-                });
+                }, useDir);
             };
 
             if (!isBackground) {
@@ -527,8 +540,8 @@ var FastTranslate = GObject.registerClass(
                     win = new FloatingTranslationWindow(
                         fromText,
                         PLACEHOLDER,
-                        this._source_lang,
-                        this._target_lang,
+                        effDir.source,
+                        effDir.target,
                         () => {
                             // Only clear the slot if it still points at THIS window —
                             // a newer trigger may have replaced it already. The
@@ -545,52 +558,48 @@ var FastTranslate = GObject.registerClass(
                         {
                             onSwap: () => {
                                 if (this._destroyed) return;
-                                // Reverse-translate the current RESULT: after the
-                                // swap the old target text becomes the new
-                                // source. Rebuilding via _triggerFloatingTranslation
-                                // reuses the placeholder/safety/identity machinery
-                                // instead of duplicating it here.
+                                // Swap the DISPLAYED direction (which may be the
+                                // auto-detected one), not the configured pair, so
+                                // the header and the result stay consistent.
                                 const w = this._floatingWindow;
+                                if (!w) return;
+                                const curSrc = w._srcLang;
+                                const curTgt = w._tgtLang;
+                                if (String(curSrc).toUpperCase() === 'AUTO') {
+                                    // "Auto detect" cannot become a target, so the
+                                    // pair is left exactly as it was. Without a
+                                    // message the button just looks broken.
+                                    try {
+                                        w.setErrorState(this._providerErrorText(
+                                            { code: 'swap-source-is-automatic', detail: String(curTgt ?? '') }));
+                                    } catch (_e) {}
+                                    return;
+                                }
+                                const newDir = { source: curTgt, target: curSrc };
+                                // Reverse-translate the current RESULT: after the
+                                // swap the old target text becomes the new source.
                                 let backText = null;
                                 try {
-                                    const cur = w ? w._currentTarget : null;
+                                    const cur = w._currentTarget;
                                     if (cur && cur !== PLACEHOLDER && cur.trim() !== "") {
                                         backText = cur;
                                     }
                                 } catch (_e) {}
-                                const swapped = swapLanguages(this._source_lang, this._target_lang);
-                                if (swapped.error) {
-                                    // "Auto detect" cannot become a target, so the
-                                    // pair is left exactly as it was. Without a
-                                    // message the button just looks broken.
-                                    if (w) {
-                                        try {
-                                            w.setErrorState(this._providerErrorText(swapped.error));
-                                        } catch (_e) {}
-                                    }
-                                    return;
-                                }
-                                this._source_lang = swapped.source;
-                                this._target_lang = swapped.target;
                                 if (backText) {
-                                    this._triggerFloatingTranslation(backText);
+                                    // Rebuild so the source pane shows the text
+                                    // being translated; _triggerFloatingTranslation
+                                    // reuses the placeholder/safety/identity machinery.
+                                    this._triggerFloatingTranslation(backText, newDir);
                                 } else {
-                                    // No result yet: keep the old behavior (swap
-                                    // labels, keep translating the original).
-                                    if (w) {
-                                        try {
-                                            w.refreshLangs(this._source_lang, this._target_lang);
-                                            w.setTargetText(PLACEHOLDER);
-                                            w.setLoading(true);
-                                        } catch (_e) {}
-                                        // reTranslate() never arms the watchdog
-                                        // itself, and the previous one may already
-                                        // have fired and stayed silent — without
-                                        // this the card would sit on "Translating…"
-                                        // with no retry forever.
-                                        this._armSafetyTimeout(w, PLACEHOLDER);
-                                    }
-                                    reTranslate();
+                                    // No result yet: flip the header in place and
+                                    // re-translate the original in the new direction.
+                                    try {
+                                        w.refreshLangs(newDir.source, newDir.target);
+                                        w.setTargetText(PLACEHOLDER);
+                                        w.setLoading(true);
+                                    } catch (_e) {}
+                                    this._armSafetyTimeout(w, PLACEHOLDER);
+                                    reTranslate(requestText, newDir);
                                 }
                             },
                             onRetry: () => {
@@ -685,7 +694,7 @@ var FastTranslate = GObject.registerClass(
                         myWin.setErrorState(errMsg || _('Translation failed — please try again.'));
                     } catch (_e) {}
                 }
-            });
+            }, effDir);
         }
 
         // Display backstop so a placeholder is never stuck forever. Request
@@ -745,22 +754,23 @@ var FastTranslate = GObject.registerClass(
         // to the previous inline branches; test/unit.test.js pins their exact
         // URLs, content types and bodies.
         // Returns null after calling fail() when no request should be sent.
-        _buildRequestSpec(fromText, fail, provider) {
+        _buildRequestSpec(fromText, fail, provider, dir) {
             provider = provider ?? getProvider(this._translation_service);
             if (!provider) {
                 fail(_('Unknown translation service selected in settings.'));
                 return null;
             }
-            // Effective direction for this request (auto-flips word lookups whose
-            // language matches the configured target). Only words flip, and words
+            // Effective direction for this request: an explicit dir (the swap
+            // button) wins, else auto-direction may flip a word lookup whose
+            // language matches the configured target. Only words flip, and words
             // always route to Google, so the paid providers see the configured
-            // pair unchanged — but using dir uniformly keeps all four branches
+            // pair unchanged — but using effDir uniformly keeps all four branches
             // in one shape.
-            const dir = this._effectiveDirection(fromText);
+            const effDir = dir ?? this._effectiveDirection(fromText);
             try {
                 switch (provider.id) {
                 case 'google': {
-                    const { url, body, contentType } = buildGoogleRequest(dir.source, dir.target, fromText);
+                    const { url, body, contentType } = buildGoogleRequest(effDir.source, effDir.target, fromText);
                     return {
                         url, method: 'POST', contentType, body,
                         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
@@ -772,8 +782,8 @@ var FastTranslate = GObject.registerClass(
                     }
                     const body = JSON.stringify(buildDeepLRequestBody({
                         fromText,
-                        sourceLang: dir.source,
-                        targetLang: dir.target,
+                        sourceLang: effDir.source,
+                        targetLang: effDir.target,
                         splitSentences: this._split_sentences,
                         preserveFormatting: this._preserve_formatting,
                         formality: this._formality,
@@ -789,7 +799,7 @@ var FastTranslate = GObject.registerClass(
                     }
                     const built = buildBaiduRequest({
                         appid: this._baiduAppid, secretKey: this._baiduSecret,
-                        fromText, sourceLang: dir.source, targetLang: dir.target,
+                        fromText, sourceLang: effDir.source, targetLang: effDir.target,
                         salt: String(Date.now()), hash: hashBundle,
                     });
                     if (built.error) {
@@ -804,7 +814,7 @@ var FastTranslate = GObject.registerClass(
                     }
                     const built = buildYoudaoRequest({
                         appid: this._youdaoAppid, secretKey: this._youdaoSecret,
-                        fromText, sourceLang: dir.source, targetLang: dir.target,
+                        fromText, sourceLang: effDir.source, targetLang: effDir.target,
                         salt: String(Date.now()), curtime: String(Math.floor(Date.now() / 1000)),
                         hash: hashBundle,
                     });
@@ -859,7 +869,7 @@ var FastTranslate = GObject.registerClass(
             }
         }
 
-        _translateTextIndependent(fromText, callback) {
+        _translateTextIndependent(fromText, callback, dir) {
             if (!fromText || !hasVisibleText(fromText)) return;
 
             // Report a failure both as a notification (visible in background /
@@ -884,11 +894,15 @@ var FastTranslate = GObject.registerClass(
             // DeepL-affecting options must be part of the key so a formality or
             // endpoint change never reads back a stale translation. The other
             // providers take no such options.
+            // Direction for this request: an explicit one (the swap button) wins,
+            // else the auto-directed pair. Google never caches, so this only
+            // shapes the LRU key of the paid providers.
+            const effDir = dir ?? this._effectiveDirection(fromText);
             const indepCacheExtra = providerId === 'deepl'
                 ? `${this._split_sentences}|${!!this._preserve_formatting}|${this._formality}|${this._url}`
                 : '';
             const indepCacheKey = this._makeCacheKey(
-                this._translation_service, this._source_lang, this._target_lang, fromText, indepCacheExtra);
+                this._translation_service, effDir.source, effDir.target, fromText, indepCacheExtra);
             // Google replies are variable-shape: a word carries a dictionary
             // payload and a sentence does not. The cache stores plain strings and
             // evicts by .length, so rather than teach it a second value shape
@@ -903,7 +917,7 @@ var FastTranslate = GObject.registerClass(
                 }
             }
 
-            const spec = this._buildRequestSpec(fromText, fail, provider);
+            const spec = this._buildRequestSpec(fromText, fail, provider, effDir);
             if (!spec) return;
 
             let message;
@@ -1874,6 +1888,47 @@ class FloatingTranslationWindow {
             card.add_child(exL);
             this._dictExLabels.push(exL);
         }
+
+        // Synonyms section. Google returns these for English headwords only, so
+        // the whole section stays hidden when a ZH->EN lookup yields none.
+        this._dictSynHeader = new St.Label({ text: _('Synonyms'),
+            style_class: 'translate-dict-section', visible: false });
+        card.add_child(this._dictSynHeader);
+        this._dictSynRows = [];
+        this._dictSynPosLabels = [];
+        this._dictSynWordsLabels = [];
+        for (let i = 0; i < DICT_MAX_SYN_POS; i++) {
+            const row = new St.BoxLayout({ vertical: false, style_class: 'translate-dict-pos-row' });
+            const posL = new St.Label({ text: '', style_class: 'translate-dict-pos' });
+            const wordsL = wrap(new St.Label({ text: '', style_class: 'translate-dict-syn', x_expand: true }));
+            row.add_child(posL);
+            row.add_child(wordsL);
+            row.visible = false;
+            card.add_child(row);
+            this._dictSynRows.push(row);
+            this._dictSynPosLabels.push(posL);
+            this._dictSynWordsLabels.push(wordsL);
+        }
+
+        // Monolingual definitions section (English-only, same as synonyms).
+        this._dictDefHeader = new St.Label({ text: _('Definitions'),
+            style_class: 'translate-dict-section', visible: false });
+        card.add_child(this._dictDefHeader);
+        this._dictDefRows = [];
+        this._dictDefPosLabels = [];
+        this._dictDefTextLabels = [];
+        for (let i = 0; i < DICT_MAX_DEF_POS; i++) {
+            const box = new St.BoxLayout({ vertical: true, style_class: 'translate-dict-def-row' });
+            const posL = new St.Label({ text: '', style_class: 'translate-dict-pos' });
+            const textL = wrap(new St.Label({ text: '', style_class: 'translate-dict-def' }));
+            box.add_child(posL);
+            box.add_child(textL);
+            box.visible = false;
+            card.add_child(box);
+            this._dictDefRows.push(box);
+            this._dictDefPosLabels.push(posL);
+            this._dictDefTextLabels.push(textL);
+        }
         return card;
     }
 
@@ -1901,6 +1956,34 @@ class FloatingTranslationWindow {
             if (i < examples.length) { label.text = examples[i]; label.visible = true; }
             else label.visible = false;
         }
+
+        const syns = (dict.synonyms || []).slice(0, DICT_MAX_SYN_POS);
+        let synShown = false;
+        for (let i = 0; i < DICT_MAX_SYN_POS; i++) {
+            const s = syns[i];
+            const row = this._dictSynRows[i];
+            if (!s) { row.visible = false; continue; }
+            this._dictSynPosLabels[i].text = posLabel(s.pos);
+            this._dictSynWordsLabels[i].text = s.words.slice(0, DICT_MAX_SYN_WORDS).join(' · ');
+            row.visible = true;
+            synShown = true;
+        }
+        this._dictSynHeader.visible = synShown;
+
+        const defs = (dict.definitions || []).slice(0, DICT_MAX_DEF_POS);
+        let defShown = false;
+        for (let i = 0; i < DICT_MAX_DEF_POS; i++) {
+            const d = defs[i];
+            const box = this._dictDefRows[i];
+            if (!d) { box.visible = false; continue; }
+            this._dictDefPosLabels[i].text = posLabel(d.pos);
+            this._dictDefTextLabels[i].text = d.defs.slice(0, DICT_MAX_DEFS_PER_POS)
+                .map(x => (x.example ? `${x.text}  —  ${x.example}` : x.text))
+                .join('\n');
+            box.visible = true;
+            defShown = true;
+        }
+        this._dictDefHeader.visible = defShown;
     }
 
     // Shared relayout + re-measure tail for anything written into the
@@ -2121,6 +2204,8 @@ class FloatingTranslationWindow {
         });
     }
 
+    // Re-label the header in place. Used by the swap button when no result has
+    // arrived yet: the pair flips without rebuilding the window.
     refreshLangs(sourceLang, targetLang) {
         this._srcLang = sourceLang;
         this._tgtLang = targetLang;
@@ -2163,6 +2248,14 @@ class FloatingTranslationWindow {
         this._dictPosLabels = null;
         this._dictTermsLabels = null;
         this._dictExLabels = null;
+        this._dictSynHeader = null;
+        this._dictSynRows = null;
+        this._dictSynPosLabels = null;
+        this._dictSynWordsLabels = null;
+        this._dictDefHeader = null;
+        this._dictDefRows = null;
+        this._dictDefPosLabels = null;
+        this._dictDefTextLabels = null;
         this._srcLabel = null;
         this._srcScroll = null;
         this._destScroll = null;

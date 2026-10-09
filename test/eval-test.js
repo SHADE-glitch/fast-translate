@@ -964,6 +964,10 @@ global.testRunnerPromise = (async () => {
                         { pos: "verb", terms: ["存款"] },
                     ],
                     examples: ["the bank of the river"],
+                    synonyms: [{ pos: "noun", words: ["shore", "embankment"] }],
+                    definitions: [{ pos: "noun", defs: [
+                        { text: "a financial institution.", example: "I paid it into the bank" },
+                    ] }],
                     isDictionary: true,
                 };
                 w.setDictionary(dict);
@@ -999,6 +1003,34 @@ global.testRunnerPromise = (async () => {
                 if (w._dictExLabels[1].visible !== false) {
                     w.destroy();
                     return { success: false, error: "Dict card showed an empty example line" };
+                }
+                // Synonyms section (English-only): header + one row, hidden slot
+                // beyond the data.
+                if (w._dictSynHeader.visible !== true || w._dictSynRows[0].visible !== true) {
+                    w.destroy();
+                    return { success: false, error: "Dict card did not show the synonyms section" };
+                }
+                if (w._dictSynWordsLabels[0].get_text().indexOf("embankment") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card lost the synonyms: " + w._dictSynWordsLabels[0].get_text() };
+                }
+                if (w._dictSynRows[1].visible !== false) {
+                    w.destroy();
+                    return { success: false, error: "Dict card showed an empty synonyms row" };
+                }
+                // Definitions section: text plus its example.
+                if (w._dictDefHeader.visible !== true || w._dictDefRows[0].visible !== true) {
+                    w.destroy();
+                    return { success: false, error: "Dict card did not show the definitions section" };
+                }
+                const defText = w._dictDefTextLabels[0].get_text();
+                if (defText.indexOf("a financial institution") === -1 || defText.indexOf("I paid it into the bank") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card lost a definition or its example: " + defText };
+                }
+                if (w._dictDefRows[1].visible !== false) {
+                    w.destroy();
+                    return { success: false, error: "Dict card showed an empty definitions row" };
                 }
                 if (w._currentTarget !== "银行") {
                     w.destroy();
@@ -1084,6 +1116,60 @@ global.testRunnerPromise = (async () => {
                 indicator._source_lang = savedSource;
                 indicator._target_lang = savedTarget;
                 indicator._translation_service = savedService;
+            }
+        }
+
+        // Test 3l: the header follows the direction actually used, and '⇄' swaps
+        // that DISPLAYED pair (not the configured one), so the title can no
+        // longer disagree with the card.
+        {
+            const savedSource = indicator._source_lang;
+            const savedTarget = indicator._target_lang;
+            const savedService = indicator._translation_service;
+            const savedTranslate = indicator._translateTextIndependent;
+            let w = null;
+            try {
+                indicator._source_lang = "ZH";
+                indicator._target_lang = "EN-US";
+                indicator._translation_service = 1; // Google
+                const calls = [];
+                indicator._translateTextIndependent = function (text, cb, dir) {
+                    calls.push({ text, dir });
+                    try { cb("译:" + text, undefined, null); } catch (_e) {}
+                };
+                indicator._triggerFloatingTranslation("hello");
+                w = indicator._floatingWindow;
+                if (!w) return { success: false, error: "Header/swap: no window built" };
+                // "hello" is an English word while configured ZH->EN-US, so the
+                // effective direction is EN->ZH and the header must say so.
+                if (w._srcLang !== "EN" || w._tgtLang !== "ZH") {
+                    return { success: false, error: "Header did not follow the effective direction: " + w._srcLang + "->" + w._tgtLang };
+                }
+                if (!calls.length || !calls[0].dir || calls[0].dir.source !== "EN" || calls[0].dir.target !== "ZH") {
+                    return { success: false, error: "Request did not carry the effective direction: " + JSON.stringify(calls[0] && calls[0].dir) };
+                }
+                // Swap must flip the displayed pair and re-request explicitly.
+                calls.length = 0;
+                w._onSwap();
+                const w2 = indicator._floatingWindow;
+                if (!w2) return { success: false, error: "Header/swap: window gone after swap" };
+                if (w2._srcLang !== "ZH" || w2._tgtLang !== "EN") {
+                    return { success: false, error: "Swap header wrong: " + w2._srcLang + "->" + w2._tgtLang };
+                }
+                if (!calls.length || !calls[0].dir || calls[0].dir.source !== "ZH" || calls[0].dir.target !== "EN") {
+                    return { success: false, error: "Swap request did not carry the swapped direction: " + JSON.stringify(calls[0] && calls[0].dir) };
+                }
+                w = w2;
+            } finally {
+                indicator._translateTextIndependent = savedTranslate;
+                indicator._source_lang = savedSource;
+                indicator._target_lang = savedTarget;
+                indicator._translation_service = savedService;
+                if (w) { try { w.destroy(); } catch (_e) {} }
+                if (indicator._floatingWindow) {
+                    try { indicator._floatingWindow.destroy(); } catch (_e) {}
+                    indicator._floatingWindow = null;
+                }
             }
         }
 

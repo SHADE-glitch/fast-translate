@@ -73,6 +73,18 @@
     color: st-transparentize(#222222, 0.35);
 }
 
+.translate-dict-section {
+    color: st-transparentize(#222222, 0.35);
+}
+
+.translate-dict-syn {
+    color: #222222;
+}
+
+.translate-dict-def {
+    color: st-transparentize(#222222, 0.2);
+}
+
 .translate-floating-warning {
     color: #a14a0b;
 }

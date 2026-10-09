@@ -324,6 +324,14 @@ const bankDict = parseGoogleDict(fixture("google-dict-bank.json"));
 assert.strictEqual(bankDict.isDictionary, true, "bank is a dictionary word");
 assert.strictEqual(bankDict.translation, "银行");
 assert.strictEqual(bankDict.entries[0].pos, "noun");
+assert.ok(bankDict.synonyms.length >= 1, "bank carries a synonyms block (d[11])");
+assert.ok(bankDict.synonyms[0].words.includes("embankment"),
+    "synonym groups are flattened into one word list");
+assert.ok(bankDict.definitions.length >= 1, "bank carries a definitions block (d[12])");
+assert.strictEqual(bankDict.definitions[0].defs[0].text,
+    "the land alongside or sloping down to a river or lake.", "definition text comes from d[12]");
+assert.strictEqual(bankDict.definitions[0].defs[0].example, "willows lined the bank",
+    "definition example comes from d[12]");
 
 // A sentence: no dictionary sections. The parser must still yield the
 // translation and must NOT report a dictionary, so the card falls back to plain
@@ -333,6 +341,8 @@ assert.strictEqual(sentence.isDictionary, false, "a sentence is not a dictionary
 assert.strictEqual(sentence.translation, "河岸很陡。", "sentence translation survives");
 assert.strictEqual(sentence.phonetic, null, "no phonetic for a sentence");
 assert.deepStrictEqual(sentence.entries, [], "no entries for a sentence");
+assert.deepStrictEqual(sentence.synonyms, [], "no synonyms for a sentence");
+assert.deepStrictEqual(sentence.definitions, [], "no definitions for a sentence");
 
 // An unknown word echoes itself and carries no dictionary sections.
 const unknown = parseGoogleDict(fixture("google-plain-unknown.json"));
@@ -342,7 +352,7 @@ assert.strictEqual(unknown.translation, "asdfghqwer");
 // Defensive: the reply is a positional array, so a shape change must degrade to
 // a plain translation, never throw.
 assert.deepStrictEqual(parseGoogleDict(null),
-    { translation: "", phonetic: null, detectedLang: null, entries: [], examples: [], isDictionary: false },
+    { translation: "", phonetic: null, detectedLang: null, entries: [], synonyms: [], definitions: [], examples: [], isDictionary: false },
     "null body yields the empty shape");
 assert.strictEqual(parseGoogleDict([]).isDictionary, false, "empty array yields the empty shape");
 assert.strictEqual(parseGoogleDict([[null, null]]).translation, "",

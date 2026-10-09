@@ -1,70 +1,64 @@
-<p align="right"><a href="REVIEW.md"><b>English</b></a> · <a href="STATE.md">State</a> · <a href="AUDIT.md">Audit</a></p>
+<p align="right"><a href="REVIEW.md"><b>English</b></a> · <a href="STATE.md">State</a> · <a href="AUDIT.md">Audit</a> · <a href="VERIFY.md">Verify</a></p>
 
-# Review package — phase A+B pass, 2026-10-09
+# Review package — this round end to end, 2026-10-09
 
-One page for an independent reviewer. Nothing here asks you to trust a claim: each
-row names the command or file:line that shows it.
+One page for an independent reviewer. Nothing here asks you to trust a claim: each row
+names the command or `file:line` that shows it. Red→green evidence for every guard is in
+[VERIFY.md](VERIFY.md).
 
 ## Scope
 
-Documentation, test-guard and rules changes only. **No shipped code was touched**:
-`extension.js`, `prefs.js`, `translation-helper.js`, `signing.js`, the three
-stylesheets, `schemas/` and `metadata.json` are unmodified, so `version` stays as-is
-and no `D-###` entry is owed (`npm run check:log` enforces exactly that and passes).
+Docs and rules first (phase A+B, no shipped code), then the queued stability/structure
+batch (phase C1–C5, production code). `version` **15**, one bump covering C2…C5. Frozen
+fields untouched: `uuid`, `extension-id`, `shell-version`, `gettext-domain` — re-read with
+`jq -e` in the bump commit.
 
 ## Changes
 
 | File(s) | What and why |
 |---|---|
-| `docs/maintenance/*` — 5 topics × 2 languages | The three manuals the maintenance brief names (compatibility matrix, shell-internals inventory + upgrade playbook, fixed power/leak method) plus verification and open-items, split out of the root handbook. Prose migrated, not rewritten; new content is the file:line API inventory, the libadwaita-1.4 floor, the sampling rules, and the queued/deferred/won't status labels |
-| `MAINTENANCE.md`, `MAINTENANCE.zh-CN.md` | Rewritten as routers: all 14 numbered sections kept so the existing `§` references resolve, 5 inline, 9 replaced by a pointer. No fact now has two owners |
-| `INVARIANTS.md`, `INVARIANTS.zh-CN.md` | New thin pointer: things that look wrong and must stay, designs measured and rejected, what the extension never does. It holds no list that `CHANGELOG.md` already owns |
-| `scripts/check-log.mjs` | `--invariants` print mode, so `INVARIANTS.md` can stay thin without going vague. Refuses (exit 1) rather than printing an empty list; bare mode unchanged |
-| `test/repo.test.js` | Bilingual pairing widened from repo root to **every** directory — required, because `docs/maintenance/` is bilingual. `venv` added to the skip set: `scripts/pack.sh` creates it inside the repo and its third-party markdown would otherwise be scanned |
-| `AGENTS.md` | Stale aggregate count deleted and replaced by the command that prints it; commit-prefix list corrected against `git log`; `reload.sh` annotated with the measured fact that it cannot re-import ES modules; `§` pointers retargeted; new sections — session entry point, four-phase gated working method, evidence discipline (L0/L1/L2, provoke every guard red first, no commit without instruction), structural rules (enable/disable symmetry, no main-thread IO, no defensive noise, no architecture theatre), compatibility floor, push-needs-per-action-authorization |
-| `docs/reports/{PROFILE,AUDIT,PLAN,STATE,REVIEW}.md` | Phase A/B artifacts and the cross-session handoff |
-| `README.md` | One defect fixed: the CHANGELOG-pointer paragraph was present twice (wrapped and unwrapped copy). Now once, matching `README.zh-CN.md` |
+| `AGENTS.md` | Stale aggregate count replaced by the command that prints it; prefix list corrected against `git log`; new sections — session entry point, gated working method, evidence discipline (L0/L1/L2, provoke every guard), structural rules, compatibility floor (Adw 1.4), push-needs-per-action authorization |
+| `MAINTENANCE.md` + `.zh-CN.md` | Routers. All 14 numbered sections kept so existing `§` refs resolve; prose moved to `docs/maintenance/{compatibility-matrix,shell-internals,cost-measurement,open-items,verification}` × 2 languages |
+| `INVARIANTS.md` + `.zh-CN.md`, `scripts/check-log.mjs` | Thin pointer plus `--invariants` print mode, so the recorded fixes keep one owner (`CHANGELOG.md`) |
+| `extension.js` | D-029/D-030 enrich actually sends, and its cancellable + watchdog are reachable from `destroy()`; D-032 `onSwap` delegates to `swapLanguages`; D-034 both main-thread `query_exists()` stats removed; D-035 pixel constants annotated with the CSS they mirror |
+| `translation-helper.js`, `prefs.js` | `buildGoogleRequest` owns `method` + UA (the missing `method` is what killed the enrich silently); `PROVIDERS` declares `credentialGroup` / `supportsFormatting` and prefs reads them instead of `service === 0/2/3` |
+| `test/*` | Call-site list (an L0-pinned decision must be called from `extension.js`), provider-registry assertions, no-stat guard on comment-stripped source, JS↔CSS geometry recomputation, Test 3i behavioural watchdog proof, harness cleanup can no longer overwrite the verdict, `prefs-validator` rebinds relative imports |
 
 ## Invariants respected
 
-- `metadata.json` untouched: `uuid`, `shell-version`, `version`, `gettext-domain` all
-  as before. The domain mismatch with the uuid is load-bearing and is now recorded in
-  `INVARIANTS.md` §1 rather than only in prose.
-- The two-variant stylesheet naming, the rejected `pushModal` / `set_key_focus`
-  designs, and the no-un-prefixed-CSS rule are carried forward unchanged.
-- No dependency, no build step, no new private-API use, no feature removed.
-- Nothing outside the repo was written. `~/.config/dconf/user` mtime is unchanged by
-  this pass; no nested shell was started; `docs/`, `test/`, `scripts/` and root `*.md`
-  are not in `scripts/pack.sh`'s explicit copy list, so nothing ships differently.
+- The two measured-rejected designs stay rejected: `global.stage.set_key_focus()`
+  (steals focus, so the double Ctrl+C that triggers us loses its key-release and the app
+  below auto-repeats) and `Main.pushModal(SYSTEM_MODAL)` (kills Super / Alt+Tab globally).
+- Stylesheet filename contract unchanged; no `stylesheet.css` added; no un-prefixed CSS.
+- No new dependency, build step, private-API use or feature removal. Nothing outside the
+  repo was written: `~/.config/dconf/user` is byte-identical immediately before and after
+  this round's `npm run perf cost` (`1478d718…`), and both nested-shell harnesses run on a
+  private `XDG_RUNTIME_DIR` with the memory settings backend.
+- `docs/`, `test/`, `scripts/` and root `*.md` are not in `scripts/pack.sh`'s explicit copy
+  list, so nothing ships differently.
 
 ## Self-check results
 
 | Command | Result |
 |---|---|
-| `npm test` | exit 0 — unit, teardown guard, repo guards, GLib/node signing known answers, prefs layout |
-| `npm run check:log` | exit 0 — PASS |
-| `npm run check:log -- --invariants` | exit 0 — prints the recorded fixes |
-| `node test/repo.test.js` + twinless `docs/maintenance/probe.zh-CN.md` | exit 1 — proves the widened pairing guard bites; scratch removed |
-| `node test/repo.test.js` + one `## ` added to a docs pair | exit 1 — "keep the pair in step"; file restored byte-identical, then green |
-| `check-log.mjs --invariants` against a no-fix fixture | exit 1 — refuses an empty list |
-| relative-link check over every `*.md` in the tree | 107 links, 0 broken |
-| `gjs -m test/prefs-validator.js` run twice, `/tmp` counted before and after | count unchanged — the harness leaks no temp file (the two `/tmp` leftovers are dated 2026-10-08, before this pass, and were left alone) |
-| `grep -nE '\.send\(\|send_message\|Gio\.Subprocess\|spawn' extension.js prefs.js translation-helper.js signing.js` | no matches — no blocking IO on the compositor thread |
-| `grep -n 'console\.\|logError\|^\s*log(' ` across production files | one call site, carrying no text, key or URL |
+| `npm test` | exit 0 — `# pass 14 / # fail 0` (5 repo describes, unit, teardown guard, signing known answers, prefs layout) |
+| `npm run integration` | exit 0, `success:true` — run with C2+C3+C4 in the tree |
+| `npm run perf cost` | exit 0 — 7830 µs/window build, 1 tick per 500 clipboard events |
+| `npm run check:log` | exit 0 — 35 entries, 30 commits cited; **and it went red on its own** for `1d44c07` before D-032 existed, which is the gate proven rather than described |
+| Guard provocations | each new assertion seen failing for the reason it names — see the C2–C5 table in VERIFY.md, including the two controls (a comment must not redden the stat guard; `min-width` must not answer for `width`) |
+| Relative-link check over every `*.md` | 0 broken |
+| `file:line` anchor sweep | 138 anchors walked against current source, all re-verified; 14 `shell-internals` rows relocated, 3 `prefs.js` ranges corrected |
 
-`npm run integration` / `npm run perf` were **not** re-run: no production code changed,
-so every cost figure quoted in these docs is explicitly inherited from the recorded L1
-baseline and labelled as such.
+## Challenge these first
 
-## The findings a reviewer should challenge first
-
-1. `test/unit.test.js` asserts the `swapLanguages` AUTO guard, and `extension.js` does
-   not call `swapLanguages` — the live `onSwap` branch has an inline copy. Behaviour is
-   correct; the L0 guard protects nothing. This is queued as C2.
-2. A background-mode failure with default settings produces no user-visible output
-   (`extension.js:716` requires `!isBackground`; `fail()` gates on `notifications`,
-   default false).
-3. `_enrichZhToEnDict` holds its cancellable and watchdog in function locals, so
-   `destroy()` cannot reach a 6 s timer past `disable()`.
-4. The shipped settings window contradicts `metadata.json` on the project homepage and
-   says nothing about the text leaving the machine.
+1. **C4 is filed as `chore`, not `perf`.** Measured ≈5.8 µs per theme refresh with a warm
+   cache. If you think a main-thread `stat()` deserves a `perf` label regardless, the
+   record and the open-item wording are the place to argue.
+2. **The geometry guard asserts three of six CHROME terms.** Header (48 px) and actions
+   (44 px) heights are live-shell measurements; including them would put an unmeasurable
+   number behind a false assertion.
+3. **`parseLanguageName` / `detectLang` are still tested but unreferenced** by production,
+   and deliberately absent from the call-site list. Deferred with a reason in open-items §4.
+4. **`/run/user/1000/gnome-shell-disable-extensions` exists on this machine** (mtime
+   17:53:46, before this pass's nested shell at 18:04:59, which cannot reach the shared
+   runtime dir). Unattributed, outside the repo, deliberately not deleted.

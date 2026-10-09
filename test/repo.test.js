@@ -26,7 +26,9 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  */
 function listFiles() {
     const out = [];
-    const skip = new Set([".git", "node_modules", ".gitignore", "__pycache__"]);
+    // `venv` is here because scripts/pack.sh creates it inside the repo, and any
+    // third-party markdown it installs would otherwise be walked by both guards.
+    const skip = new Set([".git", "node_modules", ".gitignore", "__pycache__", "venv"]);
     const walk = (rel) => {
         for (const e of fs.readdirSync(path.join(REPO, rel), { withFileTypes: true })) {
             if (skip.has(e.name))
@@ -46,13 +48,18 @@ const FILES = listFiles();
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), "utf8");
 
 describe("documentation conventions hold", () => {
-    // House convention across every fork in this workspace: user-facing docs are
-    // a two-file bilingual pair with mirrored section order, English first.
-    // Heading LINE numbers are reported, not asserted — they cannot survive
-    // prose edits. Section COUNT and order can, and that is the enforceable
+    // House convention across every fork in this workspace: a doc that exists in
+    // two languages is a two-file bilingual pair with mirrored section order,
+    // English first. Heading LINE numbers are reported, not asserted — they cannot
+    // survive prose edits. Section COUNT and order can, and that is the enforceable
     // version of the same rule.
+    //
+    // This walks EVERY directory, not just the repo root. The maintenance handbook
+    // used to be one root-level pair; it is now a router plus topic files under
+    // docs/maintenance/, and a Chinese topic file with no English twin, or a pair
+    // whose sections drifted, is exactly the failure this guard exists to catch.
     const pairs = FILES
-        .filter(f => f.endsWith(".md") && path.dirname(f) === ".")
+        .filter(f => f.endsWith(".md"))
         .filter(f => f.endsWith(".zh-CN.md"))
         .map(zh => [zh.replace(/\.zh-CN\.md$/, ".md"), zh]);
 

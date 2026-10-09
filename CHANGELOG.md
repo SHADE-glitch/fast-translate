@@ -157,3 +157,10 @@ Change   各区域按各自上限判定，dest 不再白留空隙
 Evidence L?
 Cost     与 D-007 / D-008 同一条高度路径；三者任一改动都要重看另两个
 Commit   ce2a054
+
+### D-021 · 2026-10-09 · taste · v11
+Symptom  双击一个单词只得到一句译文，得不到词典式的详细解释（音标 / 词性 / 多义项 / 例句）
+Change   Google 端点改走 `clients5.google.com` 的 `dict-chrome-ex` 客户端并请求 `dt=bd/rm/md/ss/ex`；新增纯函数 `parseGoogleDict`；单词渲染为词典卡（Pango markup 复用译文 label），句子仍为纯译文；Google 结果不再进缓存
+Evidence L0+L1 本轮重跑：`Google dictionary parser tests passed successfully!`、`npm run integration` 报 `success:true`；并以扩展同款 `Soup.Session` 实测该端点返回 200 词典数据
+Cost     词典卡依赖 Google 非官方端点，且仅 Google 出卡（DeepL/Baidu 无词典数据）；Google 恒用词典请求且不再进缓存（响应形状可变），靠 2.5 s 同文本冷却兜底；卡片复用译文 label，靠 `.dict` 类去掉粗体底重
+Commit   f2bb9f0

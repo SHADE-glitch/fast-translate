@@ -328,6 +328,20 @@ Then read the symptom: icon present but no trigger ⇒ item 1/2; no icon ⇒ ite
   `keybinding-translate-clipboard`, `shortcut-enabled`) are annotated in the
   schema but deliberately **not removed** — deleting them would discard stored
   values and constitutes feature removal.
+- **The dictionary card (D-021) is Google-only and partial.** Only Google returns
+  dictionary data; DeepL/Baidu return none (Youdao would, but needs a key). The
+  card renders phonetic + POS-grouped terms + examples; synonyms (`d[11]`) and
+  monolingual definitions (`d[12]`) are fetched but not rendered yet. The copy
+  button copies the translation, not the card. Google replies **bypass the LRU
+  cache** because the response shape varies (word vs sentence); the 2.5 s
+  same-text cooldown still absorbs rapid re-triggers.
+- **A Google 429 from `curl` is a curl artifact, not an extension bug.**
+  `translate.googleapis.com…client=gtx` answers 429 to curl but 200 to Soup (the
+  extension's client). Reproduce Google failures with a `Soup`/`gjs` probe, never
+  curl. The extension now uses `clients5.google.com…client=dict-chrome-ex` — the
+  endpoint that returns the dictionary sections.
+- New `_()` part-of-speech msgids (D-021) are not in `po/` (gettext absent) —
+  inert today, like the rest of the catalog (no `.mo` files exist).
 - `po/` cannot be regenerated on this machine (gettext absent).
 
 ## 14. Rollback

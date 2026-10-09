@@ -284,6 +284,17 @@ journalctl --user -b --no-pager -o cat _PID=$(pgrep -x gnome-shell) \
 - 那 5 个遗留 schema 键（`auto-copy`、`auto-paste`、`auto-translate`、
   `keybinding-translate-clipboard`、`shortcut-enabled`）已在 schema 里加注说明，但
   **刻意不删**：删键会丢掉用户已存的值，属于删功能。
+- **词典卡（D-021）只挂在 Google 上，且是部分实现。** 只有 Google 返回词典数据；
+  DeepL/百度不返回（有道会，但需要 key）。卡片渲染音标 + 按词性分组的义项 + 例句；
+  同义词（`d[11]`）与英文释义（`d[12]`）虽已取到但尚未渲染。复制按钮复制的是译文，
+  不是整张卡。Google 响应**不进 LRU 缓存**（单词与句子的响应形状不同），靠 2.5 s
+  同文本冷却兜底。
+- **`curl` 看到的 Google 429 是 curl 的问题，不是扩展的问题。**
+  `translate.googleapis.com…client=gtx` 对 curl 返回 429，对 Soup（扩展用的客户端）
+  返回 200。要复现 Google 故障请用 `Soup`/`gjs` 探测，不要用 curl。扩展现已改用
+  `clients5.google.com…client=dict-chrome-ex`——即返回词典段的那个端点。
+- D-021 新增的词性 `_()` msgid 尚未进入 `po/`（缺 gettext）——今天无副作用，与整个
+  目录一致（没有任何 `.mo` 文件）。
 - `po/` 在这台机器上无法重生成（缺 gettext）。
 
 ## 14. 回滚

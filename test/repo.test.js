@@ -126,6 +126,45 @@ describe("the main thread never touches the disk", () => {
     });
 });
 
+describe("a probe reads the settings store only as a hash", () => {
+    // All six string keys of this schema are credential-shaped — `apikey`,
+    // `baidu-appid`/`baidu-secret`, `youdao-appid`/`youdao-secret`, and `url`,
+    // which prefs.js clears together with `apikey` — so printing any of them is
+    // printing a secret. The zero-write property is therefore proven with
+    // `sha256sum ~/.config/dconf/user` (docs/maintenance/cost-measurement.md),
+    // which proves the same thing without reading a value. A `dconf dump` of the
+    // schema proves it too, and leaves every key this schema holds in plaintext in
+    // whatever file the run is redirected to — so the value-printing form is never
+    // the right instrument for an "unchanged" claim, and is refused here rather
+    // than only written down (docs/maintenance/verification.md §3).
+    //
+    // Executables only, and with their own line comments stripped: the rule is
+    // also stated in prose (AGENTS.md, the harness scripts' isolation notes), and
+    // a guard that matched prose would flag the documents that carry it.
+    const strip = (rel, src) => {
+        const marker = rel.endsWith(".sh") ? /^\s*#/ : /^\s*\/\//;
+        return src.split("\n").filter((line) => !marker.test(line)).join("\n");
+    };
+    const EXEC = FILES.filter((f) => /\.(sh|js|mjs|cjs)$/.test(f));
+    const PRINTS_A_VALUE = /\bdconf\s+(dump|read)\b|\bgsettings\s+(get|list|list-recursively)\b/;
+
+    it("the scan covers the harness scripts it is about", () => {
+        assert.ok(EXEC.includes("test/integration.sh") && EXEC.includes("test/perf-probe.sh")
+            && EXEC.length >= 10,
+            `the scan saw ${EXEC.length} executable file(s) and covers integration.sh=${EXEC.includes("test/integration.sh")}, ` +
+            `perf-probe.sh=${EXEC.includes("test/perf-probe.sh")}. Both are the scripts that redirect a run into a ` +
+            `log file, so a scan that misses them guards nothing`);
+    });
+
+    it("no script prints a settings value", () => {
+        const hits = EXEC.filter((f) => PRINTS_A_VALUE.test(strip(f, read(f))));
+        assert.deepEqual(hits, [],
+            `${hits.join(", ") || "nothing"} reads a settings value from the command line. Every string key of ` +
+            `this schema can hold a provider credential, so its output lands in the log the run is redirected to — ` +
+            `use sha256sum ~/.config/dconf/user for the before/after pair instead`);
+    });
+});
+
 describe("the card's geometry constants still match the CSS they mirror", () => {
     // The floating card sizes itself with numbers copied out of the stylesheet:
     // _computeCaps() measures the truncation warning at card width minus borders
@@ -269,7 +308,67 @@ describe("the translation catalogs cover the strings the code asks to translate"
         return out;
     }
 
+    // The extracted `#.` comment of every entry, keyed by msgid. `#. ` starts the hint and
+    // `# ` continues it, which is how gettext wraps a long one.
+    function catalogHints(rel) {
+        const lines = read(rel).split("\n");
+        const out = new Map();
+        let comment = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (/^#\.\s/.test(line)) comment.push(line.slice(3).trim());
+            else if (/^#\s+\S/.test(line) && comment.length) comment.push(line.slice(2).trim());
+            else if (/^#/.test(line)) continue;
+            else if (/^msgid\s+"/.test(line)) {
+                let text = line.match(/^msgid\s+"((?:[^"\\]|\\.)*)"/)[1];
+                let k = i;
+                while (k + 1 < lines.length && /^"((?:[^"\\]|\\.)*)"$/.test(lines[k + 1]))
+                    text += lines[++k].slice(1, -1);
+                if (text && comment.length) out.set(poUnescape(text), comment.join(" ").replace(/\s+/g, " "));
+                comment = [];
+                i = k;
+            } else comment = [];
+        }
+        return out;
+    }
+
+    // `// Translators: …` above a `_()` call is the only explanation a translator gets of
+    // what each placeholder stands for. Nothing regenerates the catalogs here, so the
+    // pairing between that comment and the catalog entry is guarded, not assumed.
+    function sourceHints() {
+        const hints = [];
+        for (const f of TRANSLATED) {
+            const lines = read(f).split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                const m = lines[i].match(/^\s*\/\/\s*Translators:\s*(.*)$/);
+                if (!m) continue;
+                let hint = m[1].trim();
+                let j = i + 1;
+                while (j < lines.length && /^\s*\/\/\s+\S/.test(lines[j]) && !/Translators:/.test(lines[j])) {
+                    hint += " " + lines[j].replace(/^\s*\/\/\s*/, "").trim();
+                    j++;
+                }
+                let msgid = null;
+                for (let k = i; k < lines.length; k++) {
+                    const c = lines[k].match(/_\(\s*(["'`])((?:(?!\1)[^\\]|\\.)*?)\1\s*\)/);
+                    if (c) { msgid = jsUnescape(c[2]); break; }
+                }
+                hints.push({ where: `${f}:${i + 1}`, msgid, hint: hint.replace(/\s+/g, " ") });
+            }
+        }
+        return hints;
+    }
+
     const src = sourceMsgids();
+    const hints = sourceHints();
+
+    it("the sources carry translator hints at all", () => {
+        // Same anti-vacuity argument as above: a matcher that stopped matching would let
+        // the hint assertions below pass while checking nothing.
+        assert.ok(hints.length >= 10,
+            `only ${hints.length} "Translators:" comment(s) found — if the comment form changed, ` +
+            `the catalog-hint guard is checking nothing`);
+    });
 
     it("the sources ask for translation at all", () => {
         // A guard over an empty set proves nothing: if the extraction ever matches
@@ -289,10 +388,55 @@ describe("the translation catalogs cover the strings the code asks to translate"
     });
 
     for (const rel of ["po/de.po", "po/es.po", "po/nl.po"]) {
-        it(`${rel} translates only strings the template knows about`, () => {
-            // Locales are allowed to lag the template (that is what a translator picks
-            // up next time), but a msgid that no longer exists in the sources is an
-            // orphan: its translation is of a sentence the extension never shows.
+        it(`${rel} carries every string the sources translate`, () => {
+            // Decided 2026-10-09: the locale catalogs track the template's live strings,
+            // so a new `_()` has to land in all four files. The entries start with an empty
+            // msgstr, which gettext resolves to the English msgid — so this costs a maintainer
+            // an edit, never a wrong translation, and it is what stops a locale silently
+            // falling behind by 91 strings the way it did here.
+            const have = catalogMsgids(rel);
+            const missing = [...src].filter((s) => !have.has(s)).sort();
+            assert.deepEqual(missing, [],
+                `${rel} is missing ${missing.length} of ${src.size} msgid(s): ` +
+                `${missing.map((s) => JSON.stringify(s)).join(", ")} — an entry that is not in the ` +
+                `catalog can never be translated, and the translator never sees it`);
+        });
+
+        it(`${rel} carries the same placeholders explained`, () => {
+            // A hint in the template that the locale drops leaves that translator guessing
+            // what %s is, which is how a placeholder gets translated as a literal "%s".
+            const fileHints = catalogHints(rel);
+            const lost = hints.filter((h) => h.msgid && src.has(h.msgid) &&
+                catalogMsgids(rel).has(h.msgid) && !fileHints.has(h.msgid));
+            assert.deepEqual(lost.map((h) => h.where), [],
+                `${rel} has no #. hint for ${lost.length} string(s) whose source comment exists: ` +
+                `${lost.map((h) => `${h.where} ${JSON.stringify(h.msgid.slice(0, 40))}`).join(", ")}`);
+        });
+    }
+
+    it("the template carries the hints the sources write", () => {
+        const potHints = catalogHints("po/messages.pot");
+        const missing = hints.filter((h) => h.msgid && src.has(h.msgid) && !potHints.has(h.msgid));
+        assert.deepEqual(missing.map((h) => h.where), [],
+            `${missing.length} "Translators:" comment(s) never reached po/messages.pot: ` +
+            `${missing.map((h) => `${h.where} ${JSON.stringify((h.msgid || "").slice(0, 40))}`).join(", ")} ` +
+            `— without it a translator cannot tell what %s / %d stands for, and a wrong placeholder ` +
+            `breaks the string at runtime rather than failing a build`);
+    });
+
+    it("every hint that reached the template says what the source says", () => {
+        const potHints = catalogHints("po/messages.pot");
+        const drifted = hints.filter((h) => h.msgid && potHints.has(h.msgid) && potHints.get(h.msgid) !== h.hint);
+        assert.deepEqual(drifted.map((h) => h.where), [],
+            `${drifted.length} catalog hint(s) disagree with the comment in the source: ` +
+            `${drifted.map((h) => `${h.where}: catalog says ${JSON.stringify(potHints.get(h.msgid))}, ` +
+                `source says ${JSON.stringify(h.hint)}`).join(" | ")}`);
+    });
+
+    for (const rel of ["po/de.po", "po/es.po", "po/nl.po"]) {
+        it(`${rel} keeps only strings the template knows about`, () => {
+            // A msgid that no longer exists in the sources is an orphan: its translation is
+            // of a sentence the extension never shows.
             const pot = catalogMsgids("po/messages.pot");
             const orphans = [...catalogMsgids(rel)].filter((s) => !pot.has(s)).sort();
             assert.deepEqual(orphans, [],

@@ -87,6 +87,12 @@ const MUST_BE_GUARDED = [
     "this._floatingCancellable.cancel()", // Soup cancellable, pre-existing guard
     "GLib.Source.remove(this._safetyTimeoutId)",
     "GLib.Source.remove(this._internalCopyTimeoutId)",
+    // The dictionary enrich keeps its own cancellable and watchdog. They used to
+    // live in function locals inside _enrichZhToEnDict, which put them beyond
+    // destroy()'s reach — a 6 s source and an in-flight request outlived
+    // disable(). This guard is what forces them onto `this`.
+    "GLib.Source.remove(this._enrichWatchdogId)",
+    "this._enrichCancellable.cancel()",
     "this._httpSession.abort()",
 ];
 

@@ -244,6 +244,11 @@ var FastTranslate = GObject.registerClass(
             // Cancellable of the latest floating-window request (see
             // _translateTextIndependent). Destroyed/cancelled on disable.
             this._floatingCancellable = null;
+            // Watchdog + cancellable of the out-of-band dictionary enrich
+            // (_enrichZhToEnDict). Reached from destroy() only because they live
+            // here rather than in that method's locals.
+            this._enrichCancellable = null;
+            this._enrichWatchdogId = null;
             // Generation counter for floating requests; lets a superseded
             // request's failure stay silent (the newer request owns the UI).
             this._floatingReqSeq = 0;
@@ -777,6 +782,21 @@ var FastTranslate = GObject.registerClass(
             return resolveDirection(this._source_lang, this._target_lang, fromText);
         }
 
+        // Release the previous enrich attempt, if one is still outstanding. An
+        // enrich is fired per rendered card, so rapid re-copies would otherwise
+        // stack 6-second watchdogs whose ids no longer point at anything and
+        // which destroy() therefore cannot reach.
+        _dropEnrichSource() {
+            if (this._enrichWatchdogId) {
+                try { GLib.Source.remove(this._enrichWatchdogId); } catch (_e) {}
+                this._enrichWatchdogId = null;
+            }
+            if (this._enrichCancellable) {
+                try { this._enrichCancellable.cancel(); } catch (_e) {}
+                this._enrichCancellable = null;
+            }
+        }
+
         // Google returns synonyms, monolingual definitions and examples only
         // for English headwords, so a ZH->EN word lookup arrives with just its
         // bilingual term list. Enrich it by looking the English translation
@@ -810,13 +830,33 @@ var FastTranslate = GObject.registerClass(
                     message.request_headers.replace(name, spec.headers[name]);
 
                 // Own cancellable and watchdog: this must never disturb the
-                // shared floating request's seq/cancellable state.
+                // shared floating request's seq/cancellable state. They live on
+                // `this` so destroy() can reach them — as function locals they
+                // outlived disable() by up to 6 s with a request still in flight.
+                this._dropEnrichSource();
                 const cancellable = new Gio.Cancellable();
+                this._enrichCancellable = cancellable;
                 const state = { settled: false };
-                const watchdogId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
+                // Identity-checked: if a newer enrich superseded this one, its
+                // fields belong to it and this reply must not clear them.
+                const finish = () => {
+                    state.settled = true;
+                    if (this._enrichCancellable !== cancellable)
+                        return;
+                    this._enrichCancellable = null;
+                    if (this._enrichWatchdogId) {
+                        try { GLib.Source.remove(this._enrichWatchdogId); } catch (_e) {}
+                        this._enrichWatchdogId = null;
+                    }
+                };
+                this._enrichWatchdogId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
                     DICT_ENRICH_TIMEOUT_MS, () => {
-                        if (state.settled) return GLib.SOURCE_REMOVE;
-                        state.settled = true;
+                        if (state.settled) {
+                            if (this._enrichCancellable === cancellable)
+                                this._enrichWatchdogId = null;
+                            return GLib.SOURCE_REMOVE;
+                        }
+                        finish();
                         try { cancellable.cancel(); } catch (_e) {}
                         done(forwardDict);
                         return GLib.SOURCE_REMOVE;
@@ -824,8 +864,7 @@ var FastTranslate = GObject.registerClass(
                 this._httpSession.send_and_read_async(message, GLib.PRIORITY_DEFAULT,
                     cancellable, (session, result) => {
                         if (state.settled) return; // watchdog already answered
-                        state.settled = true;
-                        try { GLib.Source.remove(watchdogId); } catch (_e) {}
+                        finish();
                         let merged = forwardDict;
                         try {
                             const bytes = session.send_and_read_finish(result);
@@ -864,11 +903,9 @@ var FastTranslate = GObject.registerClass(
             try {
                 switch (provider.id) {
                 case 'google': {
-                    const { url, body, contentType } = buildGoogleRequest(effDir.source, effDir.target, fromText);
-                    return {
-                        url, method: 'POST', contentType, body,
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-                    };
+                    // Returned as built: the builder owns method and headers, so
+                    // this path and the dictionary enrich cannot drift apart again.
+                    return buildGoogleRequest(effDir.source, effDir.target, fromText);
                 }
                 case 'deepl': {
                     if (!this._isSafeDeepLUrl(this._url)) {
@@ -1316,6 +1353,17 @@ var FastTranslate = GObject.registerClass(
             if (this._floatingCancellable) {
                 try { this._floatingCancellable.cancel(); } catch (_e) {}
                 this._floatingCancellable = null;
+            }
+            // The dictionary enrich sits outside the main request's cancellation
+            // chain, so it needs its own two steps here. Without them a 6 s
+            // watchdog and its in-flight request outlived disable().
+            if (this._enrichCancellable) {
+                try { this._enrichCancellable.cancel(); } catch (_e) {}
+                this._enrichCancellable = null;
+            }
+            if (this._enrichWatchdogId) {
+                try { GLib.Source.remove(this._enrichWatchdogId); } catch (_e) {}
+                this._enrichWatchdogId = null;
             }
             if (this._translationCache) {
                 this._translationCache.clear();

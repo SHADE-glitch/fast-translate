@@ -1444,6 +1444,73 @@ global.testRunnerPromise = (async () => {
         indicator._httpSession.send_and_read_async = originalSendReadAsync;
         indicator._httpSession.send_and_read_finish = originalSendReadFinish;
 
+        // Test 3i: the out-of-band dictionary enrich must be reachable from
+        // teardown. Its cancellable and 6 s watchdog used to be function locals in
+        // _enrichZhToEnDict, so disable() left both alive with a request still in
+        // flight. GLib.source_exists is not bound in GJS, so liveness is proven
+        // behaviourally: a watchdog that is still scheduled fires its callback
+        // after DICT_ENRICH_TIMEOUT_MS, one that destroy() removed never does.
+        // Deliberately the last block — it destroys the indicator.
+        {
+            const GLib = imports.gi.GLib;
+            const wait = (ms) => new Promise(resolve => {
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                    resolve();
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
+            indicator._httpSession.send_and_read_async = function () {
+                // Never replies: only the watchdog can end this enrich.
+            };
+            const forward = {
+                isDictionary: true, detectedLang: 'zh-CN',
+                translation: 'bank', synonyms: [], definitions: [],
+            };
+            const dir = { source: 'ZH', target: 'EN' };
+
+            // Positive control: the watchdog really is armed and does fire, so a
+            // later "did not fire" can only mean it was removed.
+            let fired = 0;
+            indicator._enrichZhToEnDict(forward, dir, () => { fired++; });
+            const firstId = indicator._enrichWatchdogId;
+            if (typeof firstId !== 'number' || firstId <= 0) {
+                return { success: false, error: "Enrich teardown: watchdog id is not recorded on the indicator" };
+            }
+            // A second enrich must replace the first, not stack on it: destroy()
+            // reads one id, so a stacked source is unreachable by definition.
+            indicator._enrichZhToEnDict(forward, dir, () => {});
+            const secondId = indicator._enrichWatchdogId;
+            if (secondId === firstId) {
+                return { success: false, error: "Enrich teardown: the second enrich did not take over the recorded id" };
+            }
+            fired = 0;
+            indicator._enrichZhToEnDict(forward, dir, () => { fired++; });
+            // DICT_ENRICH_TIMEOUT_MS is 6000; 7500 leaves the margin the shell's
+            // own scheduling needs.
+            await wait(7500);
+            if (fired !== 1) {
+                return { success: false, error: `Enrich teardown: control watchdog fired ${fired} times, expected 1` };
+            }
+            if (indicator._enrichWatchdogId !== null) {
+                return { success: false, error: "Enrich teardown: a fired watchdog left its id behind on the indicator" };
+            }
+
+            // Real teardown: arm one and destroy before it can expire.
+            fired = 0;
+            indicator._enrichZhToEnDict(forward, dir, () => { fired++; });
+            if (indicator._enrichWatchdogId === null || typeof indicator._enrichWatchdogId !== 'number') {
+                return { success: false, error: "Enrich teardown: no watchdog recorded before destroy()" };
+            }
+            indicator.destroy();
+            await wait(7500);
+            if (fired !== 0) {
+                return { success: false, error: "Enrich teardown: destroy() left the enrich watchdog running past disable()" };
+            }
+            if (indicator._enrichCancellable !== null) {
+                return { success: false, error: "Enrich teardown: destroy() did not clear the enrich cancellable" };
+            }
+        }
+
         return { success: true };
     } catch (e) {
         return { success: false, error: e.message || String(e) };

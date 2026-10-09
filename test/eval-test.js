@@ -942,10 +942,12 @@ global.testRunnerPromise = (async () => {
             }
         }
 
-        // Test 3i: a word renders as a dictionary card in the destination
-        // region. The card is Pango markup set on the SAME label the plain
-        // translation uses, so the height/scroll machinery is unchanged; the
-        // copy button must still copy the plain translation, not the markup.
+        // Test 3i: a word renders as a STRUCTURED dictionary card in the
+        // destination region — a translation headline, a phonetic line, one row
+        // per part of speech, then examples. The card is a sibling of
+        // _destLabel inside _destBox; showing it hides the label. Text goes in
+        // as plain .text, so a raw '<' cannot be parsed as markup. The copy
+        // button must still copy the plain translation.
         {
             let w = null;
             try {
@@ -955,8 +957,8 @@ global.testRunnerPromise = (async () => {
                     translation: "银行",
                     phonetic: "bæŋk",
                     detectedLang: "en",
-                    // The '&' and '<' exercise escapeMarkup: a raw '<' would make
-                    // set_markup throw and land in this block's catch.
+                    // '&' and '<' exercise plain-text rendering: if the card used
+                    // markup, a raw '<' would either throw or swallow the rest.
                     entries: [
                         { pos: "noun", terms: ["银行", "岸", "a<b&c"] },
                         { pos: "verb", terms: ["存款"] },
@@ -965,28 +967,38 @@ global.testRunnerPromise = (async () => {
                     isDictionary: true,
                 };
                 w.setDictionary(dict);
-                // get_text() returns the parsed text (markup stripped), so a
-                // literal "<b>" here would prove set_markup was never applied.
-                const shown = w._destLabel.get_text();
-                if (shown.indexOf("<b>") !== -1 || shown.indexOf("</b>") !== -1) {
+                if (w._dictCard.visible !== true || w._destLabel.visible !== false) {
                     w.destroy();
-                    return { success: false, error: "Dict card rendered raw markup: " + shown };
+                    return { success: false, error: "Dict card did not take over the region: card=" + w._dictCard.visible + " label=" + w._destLabel.visible };
                 }
-                if (shown.indexOf("bæŋk") === -1) {
+                if (w._dictTrans.get_text() !== "银行") {
                     w.destroy();
-                    return { success: false, error: "Dict card lost the phonetic: " + shown };
+                    return { success: false, error: "Dict card headline wrong: " + w._dictTrans.get_text() };
                 }
-                if (shown.indexOf("noun") === -1 || shown.indexOf("银行") === -1 || shown.indexOf("岸") === -1) {
+                if (w._dictPhon.get_text() !== "bæŋk") {
                     w.destroy();
-                    return { success: false, error: "Dict card lost POS/terms: " + shown };
+                    return { success: false, error: "Dict card phonetic wrong: " + w._dictPhon.get_text() };
                 }
-                if (shown.indexOf("a<b&c") === -1) {
+                if (w._dictPosLabels[0].get_text() !== "noun" || w._dictPosLabels[1].get_text() !== "verb") {
                     w.destroy();
-                    return { success: false, error: "Dict card mangled an escaped term: " + shown };
+                    return { success: false, error: "Dict card POS wrong: " + w._dictPosLabels[0].get_text() + "/" + w._dictPosLabels[1].get_text() };
                 }
-                if (shown.indexOf("the bank of the river") === -1) {
+                const terms0 = w._dictTermsLabels[0].get_text();
+                if (terms0.indexOf("银行") === -1 || terms0.indexOf("岸") === -1 || terms0.indexOf("a<b&c") === -1) {
                     w.destroy();
-                    return { success: false, error: "Dict card lost the example: " + shown };
+                    return { success: false, error: "Dict card terms wrong or markup-mangled: " + terms0 };
+                }
+                if (w._dictPosRows[2].visible !== false) {
+                    w.destroy();
+                    return { success: false, error: "Dict card showed an empty POS row" };
+                }
+                if (w._dictExLabels[0].get_text().indexOf("the bank of the river") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card lost the example: " + w._dictExLabels[0].get_text() };
+                }
+                if (w._dictExLabels[1].visible !== false) {
+                    w.destroy();
+                    return { success: false, error: "Dict card showed an empty example line" };
                 }
                 if (w._currentTarget !== "银行") {
                     w.destroy();
@@ -996,16 +1008,16 @@ global.testRunnerPromise = (async () => {
                     w.destroy();
                     return { success: false, error: "Dict card must not be in the loading state" };
                 }
-                if (w._destLabel.style_class.indexOf('dict') === -1) {
-                    w.destroy();
-                    return { success: false, error: "Dict card did not add the 'dict' class: " + w._destLabel.style_class };
-                }
-                // Switching back to a plain translation must clear the class,
-                // or a later sentence would keep the dictionary's weight.
+                // Switching back to a plain translation must hide the card and
+                // restore the label.
                 w.setTargetText("plain sentence");
-                if (w._destLabel.style_class.indexOf('dict') !== -1) {
+                if (w._dictCard.visible !== false || w._destLabel.visible !== true) {
                     w.destroy();
-                    return { success: false, error: "Plain text did not clear the 'dict' class: " + w._destLabel.style_class };
+                    return { success: false, error: "Plain text did not restore the label: card=" + w._dictCard.visible + " label=" + w._destLabel.visible };
+                }
+                if (w._destLabel.get_text() !== "plain sentence") {
+                    w.destroy();
+                    return { success: false, error: "Plain text not shown after the card: " + w._destLabel.get_text() };
                 }
                 w.destroy();
                 if (indicator._floatingWindow === w)
@@ -1035,6 +1047,42 @@ global.testRunnerPromise = (async () => {
                     return { success: false, error: "With Google selected, prose must stay on Google" };
                 }
             } finally {
+                indicator._translation_service = savedService;
+            }
+        }
+
+        // Test 3k: auto-direction. A word whose detected language matches the
+        // configured target flips so the result lands in the other language;
+        // prose and AUTO sources are left alone. _buildRequestSpec must consume
+        // the effective direction (asserted via the Google URL, no network).
+        {
+            const savedSource = indicator._source_lang;
+            const savedTarget = indicator._target_lang;
+            const savedService = indicator._translation_service;
+            try {
+                indicator._source_lang = "ZH";
+                indicator._target_lang = "EN-US";
+                let d = indicator._effectiveDirection("hello");
+                if (d.source !== "EN" || d.target !== "ZH") {
+                    return { success: false, error: "English word should flip ZH->EN-US to EN->ZH, got " + d.source + "->" + d.target };
+                }
+                d = indicator._effectiveDirection("爱");
+                if (d.source !== "ZH" || d.target !== "EN-US") {
+                    return { success: false, error: "Chinese word must keep ZH->EN-US, got " + d.source + "->" + d.target };
+                }
+                d = indicator._effectiveDirection("hello world");
+                if (d.source !== "ZH" || d.target !== "EN-US") {
+                    return { success: false, error: "Prose must keep the configured direction, got " + d.source + "->" + d.target };
+                }
+                // Wiring: the Google request must carry the effective direction.
+                indicator._translation_service = 1; // Google
+                const spec = indicator._buildRequestSpec("hello", () => {}, indicator._effectiveProvider("hello"));
+                if (!spec || spec.url.indexOf("sl=en&tl=zh") === -1) {
+                    return { success: false, error: "Google request did not use the effective direction: " + (spec && spec.url) };
+                }
+            } finally {
+                indicator._source_lang = savedSource;
+                indicator._target_lang = savedTarget;
                 indicator._translation_service = savedService;
             }
         }
@@ -1144,6 +1192,41 @@ global.testRunnerPromise = (async () => {
                 if (rounds > 5) {
                     win.destroy();
                     return { success: false, error: "Height settle loop did not converge (label height ratcheting?) _settleCount=" + rounds };
+                }
+            }
+
+            // Dictionary-card settle guard. The card is a multi-actor region, so
+            // its measurement must converge like the label's: a card whose pinned
+            // height is not cleared each round ratchets (D-007) and the loop never
+            // settles. Long terms force the card to wrap and overflow.
+            {
+                let bigDict = new FloatingTranslationWindow("bank", "银行", "EN", "ZH");
+                const longTerm = "a very long dictionary term that wraps across the card";
+                const longTerms = [longTerm, longTerm, longTerm, longTerm, longTerm, longTerm];
+                bigDict.setDictionary({
+                    translation: "银行",
+                    phonetic: "bæŋk",
+                    entries: [
+                        { pos: "noun", terms: longTerms },
+                        { pos: "verb", terms: longTerms },
+                        { pos: "adjective", terms: longTerms },
+                    ],
+                    examples: ["the bank of the river", "he sat on the bank"],
+                    isDictionary: true,
+                });
+                bigDict.actor.notify('allocation');
+                await sleep(1500);
+                let cardCeiling = Math.floor(area.height * 0.60) + 2;
+                let cardH = Math.round(bigDict.actor.get_height());
+                let cardRounds = bigDict._settleCount;
+                bigDict.destroy();
+                if (cardH > cardCeiling) {
+                    win.destroy();
+                    return { success: false, error: "Dict card exceeded the 60% work-area budget! height=" + cardH + " ceiling=" + cardCeiling };
+                }
+                if (cardRounds > 5) {
+                    win.destroy();
+                    return { success: false, error: "Dict card settle loop did not converge (card height ratcheting?) _settleCount=" + cardRounds };
                 }
             }
 

@@ -79,11 +79,44 @@
     font-weight: normal;
 }
 
-/* A dictionary card reuses this label (extension.js setDictionary() renders
-   Pango markup into it). Drop the bold base weight so the <b> part-of-speech
-   tags carry the emphasis instead of every line being bold. */
-.translate-floating-text-dest.dict {
-    font-weight: normal;
+/* =========================================================
+ * Dictionary card (structured actors inside _destBox)
+ * ========================================================= */
+
+.translate-dict-card {
+    spacing: 8px;
+}
+
+.translate-dict-head {
+    spacing: 8px;
+}
+
+.translate-dict-trans {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.translate-dict-phon {
+    font-size: 14px;
+    font-style: italic;
+}
+
+.translate-dict-pos-row {
+    spacing: 8px;
+}
+
+.translate-dict-pos {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.translate-dict-terms {
+    font-size: 14px;
+}
+
+.translate-dict-ex {
+    font-size: 14px;
+    font-style: italic;
 }
 
 .translate-floating-actions {

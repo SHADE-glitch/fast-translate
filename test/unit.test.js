@@ -1,7 +1,7 @@
 import assert from "assert";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, baseLangCode, detectLang, resolveDirection, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
 
 // Real Google `translate_a/single` replies captured live on 2026-10-09 (see the
 // fixtures' provenance note). They pin parseGoogleDict against the provider's
@@ -487,6 +487,57 @@ assert.strictEqual(getProviderById("deepl").value, 0);
 assert.strictEqual(getProviderById("nope"), null, "unknown id yields null");
 
 console.log("✅ word-detection tests passed successfully!\n");
+
+// ==========================================
+// 10. baseLangCode / detectLang / resolveDirection (auto-direction)
+// ==========================================
+console.log("⏳ Running auto-direction tests...");
+
+// Regional suffixes are stripped so Google never gets an unverified source.
+assert.strictEqual(baseLangCode("EN-US"), "EN");
+assert.strictEqual(baseLangCode("PT-BR"), "PT");
+assert.strictEqual(baseLangCode("ZH"), "ZH", "a plain code is unchanged");
+assert.strictEqual(baseLangCode("AUTO"), "AUTO", "no dash, no strip");
+assert.strictEqual(baseLangCode(null), null);
+assert.strictEqual(baseLangCode(undefined), null);
+
+// Only the ZH/EN pair is recognised; anything else must not trigger a swap.
+assert.strictEqual(detectLang("hello"), "EN");
+assert.strictEqual(detectLang("don't"), "EN", "apostrophe is still Latin");
+assert.strictEqual(detectLang("爱"), "ZH");
+assert.strictEqual(detectLang("银行"), "ZH");
+assert.strictEqual(detectLang("hello爱"), "ZH", "Han wins when both scripts appear");
+assert.strictEqual(detectLang("こんにちは"), null, "kana is not one of the two scripts");
+assert.strictEqual(detectLang("123"), null, "digits carry no script");
+assert.strictEqual(detectLang(""), null);
+assert.strictEqual(detectLang("   "), null);
+assert.strictEqual(detectLang(null), null);
+
+// Configured ZH -> EN-US: an English word flips so its meaning lands in ZH.
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello"), { source: "EN", target: "ZH" });
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "爱"), { source: "ZH", target: "EN-US" },
+    "a Chinese word stays ZH -> EN");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello world"), { source: "ZH", target: "EN-US" },
+    "prose is never flipped");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "你好！"), { source: "ZH", target: "EN-US" },
+    "punctuated CJK is prose");
+assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello"), { source: "AUTO", target: "EN-US" },
+    "an AUTO source cannot be swapped into the target slot");
+assert.deepStrictEqual(resolveDirection("EN", "EN-US", "hello"), { source: "EN", target: "EN-US" },
+    "no self-swap when source and detected already agree");
+assert.deepStrictEqual(resolveDirection("EN", "ZH", "爱"), { source: "ZH", target: "EN" },
+    "symmetric: a Chinese word flips EN -> ZH");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "123"), { source: "ZH", target: "EN-US" },
+    "an unrecognised script is left alone");
+// Purity: the configured pair is never mutated.
+{
+    const s = "ZH", t = "EN-US";
+    resolveDirection(s, t, "hello");
+    assert.strictEqual(s, "ZH");
+    assert.strictEqual(t, "EN-US");
+}
+
+console.log("✅ auto-direction tests passed successfully!\n");
 
 console.log("🎉 All unit tests passed successfully!");
 

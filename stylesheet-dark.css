@@ -50,6 +50,28 @@
     color: st-mix(#c7162b, white, 45%);
 }
 
+/* Dictionary card: headline + terms carry the foreground, phonetic and
+   examples are dimmed, the part-of-speech tag uses the user's accent. */
+.translate-dict-trans {
+    color: white;
+}
+
+.translate-dict-phon {
+    color: st-transparentize(white, 0.35);
+}
+
+.translate-dict-pos {
+    color: -st-accent-color;
+}
+
+.translate-dict-terms {
+    color: white;
+}
+
+.translate-dict-ex {
+    color: st-transparentize(white, 0.35);
+}
+
 .translate-floating-warning {
     color: #fea320;
 }

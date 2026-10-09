@@ -368,6 +368,69 @@ export function looksLikeWord(text) {
 }
 
 /**
+ * Strip a regional suffix from a language code: 'EN-US' -> 'EN', 'PT-BR' ->
+ * 'PT'. The source-lang gschema enum has no regional members but the target
+ * enum does, so an effective direction's source can carry one; Google accepts
+ * the base code with certainty but a regional source is unverified.
+ * @param {?string} code
+ * @returns {?string}
+ */
+export function baseLangCode(code) {
+    if (code === null || code === undefined) return null;
+    const s = String(code);
+    const i = s.indexOf('-');
+    return i === -1 ? s : s.slice(0, i);
+}
+
+/**
+ * Which of the two languages this build can tell apart an input belongs to.
+ * Deliberately minimal: only Chinese (Han script) and English (Latin letters)
+ * are recognised, because those are the only pair the auto-direction feature
+ * targets. Anything else (kana, hangul, digits, punctuation, empty) returns
+ * null so the caller leaves the configured direction alone.
+ * @param {?string} text
+ * @returns {?string} 'ZH', 'EN', or null
+ */
+export function detectLang(text) {
+    const s = String(text ?? '').trim();
+    if (s === '') return null;
+    if (/\p{Script=Han}/u.test(s)) return 'ZH';
+    if (/[A-Za-z]/.test(s)) return 'EN';
+    return null;
+}
+
+/**
+ * Direction actually used for a request. Pure: it never mutates the configured
+ * pair, because extension.js re-derives that from settings on every change.
+ *
+ * Only single words get auto-direction — they already route to Google, so a
+ * swap cannot change which provider serves prose. When the input's detected
+ * language equals the configured target, the pair is flipped so the result
+ * lands in the other language of the pair (English word while configured
+ * ZH->EN-US yields EN->ZH). The new source is the BASE of the old target
+ * ('EN', not 'EN-US') so Google never receives a regional source code; the new
+ * target is the old source, which the source enum keeps regional-free.
+ *
+ * Left unchanged when: the input is prose, the language is unrecognised, the
+ * configured source is AUTO (it cannot become a target), or the pair is
+ * already same-language.
+ * @param {?string} sourceLang
+ * @param {?string} targetLang
+ * @param {?string} text
+ * @returns {{source: ?string, target: ?string}}
+ */
+export function resolveDirection(sourceLang, targetLang, text) {
+    const unchanged = { source: sourceLang, target: targetLang };
+    if (!looksLikeWord(text)) return unchanged;
+    const detected = detectLang(text);
+    if (!detected) return unchanged;
+    if (String(sourceLang).toUpperCase() === 'AUTO') return unchanged;
+    if (baseLangCode(targetLang) === detected && baseLangCode(sourceLang) !== detected)
+        return { source: baseLangCode(targetLang), target: sourceLang };
+    return unchanged;
+}
+
+/**
  * Language codes are provider-specific and the gschema enums are DeepL-shaped
  * (AUTO, EN-GB, EN-US, PT-PT, PT-BR). Anything unmapped returns null, which
  * extension.js turns into "not supported by <provider>" instead of sending a

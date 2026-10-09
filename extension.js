@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -72,15 +72,12 @@ const DISMISS_FALLBACK_MS = 500;
 // triggered, repeated double-copies of the SAME text are ignored for this long.
 const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
 
-// Only '&', '<' and '>' are special in Pango markup. Any provider text placed
-// into a markup string (phonetic, terms, examples) must be escaped first, or a
-// stray '<' becomes a markup parse error and an injected tag would be honoured.
-function escapeMarkup(s) {
-    return String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
+// Dictionary-card caps. The card is a fixed pool of DICT_MAX_POS part-of-speech
+// rows plus DICT_MAX_EXAMPLES example lines, built once and toggled by
+// visibility; the caps keep it compact inside the 60%-of-work-area clamp.
+const DICT_MAX_POS = 4;
+const DICT_MAX_TERMS = 6;
+const DICT_MAX_EXAMPLES = 2;
 
 // Part-of-speech labels, translated. Built lazily and memoised because
 // gettext's domain is bound during enable(): a module-level _() call would run
@@ -731,6 +728,17 @@ var FastTranslate = GObject.registerClass(
             return getProvider(this._translation_service);
         }
 
+        // Direction actually used for a request, derived purely from the
+        // configured pair (never mutating it: _loadPreferences re-derives those
+        // fields on every settings change). For a single word whose detected
+        // language equals the configured target, the pair is flipped so the
+        // result lands in the other language (English word while configured
+        // ZH->EN-US yields EN->ZH). Prose and AUTO sources are left alone; see
+        // resolveDirection() in translation-helper.js.
+        _effectiveDirection(fromText) {
+            return resolveDirection(this._source_lang, this._target_lang, fromText);
+        }
+
         // Describe the outgoing request for the configured provider as plain
         // data so the Soup wiring in _translateTextIndependent stays
         // provider-independent. Google and DeepL produce byte-identical output
@@ -743,10 +751,16 @@ var FastTranslate = GObject.registerClass(
                 fail(_('Unknown translation service selected in settings.'));
                 return null;
             }
+            // Effective direction for this request (auto-flips word lookups whose
+            // language matches the configured target). Only words flip, and words
+            // always route to Google, so the paid providers see the configured
+            // pair unchanged — but using dir uniformly keeps all four branches
+            // in one shape.
+            const dir = this._effectiveDirection(fromText);
             try {
                 switch (provider.id) {
                 case 'google': {
-                    const { url, body, contentType } = buildGoogleRequest(this._source_lang, this._target_lang, fromText);
+                    const { url, body, contentType } = buildGoogleRequest(dir.source, dir.target, fromText);
                     return {
                         url, method: 'POST', contentType, body,
                         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
@@ -758,8 +772,8 @@ var FastTranslate = GObject.registerClass(
                     }
                     const body = JSON.stringify(buildDeepLRequestBody({
                         fromText,
-                        sourceLang: this._source_lang,
-                        targetLang: this._target_lang,
+                        sourceLang: dir.source,
+                        targetLang: dir.target,
                         splitSentences: this._split_sentences,
                         preserveFormatting: this._preserve_formatting,
                         formality: this._formality,
@@ -775,7 +789,7 @@ var FastTranslate = GObject.registerClass(
                     }
                     const built = buildBaiduRequest({
                         appid: this._baiduAppid, secretKey: this._baiduSecret,
-                        fromText, sourceLang: this._source_lang, targetLang: this._target_lang,
+                        fromText, sourceLang: dir.source, targetLang: dir.target,
                         salt: String(Date.now()), hash: hashBundle,
                     });
                     if (built.error) {
@@ -790,7 +804,7 @@ var FastTranslate = GObject.registerClass(
                     }
                     const built = buildYoudaoRequest({
                         appid: this._youdaoAppid, secretKey: this._youdaoSecret,
-                        fromText, sourceLang: this._source_lang, targetLang: this._target_lang,
+                        fromText, sourceLang: dir.source, targetLang: dir.target,
                         salt: String(Date.now()), curtime: String(Math.floor(Date.now() / 1000)),
                         hash: hashBundle,
                     });
@@ -1422,6 +1436,15 @@ class FloatingTranslationWindow {
         destLabel.get_clutter_text().set_line_wrap(true);
         destLabel.get_clutter_text().set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
         destBox.add_child(destLabel);
+        // Structured dictionary card, shown in place of destLabel when a word
+        // lookup returns dictionary data. It is a SIBLING inside destBox, never
+        // a new top-level child: eval-test locates the copy button at
+        // children[5]. Built once as a fixed pool so the child list never
+        // changes during a height-measurement epoch (keeps the settle loop
+        // convergent). Exactly one of {destLabel, dictCard} is visible at a time.
+        const dictCard = this._buildDictCard();
+        dictCard.visible = false;
+        destBox.add_child(dictCard);
         destScroll.add_child(destBox);
         this.actor.add_child(destScroll);
         this._destScroll = destScroll;
@@ -1429,6 +1452,7 @@ class FloatingTranslationWindow {
         // the network reply fills this label later via setTargetText().
         this._destLabel = destLabel;
         this._destBox = destBox;
+        this._dictCard = dictCard;
         this._currentTarget = targetText;
         this._winDestroyed = false;
         // Set only by _dismiss(), i.e. a close the user asked for. The reply
@@ -1779,55 +1803,110 @@ class FloatingTranslationWindow {
         this._setErrorUi(false);
         try {
             if (this._winDestroyed || !this._destLabel) return;
-            this._destLabel.remove_style_class_name('dict');
+            // Plain text takes the region back from the dictionary card.
+            if (this._dictCard) this._dictCard.visible = false;
+            this._destLabel.visible = true;
             this._destLabel.set_text(text);
             this._afterDestTextChanged();
         } catch (_e) {}
     }
 
-    // Render a word's dictionary entry as a rich card in the destination
-    // region: phonetic, part-of-speech-grouped terms, then example sentences.
-    //
-    // Rendered as Pango markup into the SAME St.Label the translation uses, so
-    // the whole height/scroll machinery (_computeCaps/_applyHeightCaps) keeps
-    // working untouched — no new actors to measure. _currentTarget is set to
-    // the plain translation so the copy button copies usable text, not markup.
+    // Render a word's dictionary entry as a structured card in the destination
+    // region: a translation headline, a phonetic line, one row per part of
+    // speech, then example sentences. Each element is its own actor with its own
+    // style class (colours live in stylesheet-light/dark.css). The card is a
+    // sibling of _destLabel inside _destBox; showing it hides the label.
+    // _currentTarget is set to the plain translation so the copy button copies
+    // usable text.
     setDictionary(dict) {
         if (!dict || !dict.isDictionary) return;
-        const markup = this._buildDictMarkup(dict);
         this._currentTarget = dict.translation || '';
         this.setLoading(false);
         this._setErrorUi(false);
         try {
-            if (this._winDestroyed || !this._destLabel) return;
-            // 'dict' drops the label's bold base weight (see stylesheet-base.css)
-            // so the <b> POS tags stand out instead of everything being bold.
-            this._destLabel.add_style_class_name('dict');
-            this._destLabel.get_clutter_text().set_markup(markup);
+            if (this._winDestroyed || !this._dictCard) return;
+            this._fillDictCard(dict);
+            this._dictCard.visible = true;
+            if (this._destLabel) this._destLabel.visible = false;
             this._afterDestTextChanged();
         } catch (_e) {}
     }
 
-    _buildDictMarkup(dict) {
-        const MAX_POS = 4;
-        const MAX_TERMS = 6;
-        const MAX_EXAMPLES = 2;
-        const lines = [];
-        if (dict.phonetic)
-            lines.push(`<i>${escapeMarkup(dict.phonetic)}</i>`);
-        for (const entry of (dict.entries || []).slice(0, MAX_POS)) {
-            const terms = entry.terms.slice(0, MAX_TERMS).map(t => escapeMarkup(t)).join(' · ');
-            lines.push(`<b>${escapeMarkup(posLabel(entry.pos))}</b>  ${terms}`);
+    // Build the card and its fixed pool of labels. Called once from the
+    // constructor; the pool is only ever re-filled, never re-created, so the
+    // height machinery sees a stable child list.
+    _buildDictCard() {
+        const wrap = (label) => {
+            label.get_clutter_text().set_line_wrap(true);
+            label.get_clutter_text().set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
+            return label;
+        };
+        const card = new St.BoxLayout({ vertical: true, style_class: 'translate-dict-card' });
+
+        const head = new St.BoxLayout({ vertical: false, style_class: 'translate-dict-head' });
+        this._dictTrans = wrap(new St.Label({ text: '', style_class: 'translate-dict-trans', x_expand: true }));
+        this._dictPhon = new St.Label({ text: '', style_class: 'translate-dict-phon',
+            y_align: Clutter.ActorAlign.END });
+        head.add_child(this._dictTrans);
+        head.add_child(this._dictPhon);
+        card.add_child(head);
+
+        this._dictPosRows = [];
+        this._dictPosLabels = [];
+        this._dictTermsLabels = [];
+        for (let i = 0; i < DICT_MAX_POS; i++) {
+            const row = new St.BoxLayout({ vertical: false, style_class: 'translate-dict-pos-row' });
+            const posL = new St.Label({ text: '', style_class: 'translate-dict-pos' });
+            const termsL = wrap(new St.Label({ text: '', style_class: 'translate-dict-terms', x_expand: true }));
+            row.add_child(posL);
+            row.add_child(termsL);
+            row.visible = false;
+            card.add_child(row);
+            this._dictPosRows.push(row);
+            this._dictPosLabels.push(posL);
+            this._dictTermsLabels.push(termsL);
         }
-        for (const example of (dict.examples || []).slice(0, MAX_EXAMPLES))
-            lines.push(`<i>${escapeMarkup(example)}</i>`);
-        return lines.join('\n');
+
+        this._dictExLabels = [];
+        for (let i = 0; i < DICT_MAX_EXAMPLES; i++) {
+            const exL = wrap(new St.Label({ text: '', style_class: 'translate-dict-ex' }));
+            exL.visible = false;
+            card.add_child(exL);
+            this._dictExLabels.push(exL);
+        }
+        return card;
     }
 
-    // Shared relayout + re-measure tail for anything written into _destLabel
-    // (plain text, error text, or dictionary markup). Resets the stability
-    // tracker for a new measurement epoch and lets the label allocate at its
-    // wrapped width first, then measures on a double idle.
+    // Fill the pre-built card from a parsed dictionary. Text is set as plain
+    // .text (no markup), so provider content such as 'a<b&c' renders literally
+    // and cannot inject Pango tags.
+    _fillDictCard(dict) {
+        this._dictTrans.text = dict.translation || '';
+        this._dictPhon.text = dict.phonetic || '';
+        this._dictPhon.visible = !!dict.phonetic;
+
+        const entries = (dict.entries || []).slice(0, DICT_MAX_POS);
+        for (let i = 0; i < DICT_MAX_POS; i++) {
+            const entry = entries[i];
+            const row = this._dictPosRows[i];
+            if (!entry) { row.visible = false; continue; }
+            this._dictPosLabels[i].text = posLabel(entry.pos);
+            this._dictTermsLabels[i].text = entry.terms.slice(0, DICT_MAX_TERMS).join(' · ');
+            row.visible = true;
+        }
+
+        const examples = (dict.examples || []).slice(0, DICT_MAX_EXAMPLES);
+        for (let i = 0; i < DICT_MAX_EXAMPLES; i++) {
+            const label = this._dictExLabels[i];
+            if (i < examples.length) { label.text = examples[i]; label.visible = true; }
+            else label.visible = false;
+        }
+    }
+
+    // Shared relayout + re-measure tail for anything written into the
+    // destination region (plain text, error text, or dictionary card). Resets
+    // the stability tracker for a new measurement epoch and lets the content
+    // allocate at its wrapped width first, then measures on a double idle.
     _afterDestTextChanged() {
         this._settleCount = 0; this._settleFp = null;
         this.actor.queue_relayout();
@@ -1939,7 +2018,7 @@ class FloatingTranslationWindow {
         // full width minus a conservative scrollbar estimate to get the real wrap.
         const SCROLLBAR_ESTIMATE = 16;
         const HEIGHT_SAFETY = 16;
-        const _measureLabel = (label, scroll, cap) => {
+        const _measureActor = (label, scroll, cap) => {
             if (!label) return { width: 200, height: 0 };
             const fullW = _getLabelWidth(label, scroll);
             const natHFull = label.get_preferred_height(fullW)[1];
@@ -1971,9 +2050,19 @@ class FloatingTranslationWindow {
         try {
             this._srcLabel?.set_height(-1);
             this._destLabel?.set_height(-1);
+            // The card can be the pinned destination actor too. Leaving its
+            // height set makes Clutter report it as preferred and the
+            // +HEIGHT_SAFETY below ratchets every round — the D-007 trap,
+            // now on a second actor.
+            this._dictCard?.set_height(-1);
         } catch (_e) {}
-        const srcM = _measureLabel(this._srcLabel, this._srcScroll, srcCap);
-        const destM = _measureLabel(this._destLabel, this._destScroll, destCap);
+        const srcM = _measureActor(this._srcLabel, this._srcScroll, srcCap);
+        // Measure whichever destination actor is showing. Exactly one of
+        // {_destLabel, _dictCard} is visible; Clutter's BoxLayout skips the
+        // hidden one, so the visible actor's natural height IS the region's.
+        const destActive = (this._dictCard && this._dictCard.visible)
+            ? this._dictCard : this._destLabel;
+        const destM = _measureActor(destActive, this._destScroll, destCap);
         const srcW = srcM.width;
         const srcNatH = srcM.height;
         const destW = destM.width;
@@ -1997,19 +2086,19 @@ class FloatingTranslationWindow {
             this._srcLabel.set_height(-1);
         }
         // Destination region — mirror of source above.
-        if (this._destScroll && this._destBox && this._destLabel && destNatH > destCap) {
+        if (this._destScroll && this._destBox && destActive && destNatH > destCap) {
             this._destScroll.set_height(destCap);
             this._destBox.set_style(`min-height: ${destNatH}px`);
             this._destBox.set_height(-1);
             this._destBox.y_align = Clutter.ActorAlign.START;
-            this._destLabel.set_height(destNatH);
-            this._destLabel.y_align = Clutter.ActorAlign.START;
+            destActive.set_height(destNatH);
+            destActive.y_align = Clutter.ActorAlign.START;
             grew = true;
-        } else if (this._destScroll && this._destBox && this._destLabel) {
+        } else if (this._destScroll && this._destBox && destActive) {
             this._destScroll.set_height(Math.max(destNatH, 1));
             this._destBox.set_style('');
             this._destBox.set_height(-1);
-            this._destLabel.set_height(-1);
+            destActive.set_height(-1);
         }
         if (grew) {
             this.actor.queue_relayout();
@@ -2067,6 +2156,13 @@ class FloatingTranslationWindow {
         this._spinner = null;
         this._copyBtn = null;
         this._destLabel = null;
+        this._dictCard = null;
+        this._dictTrans = null;
+        this._dictPhon = null;
+        this._dictPosRows = null;
+        this._dictPosLabels = null;
+        this._dictTermsLabels = null;
+        this._dictExLabels = null;
         this._srcLabel = null;
         this._srcScroll = null;
         this._destScroll = null;

@@ -1,7 +1,7 @@
 import assert from "assert";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
 
 // Real Google `translate_a/single` replies captured live on 2026-10-09 (see the
 // fixtures' provenance note). They pin parseGoogleDict against the provider's
@@ -448,6 +448,45 @@ assert.strictEqual(hasVisibleText("\u2014"), true,
     "an em dash is punctuation, not an invisible format character");
 
 console.log("✅ request-sanity guard tests passed successfully!\n");
+
+// ==========================================
+// 9. looksLikeWord / getProviderById (word→Google routing)
+// ==========================================
+console.log("⏳ Running word-detection tests...");
+
+// A single word (English or CJK) is routed to Google for the dictionary card.
+assert.strictEqual(looksLikeWord("bank"), true, "a single English word");
+assert.strictEqual(looksLikeWord("  bank  "), true, "surrounding whitespace is trimmed first");
+assert.strictEqual(looksLikeWord("don't"), true, "apostrophe keeps it one token");
+assert.strictEqual(looksLikeWord("well-known"), true, "hyphen keeps it one token");
+assert.strictEqual(looksLikeWord("爱"), true, "a single CJK character");
+assert.strictEqual(looksLikeWord("银行"), true, "a CJK word has no spaces");
+assert.strictEqual(looksLikeWord("internationalization"), true, "a long single token is still a word");
+
+// Prose must NOT be routed to Google — that would change its translation quality.
+assert.strictEqual(looksLikeWord("hello world"), false, "two tokens is text");
+assert.strictEqual(looksLikeWord("Hello."), false, "trailing full stop means prose");
+assert.strictEqual(looksLikeWord("你好！"), false, "CJK exclamation means prose");
+assert.strictEqual(looksLikeWord("a;b"), false, "semicolon means prose");
+assert.strictEqual(looksLikeWord(""), false, "empty is not a word");
+assert.strictEqual(looksLikeWord("   "), false, "whitespace only is not a word");
+assert.strictEqual(looksLikeWord(null), false, "null is not a word");
+// The 40-code-point bound: 40 CJK chars is a word by length, 41 is not.
+assert.strictEqual(looksLikeWord("字".repeat(40)), true, "40 code points is within the bound");
+assert.strictEqual(looksLikeWord("字".repeat(41)), false, "41 code points exceeds the bound");
+// Documented limitation: a CJK fragment with no spaces and no punctuation is
+// indistinguishable from a CJK word, so it is treated as one. Real CJK
+// sentences normally carry punctuation (。！？，), which lands them in 'text'.
+// The cost of a miss is only that Google, not the selected provider, translates
+// that fragment.
+assert.strictEqual(looksLikeWord("这是一整句话"), true,
+    "CJK with no spaces and no punctuation is treated as a word (documented limitation)");
+
+assert.strictEqual(getProviderById("google").id, "google");
+assert.strictEqual(getProviderById("deepl").value, 0);
+assert.strictEqual(getProviderById("nope"), null, "unknown id yields null");
+
+console.log("✅ word-detection tests passed successfully!\n");
 
 console.log("🎉 All unit tests passed successfully!");
 

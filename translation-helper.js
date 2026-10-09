@@ -335,6 +335,39 @@ export function getProvider(value) {
 }
 
 /**
+ * @param {string} id - provider id such as 'google'
+ * @returns {Object|null} the provider entry, or null
+ */
+export function getProviderById(id) {
+    return PROVIDERS.find(p => p.id === id) || null;
+}
+
+/**
+ * Whether a clipboard selection looks like a single word worth a dictionary
+ * lookup, as opposed to prose that should be translated.
+ *
+ * Only Google returns dictionary data, so extension.js routes word-shaped input
+ * to Google and everything else to the user's selected provider. The test is
+ * deliberately conservative — misrouting a sentence to Google would change its
+ * translation quality, while a missed word merely falls back to the selected
+ * provider:
+ *   - any internal whitespace means more than one token → text
+ *   - more than 40 code points is not a headword → text
+ *   - sentence punctuation means prose, not a word → text
+ * A single CJK character or word has no spaces, so it counts as a word.
+ * @param {?string} text
+ * @returns {boolean}
+ */
+export function looksLikeWord(text) {
+    const s = String(text ?? '').trim();
+    if (s === '') return false;
+    if (/\s/.test(s)) return false;
+    if (codePointLength(s) > 40) return false;
+    if (/[.!?。！？;；…]/.test(s)) return false;
+    return true;
+}
+
+/**
  * Language codes are provider-specific and the gschema enums are DeepL-shaped
  * (AUTO, EN-GB, EN-US, PT-PT, PT-BR). Anything unmapped returns null, which
  * extension.js turns into "not supported by <provider>" instead of sending a

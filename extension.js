@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -718,14 +718,27 @@ var FastTranslate = GObject.registerClass(
             } catch (_e) {}
         }
 
+        // Which provider serves this request. Only Google returns dictionary
+        // data, so a single word is looked up on Google — that is what lets the
+        // popup render a dictionary card — while sentences and paragraphs stay
+        // on the provider the user selected (see looksLikeWord()). When Google
+        // is already selected this is a no-op.
+        _effectiveProvider(fromText) {
+            if (looksLikeWord(fromText)) {
+                const google = getProviderById('google');
+                if (google) return google;
+            }
+            return getProvider(this._translation_service);
+        }
+
         // Describe the outgoing request for the configured provider as plain
         // data so the Soup wiring in _translateTextIndependent stays
         // provider-independent. Google and DeepL produce byte-identical output
         // to the previous inline branches; test/unit.test.js pins their exact
         // URLs, content types and bodies.
         // Returns null after calling fail() when no request should be sent.
-        _buildRequestSpec(fromText, fail) {
-            const provider = getProvider(this._translation_service);
+        _buildRequestSpec(fromText, fail, provider) {
+            provider = provider ?? getProvider(this._translation_service);
             if (!provider) {
                 fail(_('Unknown translation service selected in settings.'));
                 return null;
@@ -766,7 +779,7 @@ var FastTranslate = GObject.registerClass(
                         salt: String(Date.now()), hash: hashBundle,
                     });
                     if (built.error) {
-                        fail(this._providerErrorText(built.error));
+                        fail(this._providerErrorText(built.error, provider));
                         return null;
                     }
                     return built;
@@ -782,7 +795,7 @@ var FastTranslate = GObject.registerClass(
                         hash: hashBundle,
                     });
                     if (built.error) {
-                        fail(this._providerErrorText(built.error));
+                        fail(this._providerErrorText(built.error, provider));
                         return null;
                     }
                     return built;
@@ -800,8 +813,8 @@ var FastTranslate = GObject.registerClass(
         // translation-helper.js must stay gettext-free (test/unit.test.js
         // imports it under plain Node), so it reports failures as stable codes
         // and the user-facing sentence is built here where _() is available.
-        _providerErrorText(err) {
-            const provider = getProvider(this._translation_service);
+        _providerErrorText(err, provider) {
+            provider = provider ?? getProvider(this._translation_service);
             // Translators: fallback provider name used in error messages.
             const label = provider ? provider.label : _('the translation service');
             switch (err?.code) {
@@ -849,7 +862,10 @@ var FastTranslate = GObject.registerClass(
                 try { callback("", msg); } catch (_e) {}
             };
 
-            const provider = getProvider(this._translation_service);
+            // A single word is served by Google (dictionary card); anything else
+            // by the provider the user selected. Everything below keys off this
+            // effective provider, not the raw setting.
+            const provider = this._effectiveProvider(fromText);
             const providerId = provider ? provider.id : null;
             // DeepL-affecting options must be part of the key so a formality or
             // endpoint change never reads back a stale translation. The other
@@ -873,7 +889,7 @@ var FastTranslate = GObject.registerClass(
                 }
             }
 
-            const spec = this._buildRequestSpec(fromText, fail);
+            const spec = this._buildRequestSpec(fromText, fail, provider);
             if (!spec) return;
 
             let message;
@@ -983,7 +999,7 @@ var FastTranslate = GObject.registerClass(
                                 if (useCache) this._cacheSet(indepCacheKey, parsed.text);
                                 callback(parsed.text, undefined, dict && dict.isDictionary ? dict : null);
                             } else {
-                                failIfCurrent(this._providerErrorText(parsed.error));
+                                failIfCurrent(this._providerErrorText(parsed.error, provider));
                             }
                         } else if (providerId === 'google' && (message.status_code === 403 || message.status_code === 429)) {
                             failIfCurrent(_("Rate-limited or blocked by Google Translate. Please try again later."));

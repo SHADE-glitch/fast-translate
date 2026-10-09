@@ -1016,6 +1016,29 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3j: a single word is routed to Google (the only provider with
+        // dictionary data) while prose stays on the selected provider. Set on
+        // the cached service value directly so the assertion does not depend on
+        // a settings round-trip; restored in the finally.
+        {
+            const savedService = indicator._translation_service;
+            try {
+                indicator._translation_service = 0; // DeepL selected
+                if (indicator._effectiveProvider("bank").id !== "google") {
+                    return { success: false, error: "A word must route to Google for the dictionary card" };
+                }
+                if (indicator._effectiveProvider("hello world").id !== "deepl") {
+                    return { success: false, error: "Prose must stay on the selected provider" };
+                }
+                indicator._translation_service = 1; // Google selected
+                if (indicator._effectiveProvider("hello world").id !== "google") {
+                    return { success: false, error: "With Google selected, prose must stay on Google" };
+                }
+            } finally {
+                indicator._translation_service = savedService;
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

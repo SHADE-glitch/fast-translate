@@ -66,16 +66,17 @@
 
 ## 4. 一条守不住"生产真正走的那条分支"的守卫
 
-- **`swapLanguages` 有单元测试，但 `extension.js` 没调用它。**
-  `test/unit.test.js` 断言了它的 `AUTO` 守卫（"swapLanguages guard" 一节），这个判定
-  在运行时也确实生效——但 `onSwap` 里带的是它的**内联副本**（`grep -c swapLanguages
-  extension.js` → 0）。于是那条 L0 记录无论生产行为对不对都会通过，将来改动内联分支
-  时 Node 依然全绿。**已排期**：要么让 `onSwap` 调用 helper，要么删掉 helper 并把断言
-  下沉到 L1——两种做法都只留一个真值来源。
+- **`swapLanguages` 曾有单元测试，但 `extension.js` 没调用它。**
+  `test/unit.test.js` 断言它的 `AUTO` 守卫（"swapLanguages guard" 一节），这个判定
+  在运行时也确实生效——但 `onSwap` 里带的是它的**内联副本**。于是那条 L0 记录无论生产
+  行为对不对都会通过，将来改动内联分支时 Node 依然全绿。已修（D-032）：`onSwap` 改为
+  调用 helper，而 `test/repo.test.js` 现在把「哪几条纯判定被 L0 钉住」列成清单，并逐条
+  断言 `extension.js` 真的有调用点——守的是这一类缺陷，不只是这一个实例。
 - `parseLanguageName` 与 `detectLang` 从 `translation-helper.js` 导出，却只被
   `test/unit.test.js` 引用。**已延后**：它们不是"看见就删"的死代码——一条钉住请求/签名
-  行为的测试比一份干净的导出列表更值钱，尤其对那两家没有凭据可探测的服务商。真正欠的
-  是一句"生产实际引用了哪些导出"的说明，好把"大概没用"变成一个被检查过的事实。
+  行为的测试比一份干净的导出列表更值钱，尤其对那两家没有凭据可探测的服务商。它们被
+  故意留在 `test/repo.test.js` 的调用点清单之外——那张表目前只覆盖用户真能碰到的五条
+  判定；把它们加进去是仍欠的那半边。
 - `test/prefs-validator.js` 只断言 `fillPreferencesWindow()` 不抛异常。它的 settings mock
   只实现了 `get_key`、`get_range`、`get_enum`、`set_enum`、`connect`、`bind`、`get_strv`，
   别的一个没有，所以任何调用其他 `Gio.Settings` 方法的 `prefs.js` 会**先在这里**失败——
@@ -84,28 +85,31 @@
 ## 5. 已延后的缺陷与它们现在的状态
 
 2026-10-09 决定：那一轮只做稳定性与结构，所以下面这批隐私与设置类缺陷是被记录而不是
-被修好。每条都是读代码核实过的，不是推断。同一张列表里那两条稳定性缺陷后来已经修好，
-这里连记录一起留着，免得查清它的过程失传。
+被修好。每条都是读代码核实过的，不是推断。后来修好的那些连记录一起留在这里，
+免得查清它们的过程失传。
 
-- **后台模式下翻译失败完全没有任何反馈。** `extension.js:716` 的内联错误路径要求
+- **后台模式下翻译失败完全没有任何反馈。** `extension.js:721` 的内联错误路径要求
   `!isBackground`，而 `fail()` 只在 `notifications` 为真时才调 `Main.notify`，该键的
   schema 默认值是 **false**。用默认配置，失败时什么都没发生。
-- **后台成功的 toast 把用户自己的文本写进通知。** `extension.js:682` 用标题
+- **后台成功的 toast 把用户自己的文本写进通知。** `extension.js:687` 用标题
   "Translated" 调 `Main.notify`，正文是 `requestText + " → " + toText`——原文与译文
   一起进了通知正文，而通知正文也会显示在锁屏上。这与本仓自己的隐私立场相冲突。
 - **prefs 对文本发往何处一字不提。** 没有任何用户可见的说明告诉用户"被拷贝的文本会
   离开这台机器"、发给哪家服务商。此外单个词无论选什么都送去 Google（见上面第 3 节），
   同样未披露。*已决定：只披露——不加新开关、也不收窄（收窄会让词典卡回归失效）。*
 - **完全没有"恢复默认"的入口**（`grep reset prefs.js` → 无）。
-- `prefs.js:305-318` 的 "Project Homepage" 指向
+- `prefs.js:306-319` 的 "Project Homepage" 指向
   `github.com/tazztone/translate-assistant`，而 `metadata.json` 的 `url` 指向本 fork——
   这是打包进设置窗口的一处自相矛盾。About 页也没有许可证一行。
 - 六个 `Adw.EntryRow`（DeepL URL、DeepL key、百度 appid/secret、有道 appid/secret）没有
   大白话副标题，而 23 行里有 14 行是有的。
-- `keybinding-close-floating-window` 是活的（`extension.js:49`、`:379`），但没有出现在
+- `keybinding-close-floating-window` 是活的（`extension.js:49`、`:384`），但没有出现在
   prefs 里；要暴露它实际上需要一个按键编辑器控件。
-- `updateServiceVisibility()`（`prefs.js:337-346`）硬编码 `service === 0/2/3`，与
-  `PROVIDERS` 表重复。**已排期**，因为它是上面那条披露的前置。
+- **`updateServiceVisibility()` 曾硬编码 `service === 0/2/3`**（今天在
+  `prefs.js:336-353`），把 `PROVIDERS` 表在第二个文件里重抄一遍：追加或调整服务商，
+  设置窗口就会显示另一家的密钥框。已修（D-033）——`PROVIDERS` 现在声明
+  `credentialGroup` 与 `supportsFormatting`，prefs 只读这两项；上面那条披露也就此有了
+  落点。
 - **`_enrichZhToEnDict` 会把一个 source 泄漏到 `disable()` 之后**——它的 `cancellable` 与
   `watchdogId` 是函数局部变量，`destroy()` 拿不到句柄，于是一个 6 秒定时器和一个在途请求
   活得比扩展还长。已修（D-030），现在被两处守住：L0 的 `test/teardown-guard.test.js` 与
@@ -114,8 +118,12 @@
   `method` 的 builder，`Soup.Message.new` 抛异常，被调用方的 catch 吞掉——于是这项功能死掉
   的外观和文档里写的「补查失败静默保留前向卡片」一模一样。留下的长期教训写在
   `verification.md`：**脱离生产调用链的测量，证明不了任何功能。**
-- 每次刷新图标会在壳主线程上做两次同步 `Gio.File.query_exists()`（`extension.js:1286`、
-  `:1289`）。**已排期**，优先级低：这条路径只在主题或 `darktheme` 变化时才走。
+- **图标查找曾在壳主线程上做两次同步 `Gio.File.query_exists()`**，先探 `.svg` 再探
+  `.png`。已修（D-034）：路径直接按名字点出随仓库安装的文件，「哪些图标存在」改由
+  `test/repo.test.js` 断言，于是它从运行时探测变成仓库属性。被删掉的代价实测：暖缓存
+  下每次刷新约 5.8 µs——按仓库规则记 `chore` 而非 `perf`。证明这件事的守卡自己也修过
+  一次：它最初匹配到「该调用已删除」那行注释，所以现在断言前先剥掉整行注释
+  （`test/repo.test.js` 的 `srcCode()`）。
 
 ## 6. 已评估并判定不值其成本（只在新证据面前重开）
 
@@ -128,5 +136,7 @@
   未决的 RTL 问题；旗子 emoji 住在 27+28 个 schema 枚举 nick 里，改它们等于为了外观去动
   schema。
 - **解开 JS↔CSS 的像素耦合**（`CHROME = 232`、`budget*0.60`、`SCROLLBAR_ESTIMATE = 16`、
-  `width: 650px`）：不做。[verification.zh-CN.md](verification.zh-CN.md) 里的脆弱锚点表
-  已经钉住它们必须与什么对齐，只欠交叉引用注释。
+  `width: 650px`）：不做。把两侧统一意味着运行时去读 CSS 几何，而这正是本文件别处列为
+  缺陷的主线程 IO。该做的已经改了（D-035）：每个常量旁边写明它镜像的是哪条 CSS 声明，
+  并由 `test/repo.test.js` 从样式表现算卡片内容宽度、与 `extension.js` 里的字面量比对，
+  两侧从此无法安静地各走各的。

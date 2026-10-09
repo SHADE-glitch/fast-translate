@@ -50,8 +50,9 @@ wc -l extension.js prefs.js translation-helper.js signing.js stylesheet-*.css
 | `stylesheet-light.css` / `stylesheet-dark.css` | the two palettes; the file *names* are the contract that makes the live dark/light reload work (`INVARIANTS.md` §1) |
 
 Module boundary today: `extension.js:36` imports names from `translation-helper.js`
-and `:37` from `signing.js`. **`prefs.js` imports nothing from either**, which is why
-the provider→credential mapping is duplicated there as magic ints (queued C3).
+and `:37` from `signing.js`. `prefs.js:31` imports exactly one name, `getProvider`, and
+reads `credentialGroup` / `supportsFormatting` from the provider table (D-033) — it used
+to re-spell those as `service === 0/2/3`, which put the same mapping in two files.
 
 ## Settings model
 

@@ -234,3 +234,30 @@ Change   两个 harness 的 cleanup 统一改成绝对路径 `/bin/rm` 且每步
 Evidence 最小复现：`set -euo pipefail` + trap 内一条 `false` → `status=1`，加 `|| true` → `status=0`；改后 `npm run integration` 报 `success:true` 且 `exit=0`，`/tmp/ft-integration.*` 不再新增（残留的 7 棵时间戳均早于本次改动）
 Cost     只在测试层，不影响发行物；把 `/bin/rm` 换回 PATH 上的 `rm` 会立刻恢复这个假红
 Commit   61639e9
+### D-032 · 2026-10-09 · chore · v15
+Symptom  `test/unit.test.js` 一直守着 `swapLanguages` 的 AUTO 拒绝，而生产走的是 `onSwap` 里的内联副本（`extension.js` 对该 helper 引用 0 次）——那条 L0 断言测的分支生产根本不进，将来改坏内联副本 Node 依然全绿。行为本身没丢（错误码同为 `swap-source-is-automatic`），所以没有用户可见症状
+Change   `onSwap` 改为调用 `swapLanguages`，被拒绝时沿用既有 provider 错误文案返回且不改写方向；`test/repo.test.js` 新增 describe，把五条「由单测钉住的纯判定」（`swapLanguages`、`safeTruncate`、`codePointLength`、`isSameLanguage`、`hasVisibleText`）列成清单，逐条断言 `extension.js` 里存在调用点
+Evidence L0 清单先红（只有 `swapLanguages` 不满足：`# pass 6 / # fail 1`）后绿；L1 `npm run integration` 报 `success:true`（C2/C3/C4 都在树内时重跑的那一次）
+Cost     交换被拒绝时的文案改走 `_providerErrorText`，与其他 provider 错误同源；新守卡只数调用点，删不掉内联副本的语义漂移——它保证的是「helper 一旦不再被生产引用，清单立刻变红」，而不是两份实现等价
+Commit   1d44c07
+
+### D-033 · 2026-10-09 · chore · v15
+Symptom  `prefs.js` 的 `updateServiceVisibility()` 用 `service === 0/2/3` 决定哪一组密钥框可见，等于把 `PROVIDERS` 表在第二个文件里重抄一遍：追加或调整服务商时，设置窗口会显示另一家的密钥框，而单测对此一无所知
+Change   `PROVIDERS` 每条声明 `credentialGroup`（不需要密钥的为 `null`）与 `supportsFormatting`（只有 DeepL 为真），prefs 读这两项驱动可见性与 DeepL 专属选项；`test/unit.test.js` 钉死四家到四个组的映射与「只有 DeepL 支持格式化」；`test/prefs-validator.js` 把相对 import 重绑定为绝对 `file://` URL——它故意把临时 runner 写到源码树外面，prefs 一开始 import 兄弟模块就报 `Unable to load file from: file:///tmp/translation-helper.js`，看着像 prefs 的缺陷，实为校验器自己的搬迁
+Evidence L0 先红（旧数据形状不带这两个字段）后绿；`gjs -m test/prefs-validator.js` 报 `✅ Preferences layout validation successful!`；L1 `npm run integration` 报 `success:true`
+Cost     prefs 现在依赖 `translation-helper.js`（该模块零 `gi://` import，已在 prefs 进程里实际加载过）；新增服务商必须同时填 `credentialGroup`，否则 L0 变红——这是刻意的摩擦。*(needs manual confirmation)*：真机上切换四家服务商的观感属 L2，本轮只证明布局校验通过
+Commit   d731270
+
+### D-034 · 2026-10-09 · chore · v15
+Symptom  每次主题或 `darktheme` 变化，`_get_icon()` 在壳主线程上做两次同步 `Gio.File.query_exists()`（先 svg 再 png），而扩展图标是随目录一起安装的：这个探测在构造上恒真或恒假，永远不改变结果；`_set_icon_indicator()` 里还留着一条只有 stat 失败才走得到的 null 分支
+Change   两次 stat 删除，直接按名字拼 svg 路径；「哪些图标随仓库存在」改成仓库不变式，由 `test/repo.test.js` 断言这条路径能点名的两个 active svg 确实在树里；那条 null 分支一并删掉
+Evidence 守卡先红（往 `_get_icon` 注入一条真调用 → `# pass 10 / # fail 1`），并且证明它不会把修复本身当缺陷（把同一行写进注释 → `# pass 11 / # fail 0`）：为此新增 `srcCode()`，断言先剥掉整行注释、再只匹配 `.query_exists(` 的调用形状；`npm run integration` 报 `success:true`；`npm run perf cost` 全表重跑无劣化；gjs 微基准（暖缓存）单次 `query_exists` ≈ 2.9 µs、一次刷新的两次 ≈ 5.8 µs
+Cost     按仓库规则这个量级不足以记作 `perf`，所以记 `chore`，数字留在正文。运行时不再兜底：若将来图标装成别的文件名，结果是坏图标而不是回退到另一个变体，改由 L0 变红来发现
+Commit   f8d6fe9
+
+### D-035 · 2026-10-09 · guard · v15
+Symptom  `CHROME = 232`、警告测量用的 600px、`_getLabelWidth` 的 48、`SCROLLBAR_ESTIMATE = 16` 全是从样式表抄来的数字，注释只写数值不写来源。St 在这个 actor 上忽略 `max-height`，所以这些字面量就是布局契约本身——只是分居两文件，改 CSS 的人没有任何线索知道要同时改 JS
+Change   每个常量旁注明它对应的 CSS 声明与行号；`test/repo.test.js` 新增 describe，从样式表现算「卡片宽 − 2×padding − 2×border」并与 `extension.js` 里 `get_preferred_height(<n>)` 的字面量比对，另两条钉住明暗两个变体的 border 相等、`spacing`/divider/`margin-top` 仍是注释引用的那三项。本轮另把文档里全部 `file:line` 锚点重算一遍（138 处，C1–C5 之后 `shell-internals` 两表的 14 行与 Soup/签名行都需要重定位）
+Evidence 三条断言各自先红（CSS 宽度 650→700、深色 border 1px→2px、spacing 16→12）后绿；控制组：往同一条规则加 `min-width: 600px` 后守卡仍绿，证明它没把 `min-width` 误读成 `width`；红态消息带双方算式（`measures at 600, but CSS gives the card 700px - 2*24px padding - 2*1px border = 650px`）
+Cost     头部 48px 与动作行 44px 是只有真机能量回来的合成高度，按 L2 明确留在断言之外；`SCROLLBAR_ESTIMATE = 16` 与 St 实际滚动条宽度的关系仍未实测 *(needs manual confirmation)*，注释按「高估只会让测量宽度更宽」的方向记为安全侧
+Commit   f8d6fe9

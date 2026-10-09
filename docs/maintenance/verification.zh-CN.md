@@ -9,7 +9,7 @@
 
 | 命令 | 耗时 | 覆盖 | 是否写状态 |
 |---|---|---|---|
-| `npm test` | 秒级 | `translation-helper.js` 导出、`destroy()` 完整性、GLib 与 node 加密已知答案对撞、`prefs.js` 布局 | 不写 |
+| `npm test` | 秒级 | `translation-helper.js` 导出、`destroy()` 完整性、GLib 与 node 加密已知答案对撞、`prefs.js` 布局、仓库级守卡（`test/repo.test.js`：双语配对、调用点清单、服务商注册表、主线程不碰磁盘、JS↔CSS 几何契约） | 不写 |
 | `npm run integration` | 约 2–4 分钟 | 真实无头壳：ACTIVE、面板按钮、弹窗结构、双击拷贝行为 | 不写（内存后端） |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 分钟 | 单次事件成本与空闲 CPU/RSS | 不写；JSON 落在 `~/.cache/fast-translate-perf/` |
 | `npm run check:log` | 秒级 | 记录本身：`D-###` 唯一且连续无洞、代码提交被引用且哈希可解析、任何被 tracked `.md` 引用的 `D-###` 都有对应条目、每条五个字段齐全、`kind` 在允许集合内 | 不写 |
@@ -81,10 +81,36 @@
 `_dismiss()` 另外会置 `_userDismissed`，用来阻止晚到的译文在用户已经关掉卡片后
 仍改写剪贴板；后台模式不受影响，因为它根本不显示卡片。
 
-**关于 `swapLanguages` 的告警**：`extension.js` 并没有调用这个 helper——`onSwap`
-分支里带的是同一判定的内联副本（未修项见
-[open-items.zh-CN.md](open-items.zh-CN.md)）。行为本身是在的，但这条 Node 层的记录
-目前并没有守住生产实际走的那条分支。
+**`swapLanguages` 现在经 `onSwap` 进入生产**（D-032）。它曾经是 `onSwap` 里的一份
+内联副本，而 Node 那条测的是 helper——断言因此是装饰性的。所以 `test/repo.test.js`
+现在把本表每条判定列成清单，并逐条断言 `extension.js` 里有它的调用点：重新写回一份
+内联实现，清单变红；删掉 helper 又不把它的断言下沉到 L1，同样变红。
+
+### `test/repo.test.js` 的仓库级守卡（L0，不需要显示器）
+
+它们检查的是运行时看不见的事，因为失败方式是*一份文档或一个常量过期*，而不是一处
+行为坏掉：
+
+| describe | 什么时候失败 | 怎么把它逼红 |
+|---|---|---|
+| 一条守不住"生产真正走的那条分支"的守卫 | 被 L0 钉住的 helper 不再被 `extension.js` 调用 | 删掉 `swapLanguages` 的调用点（红：5 条里 1 条） |
+| 设置窗口读的是服务商注册表，不是枚举整数 | `prefs.js` 又硬编码 `service === 0/2/3`，或不再 import `getProvider` | 把一条诱饵 `service === 2` 写回 `prefs.js` |
+| 主线程不碰磁盘 | active 图标不再随仓库存在，或 `extension.js` 里出现了 `.query_exists(` | 往 `_get_icon()` 注入一条真实的 `probe.query_exists(null)`（红：10 过 / 1 败）；控制组：同样这句话写进注释行必须仍是绿的 |
+| 弹窗的几何常量仍与它镜像的 CSS 一致 | 卡片宽度 / padding / border / spacing / divider / actions margin 变了，而 JS 里的算术没跟上 | `width: 650px`→`700px`；深色 `border: 1px`→`2px`；`spacing: 16px`→`12px`。控制组：往同一条规则加 `min-width: 600px` 不应变红 |
+| 文档约定成立 | 双语对在某节数量或顺序上漂移，或某份被跟踪的 markdown 用了任务复选框 | ——（配对规则放宽到全目录时已经确立） |
+
+这些逼迫动作换来两条规则：
+
+- **守卡量的必须是代码，不是散文。** `query_exists` 那条守卡最初匹配到解释"该调用已
+  删除"的注释，于是把修复本身报成缺陷。凡是「这个调用不存在」形式的断言，现在都跑在
+  `srcCode()`（先剥掉整行注释）上，并匹配调用形状 `.query_exists(` 而不是裸函数名。
+  `min-width` 不能顶替 `width`：读声明要带前导边界。
+- **文档里每个 `file:line` 锚点都是一条会过期的断言。** 任何增删 `extension.js` 行数
+  的改动之后都要重算：扫 `docs/` 与根目录 `*.md`，取出所有 `name.js:NNN` 与续引
+  `` `:NNN` ``，打印那一行，确认它仍然是被引用的那个构造。本轮：走过 138 个锚点，
+  `shell-internals` 表里 14 行重新定位（C1–C5 把 `extension.js:1316` 之后全部挪了位），
+  3 处过期的 `prefs.js` 区间已修正。`docs/reports/AUDIT.md` 是其提交时点的快照，
+  按约定不参与重编号。
 
 ## 4. 真机会话验证
 

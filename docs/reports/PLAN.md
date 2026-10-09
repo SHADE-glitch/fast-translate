@@ -46,6 +46,15 @@ below are **his**, recorded so a later session does not re-open them.
 Each item is one commit, each guard is written red first, and `npm test` stays green
 throughout.
 
+**Queue status (2026-10-09): C1–C5 landed.** C1 → D-029/D-030/D-031
+(`e88b27d`, `60c6fef`, `61639e9`), C2 → D-032 (`1d44c07`), C3 → D-033 (`d731270`),
+C4+C5 → D-034/D-035 (`f8d6fe9`). Two outcomes differed from this table: C4 measured
+≈5.8 µs per icon refresh with a warm cache, so it is recorded as `chore`, not `perf`;
+and C5 grew from comments into three cross-file assertions, because a comment nobody can
+run is how the drift was allowed in the first place. The C6 gate provocation also
+happened on its own — `1d44c07` touched `extension.js` before its `D-###` existed and
+`npm run check:log` reported exactly that one commit, which is the bite being proven.
+
 | # | Change | Kind | Reaches shipped code (bump?) | How it is proven |
 |---|---|---|---|---|
 | C1 | Hoist the enrichment `cancellable` and `watchdogId` onto `this`, cancel and remove both in `destroy()`, and drop the previous source when re-arming (the pattern already used by `_armSafetyTimeout`) | `fix` | yes | Add both steps to `MUST_BE_GUARDED` in `test/teardown-guard.test.js`, watch it fail with "step not found in destroy()", then implement; L1 assertion that `GLib.source_exists()` is false after `disable()` |

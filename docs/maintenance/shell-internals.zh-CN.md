@@ -10,23 +10,23 @@
 
 | 接口 | 位置 | 为什么承重 | 它变了会怎样 |
 |---|---|---|---|
-| `global.display.get_selection()` + `Meta.SelectionType` | `extension.js:282-283` | 读剪贴板 owner 来识别双击拷贝触发 | 有特性检测；触发静默失效 |
-| `Meta.SelectionOwner::owner-changed`（connect / disconnect） | `extension.js:287`、`:294` | 触发本身；那个 disconnect 才是 `disable()` 干净的前提 | 双击 Ctrl+C 没反应 |
-| `St.Clipboard.get_default().get_text()` / `.set_text()` | `extension.js:42`、`:307`、`:1613` | 读选区、把译文写回去 | 这次往返走 Wayland，`npm run perf` 看不见它 |
+| `global.display.get_selection()` + `Meta.SelectionType` | `extension.js:287-288` | 读剪贴板 owner 来识别双击拷贝触发 | 有特性检测；触发静默失效 |
+| `Meta.SelectionOwner::owner-changed`（connect / disconnect） | `extension.js:299`、`:373` | 触发本身；那个 disconnect 才是 `disable()` 干净的前提 | 双击 Ctrl+C 没反应 |
+| `St.Clipboard.get_default().get_text()` / `.set_text()` | `extension.js:42`、`:312`、`:1658` | 读选区、把译文写回去 | 这次往返走 Wayland，`npm run perf` 看不见它 |
 | `PanelMenu.Button` 子类 | `extension.js:221` | 面板 actor | `enable()` 抛错、图标消失 |
-| `Main.panel.addToStatusArea()` | `extension.js:1368`、`:1378` | 注册，以及销毁时把它摘掉的那条路 | 面板项重复或成为孤儿 |
-| `PopupMenu.PopupMenuItem` | `extension.js:265` | 面板菜单里唯一的 Settings 项 | 纯属外观，一项菜单 |
-| `Main.wm.addKeybinding()` / `removeKeybinding()` + `Shell.ActionMode` | `extension.js:379`、`:383`、`:405` | 按窗口临时挂 Escape，那个 remove 保证它不跨窗口残留 | Esc 失灵，或者绑定活得比弹窗长 |
-| `Main.notify()` | `extension.js:682`、`:975`、`:978`、`:1245` | 后台模式下唯一的输出通道 | 成功与失败都变成看不见 |
-| `Main.uiGroup.add_child()` / `.remove_child()` | `extension.js:157`、`:177`、`:1732`、`:1747-1748` | 弹窗是裸 actor 树，不是 `PopupMenu`——刻意为之，见 `INVARIANTS.md` | 出现活过 `disable()` 的弹窗 |
-| `global.stage.connect('captured-event')` + `Clutter.KEY_Escape` | `extension.js:1775`、`:1768`，`global.stage.disconnect` `:2348` | 弹窗打开期间不抢模态也能收到 Escape | Esc 关不掉卡片 |
-| `global.stage.width` / `.height` | `extension.js:181-182`、`:1840-1841` | 把 tooltip 和弹窗夹回屏幕内 | 界面跑到屏幕外 |
-| `Main.layoutManager`（`focusIndex`、`primaryIndex`、`monitors`、`getWorkAreaForMonitor`） | `extension.js:1806-1830` | 多屏定位：遮罩覆盖的是自己显示器的 work area | 弹窗落在错的屏幕上 |
-| `St.ScrollView` | `extension.js:1501`、`:1533`、`:2184` | 两块文本面板；`vscrollbar_policy` 构造后只读 | 官方替代品 `St.Clip` 没有滚动条——为什么不迁移写在 `docs/reports/PLAN.md` |
-| `Pango.WrapMode` | `extension.js:1518`、`:1550`、`:1954` | 面板内的换行 | 换行异常 |
-| `Gio.Icon.new_for_string()` + `Gio.File.query_exists()` | `extension.js:1292`、`:1286`、`:1289` | 面板图标按**文件路径**从 `icons/` 读，因此不依赖主题；那两次 `query_exists()` 是壳主线程上的同步 stat | 图标坏掉；这个 stat 属主线程 IO（未修项） |
-| `Soup.Session`（`gi://Soup?version=3.0`）+ `send_and_read_async()` | import `:33`、session `:228`、调用 `:824`、`:1069` | 所有请求，全部异步 | 整个功能；这是唯一显式钉版本的 import |
-| `GLib.compute_hmac_for_data` / `compute_checksum_for_string` / `base64_encode` | `signing.js:12-19`、`:30`、`:44-54`；`translation-helper.js:555-556` | 百度与有道的请求签名；`compute_hmac_for_data` 收 3 个参数（实测） | 只影响签名——DeepL 与 Google 不签名 |
+| `Main.panel.addToStatusArea()` | `extension.js:1413`、`:1423`、销毁路径 `:1436` | 注册，以及销毁时把它摘掉的那条路 | 面板项重复或成为孤儿 |
+| `PopupMenu.PopupMenuItem` | `extension.js:270` | 面板菜单里唯一的 Settings 项 | 纯属外观，一项菜单 |
+| `Main.wm.addKeybinding()` / `removeKeybinding()` + `Shell.ActionMode` | `extension.js:384`、`:388`、`:410` | 按窗口临时挂 Escape，那个 remove 保证它不跨窗口残留 | Esc 失灵，或者绑定活得比弹窗长 |
+| `Main.notify()` | `extension.js:687`、`:1015`、`:1282` | 后台模式下唯一的输出通道 | 成功与失败都变成看不见 |
+| `Main.uiGroup.add_child()` + actor `destroy()` | `extension.js:157`、`:1792-1793`、`:2462`、`:2466` | 弹窗是裸 actor 树，不是 `PopupMenu`——刻意为之，见 `INVARIANTS.md` | 出现活过 `disable()` 的弹窗 |
+| `global.stage.connect('captured-event')` + `Clutter.KEY_Escape` | `extension.js:1820`、`:1813`、`global.stage.disconnect` `:2417` | 弹窗打开期间不抢模态也能收到 Escape | Esc 关不掉卡片 |
+| `global.stage.width` / `.height` | `extension.js:181-182`、`:1885-1886` | 把 tooltip 和弹窗夹回屏幕内 | 界面跑到屏幕外 |
+| `Main.layoutManager`（`focusIndex`、`primaryIndex`、`monitors`、`getWorkAreaForMonitor`） | `extension.js:1851-1857`、`:1872-1875` | 多屏定位：遮罩覆盖的是自己显示器的 work area | 弹窗落在错的屏幕上 |
+| `St.ScrollView` | `extension.js:1546`、`:1578`；policy 在 `:1548`、`:1580` | 两块文本面板；`vscrollbar_policy` 构造后只读 | 官方替代品 `St.Clip` 没有滚动条——为什么不迁移写在 `docs/reports/PLAN.md` |
+| `Pango.WrapMode` | `extension.js:1563`、`:1595`、`:1999` | 面板内的换行 | 换行异常 |
+| `Gio.Icon.new_for_string()` | `extension.js:1326` | 面板图标按**文件路径**从 `icons/` 读，因此不依赖主题。这条路径原先在壳主线程上跑的两次同步 `query_exists()` 已删除（D-034）；哪些文件随发行物存在是仓库属性，由 `test/repo.test.js` 断言 | 图标坏掉；少了 svg 现在是仓库守卡直接变红，而不是运行时探测 |
+| `Soup.Session`（`gi://Soup?version=3.0`）+ `send_and_read_async()` | import `:33`、session `:228`、调用 `:864`、`:1106` | 所有请求，全部异步 | 整个功能；这是唯一显式钉版本的 import |
+| `GLib.compute_hmac_for_data` / `compute_checksum_for_string` / `base64_encode` | `signing.js:12-19`、`:25-30`、`:44-54`；`translation-helper.js:552`、`:558`、`:581`、`:590` | 百度与有道的请求签名；`compute_hmac_for_data` 收 3 个参数（实测） | 只影响签名——DeepL 与 Google 不签名 |
 | 变体样式表文件名约定 | `stylesheet-light.css` / `stylesheet-dark.css` 这两个名字 | `_loadExtensionStylesheet` 命中第一个就停，只有 `-light`/`-dark` 会跟着 `notify::color-scheme` 实时重载 | 深浅色不再跟随系统 |
 
 **测试侧的私有 API，刻意不受上面那些生产规则约束**：`test/bootstrap.js` 调

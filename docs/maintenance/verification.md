@@ -9,7 +9,7 @@ tiers depend on lives in [cost-measurement.md](cost-measurement.md).
 
 | Command | Time | Reaches | Writes |
 |---|---|---|---|
-| `npm test` | seconds | `translation-helper.js` exports, `destroy()` totality, GLib-vs-node crypto known answers, `prefs.js` layout | nothing |
+| `npm test` | seconds | `translation-helper.js` exports, `destroy()` totality, GLib-vs-node crypto known answers, `prefs.js` layout, repository guards (`test/repo.test.js`: bilingual pairing, call-site list, provider registry, no main-thread stat, JS↔CSS geometry contract) | nothing |
 | `npm run integration` | ~2–4 min | a real headless shell: ACTIVE, panel button, popup structure, double-copy behaviour | nothing (memory backend) |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 min | cost per event and idle CPU/RSS | nothing; writes JSON to `~/.cache/fast-translate-perf/` |
 | `npm run check:log` | seconds | the record: `D-###` ids unique and gapless, code commits cited and resolvable, every `D-###` cited by a tracked doc resolves, five fields per entry, `kind` in the allowed set | nothing |
@@ -90,10 +90,39 @@ provoked from inside the shell (`test/eval-test.js` Test 3b–3h):
 overwriting the clipboard after the user closed the card; background mode is
 unaffected because it never shows a card.
 
-**Caveat on `swapLanguages`**: `extension.js` does not call this helper — the
-`onSwap` branch carries an inline copy of the same decision (open item, see
-[open-items.md](open-items.md)). The behaviour is present, but this Node-level row
-does not currently guard the branch production runs.
+**`swapLanguages` reaches production through `onSwap`** (D-032). It used to be an
+inline copy inside `onSwap` while the Node row tested the helper — the assertion was
+decorative, which is why `test/repo.test.js` now lists every decision in this table
+and asserts `extension.js` contains a call site for each. Add an inline re-implementation
+and that list goes red; drop the helper without moving its test to L1 and it goes red too.
+
+### Repository guards in `test/repo.test.js` (L0, no display)
+
+These check things no runtime test can see, because the failure mode is a *document or a
+constant going stale*, not a behaviour breaking:
+
+| Describe | Fails when | Provoked by |
+|---|---|---|
+| a guard's test runs in the branch production actually takes | a helper an L0 test pins is no longer called from `extension.js` | deleting the `swapLanguages` call site (red: 1 of 5) |
+| the settings window reads the provider registry, not enum integers | `prefs.js` hardcodes `service === 0/2/3` again, or stops importing `getProvider` | writing a decoy `service === 2` back into `prefs.js` |
+| the main thread never touches the disk | an active icon stops shipping, or `extension.js` gains a `.query_exists(` call | injecting a real `probe.query_exists(null)` into `_get_icon()` (red: 10 pass / 1 fail) — and, as a control, the same text in a comment line stays green |
+| the card's geometry constants still match the CSS they mirror | card width / padding / border / spacing / divider / actions margin change without the JS arithmetic following | `width: 650px`→`700px`; dark `border: 1px`→`2px`; `spacing: 16px`→`12px`. Control: adding `min-width: 600px` to the same rule must NOT redden it |
+| documentation conventions hold | a bilingual pair drifts in section count or order, or a tracked doc uses task checkboxes | — (established when the pair rule was widened to every directory) |
+
+Two rules these provocations earned:
+
+- **A guard must measure code, not prose.** The `query_exists` guard first matched the
+  comment explaining that the call was removed, so it reported the fix as the defect.
+  Assertions of the "this call is gone" form now run on `srcCode()` — whole-line
+  comments stripped — and match a call shape (`.query_exists(`), not a bare name.
+  `min-width` must not answer for `width`: read a declaration with a leading boundary.
+- **Every `file:line` anchor in the docs is a claim that decays.** After any edit that
+  adds or removes lines in `extension.js`, re-derive them: walk `docs/` plus the root
+  `*.md`, pull every `name.js:NNN` and continuation `` `:NNN` ``, print that line, and
+  check it still holds the cited construct. This round: 138 anchors walked, 14 rows in
+  `shell-internals` relocated (C1–C5 had shifted everything past `extension.js:1316`),
+  3 stale `prefs.js` ranges corrected. `docs/reports/AUDIT.md` is a snapshot as of its
+  commit and is deliberately not renumbered.
 
 ## 4. Live session verification
 

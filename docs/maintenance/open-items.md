@@ -92,19 +92,21 @@ not worth its cost, reopen only with new evidence.
 
 ## 4. A guard that does not guard the branch production runs
 
-- **`swapLanguages` is unit-tested but not called by `extension.js`.**
-  `test/unit.test.js` asserts its `AUTO` guard (section "swapLanguages guard"), and
-  the decision is genuinely in force at runtime — but `onSwap` carries an **inline
-  copy** of it (`grep -c swapLanguages extension.js` → 0). So that L0 row passes
-  whether or not production behaves, and a future edit can break the inline branch
-  while Node stays green. **queued**: make `onSwap` call the helper, or delete the
-  helper and move the assertion to L1 — one source of truth either way.
+- **`swapLanguages` was unit-tested but not called by `extension.js`.**
+  `test/unit.test.js` asserted its `AUTO` guard (section "swapLanguages guard"), and
+  the decision was genuinely in force at runtime — but `onSwap` carried an **inline
+  copy** of it, so that L0 row passed whether or not production behaved, and a future
+  edit could break the inline branch while Node stayed green. Fixed (D-032): `onSwap`
+  delegates to the helper, and `test/repo.test.js` now lists every pure decision an
+  L0 test pins and asserts `extension.js` actually calls it — the class of defect, not
+  just this instance.
 - `parseLanguageName` and `detectLang` are exported from `translation-helper.js`
   and referenced only by `test/unit.test.js`. **deferred**: they are not dead
   weight to be deleted on sight — a test that pins request/signing behaviour is
   worth more than a clean export list, especially for the two providers that have
-  no credentials to probe. What is owed is a statement of which exports production
-  actually references, so "probably dead" becomes a checked fact.
+  no credentials to probe. They are deliberately absent from the call-site list in
+  `test/repo.test.js`, which currently covers the five decisions whose behaviour a
+  user can hit; adding them there is the cheap half of what is still owed.
 - `test/prefs-validator.js` asserts only that `fillPreferencesWindow()` does not
   throw. Its settings mock implements `get_key`, `get_range`, `get_enum`,
   `set_enum`, `connect`, `bind`, `get_strv` and nothing else, so a `prefs.js` that
@@ -115,16 +117,15 @@ not worth its cost, reopen only with new evidence.
 
 Decided on 2026-10-09: that round covered stability and structure only, so the
 privacy and settings group was recorded rather than fixed. Each item below is
-verified by reading the code, not inferred; two stability items that lived in the
-same list have since been fixed and are kept here with their record, so the
-discovery path is not lost.
+verified by reading the code, not inferred; the items fixed since are kept here with
+their record rather than deleted, so the discovery path is not lost.
 
-- **A failed translation in background mode is invisible.** `extension.js:716`
+- **A failed translation in background mode is invisible.** `extension.js:721`
   requires `!isBackground` for the inline error path, and `fail()` only calls
   `Main.notify` when `notifications` is true, whose schema default is **false**.
   With defaults, nothing at all happens on failure.
 - **The background success toast quotes the user's own text.**
-  `extension.js:682` calls `Main.notify` with the title "Translated" and a body
+  `extension.js:687` calls `Main.notify` with the title "Translated" and a body
   built as `requestText + " → " + toText` — the source and the translation in one
   notification body, which also shows on the lock screen. This sits against the
   repo's own privacy stance.
@@ -133,16 +134,18 @@ discovery path is not lost.
   Google regardless of the selected service (§3 above), undisclosed. *Decided: disclose
   only — no new switch, no narrowing (narrowing would regress the dictionary card).*
 - **No restore-to-defaults affordance exists at all** (`grep reset prefs.js` → nothing).
-- `prefs.js:305-318` "Project Homepage" points at `github.com/tazztone/translate-assistant`
+- `prefs.js:306-319` "Project Homepage" points at `github.com/tazztone/translate-assistant`
   while `metadata.json url` points at this fork — a contradiction inside the shipped
   settings window. The About page has no license row.
 - The six `Adw.EntryRow`s (DeepL URL, DeepL key, Baidu appid/secret, Youdao
   appid/secret) carry no plain-language subtitle, while 14 of the 23 rows do.
-- `keybinding-close-floating-window` is live (`extension.js:49`, `:379`) but is not
+- `keybinding-close-floating-window` is live (`extension.js:49`, `:384`) but is not
   exposed in prefs; a key-editor row is what it would actually need.
-- `updateServiceVisibility()` (`prefs.js:337-346`) hardcodes `service === 0/2/3`,
-  duplicating the `PROVIDERS` table. **queued** as the enabler for the disclosure
-  above.
+- **`updateServiceVisibility()` hardcoded `service === 0/2/3`** (`prefs.js:336-353`
+  today), duplicating the `PROVIDERS` table in a second file: reorder or append a
+  provider and the settings window shows another provider's key fields. Fixed (D-033)
+  — `PROVIDERS` now declares `credentialGroup` and `supportsFormatting` and prefs reads
+  them, which is also the landing point the disclosure item above was waiting for.
 - **`_enrichZhToEnDict` leaked a source past `disable()`** — its `cancellable` and
   `watchdogId` were function-locals, so `destroy()` could not reach a 6 s timer and an
   in-flight request. Fixed (D-030) and now pinned twice: at L0 by
@@ -153,9 +156,14 @@ discovery path is not lost.
   documented "best-effort, silently keeps the forward card" appearance. The standing
   lesson is in `verification.md`: **a measurement taken outside the production call
   chain proves nothing about the feature.**
-- Two synchronous `Gio.File.query_exists()` calls on the shell main thread per
-  icon refresh (`extension.js:1286`, `:1289`). **queued**, low priority: the path
-  runs only when the theme or `darktheme` changes.
+- **Two synchronous `Gio.File.query_exists()` calls ran on the shell main thread**
+  per icon refresh, probing `.svg` then `.png`. Fixed (D-034): the icon path names the
+  shipped file directly and `test/repo.test.js` asserts those files exist, so existence
+  became a repository property instead of a runtime probe. Measured cost of what was
+  removed: ≈5.8 µs per refresh with a warm cache — recorded as `chore`, not `perf`.
+  The guard that proves it also had to be fixed, because it first matched the comment
+  describing the removal: whole-line comments are now stripped before any "this call is
+  gone" assertion (`srcCode()` in `test/repo.test.js`).
 
 ## 6. Examined and judged not worth the cost (reopen only with new evidence)
 
@@ -170,6 +178,9 @@ discovery path is not lost.
   won't yet. `➜` is also the unresolved RTL question in §2; flag emoji live in 27+28
   schema enum nicknames, so changing them is a schema change for an aesthetic gain.
 - **Undoing the JS↔CSS pixel coupling** (`CHROME = 232`, `budget*0.60`,
-  `SCROLLBAR_ESTIMATE = 16`, `width: 650px`): won't. The brittle-anchor table in
-  [verification.md](verification.md) already pins what they must agree with;
-  only cross-reference comments are owed.
+  `SCROLLBAR_ESTIMATE = 16`, `width: 650px`): won't. Unifying the two sides means
+  reading geometry out of CSS at runtime, which is the main-thread IO this file lists
+  as a defect elsewhere. What was owed is done instead (D-035): every constant now
+  names the declaration it mirrors, and `test/repo.test.js` recomputes the card's
+  content width from the stylesheet and compares it with the literal in `extension.js`,
+  so the two can no longer drift in silence.

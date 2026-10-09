@@ -199,3 +199,17 @@ Change   标题改为显示本次请求的有效方向（`_triggerFloatingTransl
 Evidence L0+L1 本轮重跑：`npm run integration` 报 `success:true`（含新增 Test 3l：标题跟随有效方向 + ⇄ 交换显示对）
 Cost     交换变为临时（不再写回 `_source_lang`/`_target_lang`，与设置同步不再打架）；无结果时 ⇄ 走原地刷新标题的旧路径，有结果时重建窗口以让源面板显示被翻译的文本
 Commit   ac83b7a
+
+### D-027 · 2026-10-09 · fix · v13
+Symptom  默认源语言是 AUTO，但弹窗标题恒显示「🌐 Auto」，不跟随 Google 实际检测到的语言；且 AUTO 源下自动方向被整体跳过，默认 AUTO→EN 复制英文词会原样回显（实测 `bank → bank`，无翻译无词典）
+Change   `resolveDirection` 增加 AUTO 分支：检测语言等于目标基码时改译到 ZH<->EN 的对侧（新源取目标基码、新目标取对侧），不再直接返回配置对；窗口新增 `applyDetectedSource(code)`，`_translateTextIndependent` 把完整 Google dict（含 detectedLang）交给回调，源仍为 AUTO 时用 `baseLangCode(detectedLang)` 刷新标题
+Evidence L0+L1 本轮重跑：`auto-direction tests passed successfully!`、`npm run integration` 报 `success:true`（含新增 Test 3k AUTO 用例与 Test 3m 检测语言标题）；以扩展同款 `Soup.Session` 实测 AUTO→EN 的 `bank` 原样回显、`银行` 正常出词表
+Cost     AUTO 的对侧只取 ZH/EN 这一对（`detectLang` 只认这两个脚本），其他语言对不翻转；标题更新仅 Google 有 detectedLang，DeepL/百度/有道（AUTO 源）标题仍显示 Auto；检测语言是基码，区域变体（zh-TW）会显示为 ZH
+Commit   2a4dad1
+
+### D-028 · 2026-10-09 · taste · v13
+Symptom  中文词查英文（ZH→EN）时 Google 只返回双语词表，同义词/英英释义/例句三节恒为空，卡片显得「内容不全」；例句还缺小标题，词条上限 15 会截掉极长词条（如「打」动词 17 条）
+Change   新增纯函数 `mergeEnrichedDict` 与 `_enrichZhToEnDict`：前向结果为中文词头且缺同义词/释义时，用其译文作词头反向查 EN→ZH，合并同义词/英英释义/例句（卡片先出、后台补全，带独立 cancellable+watchdog，best-effort）；例句加小标题；`DICT_MAX_TERMS` 15→20
+Evidence L0+L1 本轮重跑：`Google dictionary parser tests passed successfully!`、`npm run integration` 报 `success:true`；以扩展同款 `Soup.Session` 实测 `银行→bank` 前向仅 noun:1，补查后 syn=2/def=2/ex=10
+Cost     每个中文词查英文会多发一次 Google 请求（约翻倍），失败/超时（6s）静默保留前向卡片；反查词头用 Google 的译文，词性可能与中文词原词性不完全对应（如「美丽」译文 beauty 为名词）；同义词/英英释义/例句仍是英文内容
+Commit   2a4dad1

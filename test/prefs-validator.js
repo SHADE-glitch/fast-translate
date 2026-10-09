@@ -27,6 +27,17 @@ try {
     const [, content] = file.load_contents(null);
     let code = new TextDecoder().decode(content);
 
+    // prefs.js may import siblings by relative path (it reads PROVIDERS from
+    // translation-helper.js). This runner is deliberately written OUTSIDE the
+    // source tree, where "./translation-helper.js" no longer exists — left
+    // untouched it fails with "Unable to load file from:
+    // file:///tmp/translation-helper.js", which looks like a prefs.js defect but
+    // is this file's own relocation. Rebind relative specifiers to absolute URLs
+    // of the real sources.
+    const SRC_DIR = file.get_parent().get_path();
+    code = code.replace(/from\s+["']\.\/([^"']+?)["']/g,
+        (_m, name) => `from "file://${GLib.build_filenamev([SRC_DIR, name])}"`);
+
     // 2. Rewrite imports to use a mock base class that runs standalone
     code = code.replace(
         /import\s+\{\s*ExtensionPreferences,\s*gettext\s+as\s+_\s*\}\s+from\s+["']resource:\/\/\/org\/gnome\/Shell\/Extensions\/js\/extensions\/prefs.js["'];/,

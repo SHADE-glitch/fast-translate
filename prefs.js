@@ -28,6 +28,7 @@ import Gio from "gi://Gio";
 import Gdk from "gi://Gdk?version=4.0";
 import GObject from "gi://GObject";
 import { ExtensionPreferences, gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import { getProvider } from "./translation-helper.js";
 
 export default class FastTranslatePreferences extends ExtensionPreferences {
     constructor(metadata) {
@@ -332,16 +333,23 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         coffeeRow.add_suffix(coffeeBtn);
         linksGroup.add(coffeeRow);
 
-        // Helper function for service-specific visibility. The enum values are
-        // the indices into PROVIDERS in translation-helper.js.
+        // Helper function for service-specific visibility. Which group a provider's
+        // credentials live in, and whether it has the DeepL-only formatting options,
+        // are declared in PROVIDERS — so appending a provider there is enough and
+        // this window cannot fall out of step with the enum order.
+        const credentialGroups = {
+            'deepl-credentials': apiGroup,
+            'baidu-credentials': baiduGroup,
+            'youdao-credentials': youdaoGroup,
+        };
+
         function updateServiceVisibility() {
-            const service = settings.get_enum('translation-service');
-            const isDeepL = (service === 0);
-            apiGroup.visible = isDeepL;
-            formattingGroup.visible = isDeepL;
-            formalityRow.visible = isDeepL;
-            baiduGroup.visible = (service === 2);
-            youdaoGroup.visible = (service === 3);
+            const provider = getProvider(settings.get_enum('translation-service'));
+            for (const [groupId, group] of Object.entries(credentialGroups))
+                group.visible = provider ? provider.credentialGroup === groupId : false;
+            const formatting = provider ? provider.supportsFormatting : false;
+            formattingGroup.visible = formatting;
+            formalityRow.visible = formatting;
         }
         updateServiceVisibility();
     }

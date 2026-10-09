@@ -330,10 +330,15 @@ export function buildDeepLRequestBody({ fromText, sourceLang, targetLang, splitS
  * ========================================================================= */
 
 export const PROVIDERS = [
-    { value: 0, id: 'deepl', label: 'DeepL', charLimit: 5000 },
-    { value: 1, id: 'google', label: 'Google Translate', charLimit: 5000 },
-    { value: 2, id: 'baidu', label: 'Baidu Translate', charLimit: 6000 },
-    { value: 3, id: 'youdao', label: 'Youdao Translate', charLimit: 5000 },
+    // credentialGroup names the prefs group holding that provider's keys (null when
+    // none are needed); supportsFormatting is true only for the provider with the
+    // split-sentence / preserve-formatting / formality options. prefs.js reads both
+    // instead of re-spelling enum indices, so appending a provider here is the only
+    // place a new service has to be described.
+    { value: 0, id: 'deepl', label: 'DeepL', charLimit: 5000, credentialGroup: 'deepl-credentials', supportsFormatting: true },
+    { value: 1, id: 'google', label: 'Google Translate', charLimit: 5000, credentialGroup: null, supportsFormatting: false },
+    { value: 2, id: 'baidu', label: 'Baidu Translate', charLimit: 6000, credentialGroup: 'baidu-credentials', supportsFormatting: false },
+    { value: 3, id: 'youdao', label: 'Youdao Translate', charLimit: 5000, credentialGroup: 'youdao-credentials', supportsFormatting: false },
 ];
 
 export function getProvider(value) {

@@ -205,6 +205,22 @@ assert.strictEqual(getProvider(0).id, "deepl");
 assert.strictEqual(getProvider(2).id, "baidu");
 assert.strictEqual(getProvider(99), null);
 
+// prefs.js drives which credential and option groups appear from these fields,
+// instead of re-spelling the enum indices it already imports the table for.
+// Without this the preference window silently depends on the *order* of PROVIDERS.
+for (const p of PROVIDERS) {
+    assert.ok(typeof p.credentialGroup === "string" || p.credentialGroup === null,
+        `${p.id}: must declare credentialGroup (a group id, or null when no key is needed)`);
+    assert.ok(typeof p.supportsFormatting === "boolean",
+        `${p.id}: must declare supportsFormatting, so DeepL-only options are table-driven`);
+}
+assert.deepStrictEqual(
+    PROVIDERS.map(p => `${p.id}:${p.credentialGroup}`).sort(),
+    ["baidu:baidu-credentials", "deepl:deepl-credentials", "google:null", "youdao:youdao-credentials"].sort(),
+    "each provider names exactly the group its own credentials live in");
+assert.deepStrictEqual(PROVIDERS.filter(p => p.supportsFormatting).map(p => p.id), ["deepl"],
+    "only DeepL has the split-sentence / preserve-formatting / formality options");
+
 // Language mapping. Unmapped codes must return null so the caller can say
 // "unsupported" instead of sending a guessed code that fails opaquely.
 assert.strictEqual(mapLangCode("baidu", "AUTO"), "auto");

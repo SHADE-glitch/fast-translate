@@ -41,11 +41,15 @@ ln -s "$REPO" "$RUN/data/gnome-shell/extensions/fast-translate@local"
 # cleanup could ever reach it (see AGENTS.md). Errors are swallowed and cleanup
 # returns 0 so a leftover can never change the script's verdict.
 cleanup() {
-    rm -f "$RUN/data/gnome-shell/extensions/fast-translate@local"
-    rm -rf "$RUN" 2>/dev/null
+    # Same two reasons as test/integration.sh, and the same fix: a failing
+    # command inside an EXIT trap aborts the trap and its status replaces the
+    # verdict under `set -e`, while `rm` on this PATH is a gio trash wrapper that
+    # refuses to delete under /tmp. Use coreutils by absolute path, tolerate all.
+    /bin/rm -f "$RUN/data/gnome-shell/extensions/fast-translate@local" 2>/dev/null || true
+    /bin/rm -rf "$RUN" 2>/dev/null || true
     if [ -e "$RUN" ]; then
         sleep 2
-        rm -rf "$RUN" 2>/dev/null
+        /bin/rm -rf "$RUN" 2>/dev/null || true
     fi
     # The nested shell gets a private XDG_RUNTIME_DIR, so it can no longer leave
     # gnome-shell-disable-extensions in the shared one. This check stays as a

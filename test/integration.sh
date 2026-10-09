@@ -45,11 +45,19 @@ ln -s "$REPO" "$RUN/data/gnome-shell/extensions/fast-translate@local"
 # redirected XDG_DATA_HOME and kept open — GIO_USE_VFS=local below stops that at
 # the source, and also removes the volume-monitor and fusermount noise.
 cleanup() {
-    rm -f "$RUN/data/gnome-shell/extensions/fast-translate@local"
-    rm -rf "$RUN" 2>/dev/null
+    # Two measured reasons this block may never let a command fail:
+    #   1. under `set -e` an EXIT trap aborts at its first failing command, and
+    #      the trap's status then REPLACES the verdict — a run whose whole suite
+    #      passed exited 1 exactly like that;
+    #   2. `rm` on this PATH is a gio trash wrapper that refuses to delete under
+    #      /tmp ("Trashing on system internal mounts is not supported"), which is
+    #      how a leftover tree used to be produced as well as a false red.
+    # So: the absolute coreutils binary, every step tolerated.
+    /bin/rm -f "$RUN/data/gnome-shell/extensions/fast-translate@local" || true
+    /bin/rm -rf "$RUN" 2>/dev/null || true
     if [ -e "$RUN" ]; then
         sleep 2
-        rm -rf "$RUN" 2>/dev/null
+        /bin/rm -rf "$RUN" 2>/dev/null || true
     fi
     # Tripwire: the nested shell gets a private XDG_RUNTIME_DIR, so it can no
     # longer leave the marker in the shared one. If it appears here anyway,

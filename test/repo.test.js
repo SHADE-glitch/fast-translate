@@ -47,6 +47,31 @@ function listFiles() {
 const FILES = listFiles();
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), "utf8");
 
+describe("a guard's test runs in the branch production actually takes", () => {
+    // Each of these is a pure decision that exists to stop a specific user-visible
+    // defect, and test/unit.test.js asserts its behaviour. That coverage is
+    // decorative if extension.js re-implements the decision inline: the suite stays
+    // green while the branch users run changes. So the call site is pinned here.
+    const GUARDED_DECISIONS = [
+        ["swapLanguages", "⇄ must not move AUTO into the target slot"],
+        ["safeTruncate", "truncation must not split a surrogate pair"],
+        ["codePointLength", "the character limit must count code points, not UTF-16 units"],
+        ["isSameLanguage", "a same-language pair must not cost a round trip"],
+        ["hasVisibleText", "invisible-only selections must not fire a request"],
+    ];
+    const EXT = read("extension.js");
+
+    for (const [name, why] of GUARDED_DECISIONS) {
+        it(`${name}() is called from extension.js`, () => {
+            const calls = (EXT.match(new RegExp(`\\b${name}\\(`, "g")) || []).length;
+            assert.ok(calls >= 1,
+                `${name} exists because ${why}, but extension.js never calls it — ` +
+                `unit.test.js is guarding a branch production does not run. ` +
+                `Either delegate to the helper or move the assertion to L1.`);
+        });
+    }
+});
+
 describe("documentation conventions hold", () => {
     // House convention across every fork in this workspace: a doc that exists in
     // two languages is a two-file bilingual pair with mirrored section order,

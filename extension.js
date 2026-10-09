@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, mergeEnrichedDict, baseLangCode, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, mergeEnrichedDict, baseLangCode, safeTruncate, codePointLength, isSameLanguage, hasVisibleText, swapLanguages } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -585,17 +585,17 @@ var FastTranslate = GObject.registerClass(
                                 if (!w) return;
                                 const curSrc = w._srcLang;
                                 const curTgt = w._tgtLang;
-                                if (String(curSrc).toUpperCase() === 'AUTO') {
+                                const swapped = swapLanguages(curSrc, curTgt);
+                                if (swapped.error) {
                                     // "Auto detect" cannot become a target, so the
                                     // pair is left exactly as it was. Without a
                                     // message the button just looks broken.
                                     try {
-                                        w.setErrorState(this._providerErrorText(
-                                            { code: 'swap-source-is-automatic', detail: String(curTgt ?? '') }));
+                                        w.setErrorState(this._providerErrorText(swapped.error));
                                     } catch (_e) {}
                                     return;
                                 }
-                                const newDir = { source: curTgt, target: curSrc };
+                                const newDir = { source: swapped.source, target: swapped.target };
                                 // Reverse-translate the current RESULT: after the
                                 // swap the old target text becomes the new source.
                                 let backText = null;

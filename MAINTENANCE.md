@@ -328,23 +328,26 @@ Then read the symptom: icon present but no trigger ⇒ item 1/2; no icon ⇒ ite
   `keybinding-translate-clipboard`, `shortcut-enabled`) are annotated in the
   schema but deliberately **not removed** — deleting them would discard stored
   values and constitutes feature removal.
-- **The dictionary card (D-021, D-023) is Google-only and partial.** Only Google
-  returns dictionary data; DeepL/Baidu return none (Youdao would, but needs a
-  key). A single word is routed to Google even when another service is selected
+- **The dictionary card (D-021, D-023, D-025) is Google-only and partial.** Only
+  Google returns dictionary data; DeepL/Baidu return none (Youdao would, but needs
+  a key). A single word is routed to Google even when another service is selected
   (D-022, `looksLikeWord`); prose keeps the selected service. The card is a
-  structured set of actors — a translation headline, phonetic, POS-grouped terms
-  and examples, each with its own style class; synonyms (`d[11]`) and monolingual
-  definitions (`d[12]`) are fetched but not rendered yet. The copy button copies
-  the translation, not the card. Google replies **bypass the LRU cache** because
-  the response shape varies (word vs sentence); the 2.5 s same-text cooldown
-  still absorbs rapid re-triggers.
-- **Auto-direction (D-024) covers only the ZH/EN pair and only words.** A word
-  whose detected language equals the configured target flips the pair
+  structured set of actors — a translation headline, phonetic, POS-grouped terms,
+  examples, then synonyms (`d[11]`) and monolingual definitions (`d[12]`), each
+  with its own style class. The display is capped (6 POS, 15 terms, 5 examples,
+  2 synonym/definition blocks) even though Google returns more. Synonyms and
+  definitions are English-only: a ZH→EN headword has neither, so a Chinese lookup
+  is inherently terser than an English one. The copy button copies the
+  translation, not the card. Google replies **bypass the LRU cache** because the
+  response shape varies (word vs sentence); the 2.5 s same-text cooldown still
+  absorbs rapid re-triggers.
+- **Auto-direction (D-024, D-026) covers only the ZH/EN pair and only words.** A
+  word whose detected language equals the configured target flips the pair
   (`resolveDirection`); the detector recognises Han → ZH and Latin → EN, nothing
   else. Prose and `AUTO` sources keep the configured direction. The card header
-  still shows the configured pair even when a lookup flipped: the title is not
-  threaded with the effective direction, because that would fight the ⇄ button,
-  which swaps the configured pair.
+  now shows the effective direction (D-026) and ⇄ swaps that displayed pair, so
+  the title can no longer disagree with the card; a swap is transient and never
+  rewrites the configured `source-lang`/`target-lang`.
 - **`looksLikeWord` is a conservative heuristic.** A token with no whitespace,
   ≤ 40 code points and no sentence punctuation counts as a word. A CJK fragment
   with no spaces and no punctuation is therefore indistinguishable from a CJK

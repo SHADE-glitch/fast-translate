@@ -185,3 +185,17 @@ Change   新增纯函数 `baseLangCode`/`detectLang`/`resolveDirection`；仅对
 Evidence L0+L1 本轮重跑：`auto-direction tests passed successfully!`、`npm run integration` 报 `success:true`
 Cost     检测仅覆盖 ZH/EN 两种脚本，其他语言不反转；仅对词生效，句子的服务商与方向不变；Google 恒不走缓存故缓存键无需改；标题仍显示设置方向，与自动方向可能不一致（记入 MAINTENANCE §13）
 Commit   08bf811
+
+### D-025 · 2026-10-09 · taste · v12
+Symptom  词典卡显示的信息远少于 Google 实际返回：义项只截 6 个（Google 给到 19–20）、例句只 2 条（最多 30）、同义词（`d[11]`）与英英释义（`d[12]`）根本没渲染
+Change   `parseGoogleDict` 增加 synonyms/definitions；卡片新增同义词与英英释义两个区块，并把上限提到 6 词性 / 15 义项 / 5 例句；两个区块仅在 Google 返回数据时显示
+Evidence L0+L1 本轮重跑：`Google dictionary parser tests passed successfully!`、`npm run integration` 报 `success:true`（含 Test 3i 对两个新区块的断言）
+Cost     同义词与英文释义只有英文词才有，ZH→EN 的中文词两者皆无；卡片变长，靠滚动容纳；新增两个段标题 `_()` msgid（未入 `po/`）
+Commit   ac83b7a
+
+### D-026 · 2026-10-09 · fix · v12
+Symptom  自动方向把查词翻成 EN→ZH 后，弹窗顶部仍显示配置的 ZH→EN，标题与卡片不一致；此时按 ⇄ 交换的是配置对，对单词几乎无效
+Change   标题改为显示本次请求的有效方向（`_triggerFloatingTranslation` 计算并把 dir 传给窗口与请求路径，`_translateTextIndependent`/`_buildRequestSpec` 增加可选 dir，缓存键改用有效方向）；⇄ 改为交换窗口当前显示的方向并以显式 dir 重新请求，不再改写配置对
+Evidence L0+L1 本轮重跑：`npm run integration` 报 `success:true`（含新增 Test 3l：标题跟随有效方向 + ⇄ 交换显示对）
+Cost     交换变为临时（不再写回 `_source_lang`/`_target_lang`，与设置同步不再打架）；无结果时 ⇄ 走原地刷新标题的旧路径，有结果时重建窗口以让源面板显示被翻译的文本
+Commit   ac83b7a

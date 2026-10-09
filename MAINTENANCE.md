@@ -37,6 +37,7 @@ Where each thing lives:
 | What was changed, and why, commit by commit? | [CHANGELOG.md](CHANGELOG.md) |
 | Rules for working in this repo (agents and humans) | [AGENTS.md](AGENTS.md) |
 | Session state: version, unpushed work, pending decisions | [docs/reports/STATE.md](docs/reports/STATE.md) |
+| What was actually run to prove the current batch | [docs/reports/VERIFY.md](docs/reports/VERIFY.md) |
 
 ## 2. Invariants
 

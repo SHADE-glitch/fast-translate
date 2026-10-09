@@ -164,3 +164,10 @@ Change   Google 端点改走 `clients5.google.com` 的 `dict-chrome-ex` 客户�
 Evidence L0+L1 本轮重跑：`Google dictionary parser tests passed successfully!`、`npm run integration` 报 `success:true`；并以扩展同款 `Soup.Session` 实测该端点返回 200 词典数据
 Cost     词典卡依赖 Google 非官方端点，且仅 Google 出卡（DeepL/Baidu 无词典数据）；Google 恒用词典请求且不再进缓存（响应形状可变），靠 2.5 s 同文本冷却兜底；卡片复用译文 label，靠 `.dict` 类去掉粗体底重
 Commit   f2bb9f0
+
+### D-022 · 2026-10-09 · taste · v11
+Symptom  D-021 的词典卡只在把服务商切成 Google 时才出现；用 DeepL 的用户双击单词拿不到词典卡
+Change   新增纯函数 `looksLikeWord`；请求按输入路由——单个词走 Google（出词典卡），整句/段落仍走所选服务商；effective provider 贯穿请求构建与错误文案
+Evidence L0+L1 本轮重跑：`word-detection tests passed successfully!`、`npm run integration` 报 `success:true`
+Cost     单词会被发给 Google（整句仍只发所选服务商）；判定是保守启发式——无标点、无空格的 CJK 长片段会被当成词发给 Google；只对词生效，句子的行为与文案不变
+Commit   e93d10a

@@ -329,12 +329,19 @@ Then read the symptom: icon present but no trigger ⇒ item 1/2; no icon ⇒ ite
   schema but deliberately **not removed** — deleting them would discard stored
   values and constitutes feature removal.
 - **The dictionary card (D-021) is Google-only and partial.** Only Google returns
-  dictionary data; DeepL/Baidu return none (Youdao would, but needs a key). The
-  card renders phonetic + POS-grouped terms + examples; synonyms (`d[11]`) and
-  monolingual definitions (`d[12]`) are fetched but not rendered yet. The copy
-  button copies the translation, not the card. Google replies **bypass the LRU
-  cache** because the response shape varies (word vs sentence); the 2.5 s
-  same-text cooldown still absorbs rapid re-triggers.
+  dictionary data; DeepL/Baidu return none (Youdao would, but needs a key). A
+  single word is routed to Google even when another service is selected (D-022,
+  `looksLikeWord`); prose keeps the selected service. The card renders phonetic +
+  POS-grouped terms + examples; synonyms (`d[11]`) and monolingual definitions
+  (`d[12]`) are fetched but not rendered yet. The copy button copies the
+  translation, not the card. Google replies **bypass the LRU cache** because the
+  response shape varies (word vs sentence); the 2.5 s same-text cooldown still
+  absorbs rapid re-triggers.
+- **`looksLikeWord` is a conservative heuristic.** A token with no whitespace,
+  ≤ 40 code points and no sentence punctuation counts as a word. A CJK fragment
+  with no spaces and no punctuation is therefore indistinguishable from a CJK
+  word and is sent to Google; the cost is only that Google, not the selected
+  provider, translates that fragment.
 - **A Google 429 from `curl` is a curl artifact, not an extension bug.**
   `translate.googleapis.com…client=gtx` answers 429 to curl but 200 to Soup (the
   extension's client). Reproduce Google failures with a `Soup`/`gjs` probe, never

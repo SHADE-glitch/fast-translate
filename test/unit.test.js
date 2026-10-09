@@ -221,6 +221,31 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(PROVIDERS.filter(p => p.supportsFormatting).map(p => p.id), ["deepl"],
     "only DeepL has the split-sentence / preserve-formatting / formality options");
 
+// The settings window has to name the host each provider sends the user's text to, and
+// that string is only worth showing if it is the host the request really goes to. So it
+// is cross-checked against the URL the builder produces, never trusted from the table.
+const hostOf = (u) => new URL(u).hostname;
+assert.equal("host" in getProviderById("deepl"), true,
+    "every provider must declare a host, even if only to say it has none");
+assert.strictEqual(getProviderById("deepl").host, null,
+    "DeepL's endpoint is the user-configured `url` setting; the table must not claim a host for it");
+for (const [id, built] of [
+    ["google", buildGoogleRequest("EN", "ZH", "h")],
+    ["baidu", buildBaiduRequest({
+        appid: "20200101000000001", secretKey: "abcdefghijklmnop", fromText: "Hello",
+        sourceLang: "EN", targetLang: "ZH", salt: "1234567890", hash: nodeHash,
+    })],
+    ["youdao", buildYoudaoRequest({
+        appid: "testkey", secretKey: "testsecret", fromText: "Hello",
+        sourceLang: "EN", targetLang: "ZH", salt: "1", curtime: "1700000000", hash: nodeHash,
+    })],
+]) {
+    assert.ok(built.url, `${id}: the builder produced no URL to cross-check its declared host against`);
+    assert.strictEqual(getProviderById(id).host, hostOf(built.url),
+        `${id}: PROVIDERS declares host ${JSON.stringify(getProviderById(id).host)} but its request ` +
+        `goes to ${hostOf(built.url)} — the disclosure in prefs.js would name the wrong party`);
+}
+
 // Language mapping. Unmapped codes must return null so the caller can say
 // "unsupported" instead of sending a guessed code that fails opaquely.
 assert.strictEqual(mapLangCode("baidu", "AUTO"), "auto");

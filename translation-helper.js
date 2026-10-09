@@ -120,6 +120,18 @@ export function parseLanguageName(description) {
  */
 const GOOGLE_TRANSLATE_ENDPOINT =
     'https://clients5.google.com/translate_a/single?client=dict-chrome-ex';
+const BAIDU_ENDPOINT = 'https://fanyi-api.baidu.com/api/trans/vip/translate';
+const YOUDAO_ENDPOINT = 'https://openapi.youdao.com/api';
+
+/**
+ * The host an endpoint resolves to, for the disclosure the settings window shows.
+ * Written as string arithmetic rather than `new URL()` because this module is loaded
+ * by extension.js too, and the shell process has no `URL` (see AGENTS.md).
+ */
+export function hostOf(endpoint) {
+    const withoutScheme = endpoint.slice(endpoint.indexOf('://') + 3);
+    return withoutScheme.split('/')[0].split('?')[0];
+}
 
 /**
  * Builds a Google Translate (auth-free) request.
@@ -332,13 +344,14 @@ export function buildDeepLRequestBody({ fromText, sourceLang, targetLang, splitS
 export const PROVIDERS = [
     // credentialGroup names the prefs group holding that provider's keys (null when
     // none are needed); supportsFormatting is true only for the provider with the
-    // split-sentence / preserve-formatting / formality options. prefs.js reads both
-    // instead of re-spelling enum indices, so appending a provider here is the only
-    // place a new service has to be described.
-    { value: 0, id: 'deepl', label: 'DeepL', charLimit: 5000, credentialGroup: 'deepl-credentials', supportsFormatting: true },
-    { value: 1, id: 'google', label: 'Google Translate', charLimit: 5000, credentialGroup: null, supportsFormatting: false },
-    { value: 2, id: 'baidu', label: 'Baidu Translate', charLimit: 6000, credentialGroup: 'baidu-credentials', supportsFormatting: false },
-    { value: 3, id: 'youdao', label: 'Youdao Translate', charLimit: 5000, credentialGroup: 'youdao-credentials', supportsFormatting: false },
+    // split-sentence / preserve-formatting / formality options; host is the machine the
+    // user's text leaves for (null when the endpoint is the user's own setting). prefs.js
+    // reads all three instead of re-spelling enum indices, so appending a provider here
+    // is the only place a new service has to be described.
+    { value: 0, id: 'deepl', label: 'DeepL', charLimit: 5000, credentialGroup: 'deepl-credentials', supportsFormatting: true, host: null },
+    { value: 1, id: 'google', label: 'Google Translate', charLimit: 5000, credentialGroup: null, supportsFormatting: false, host: hostOf(GOOGLE_TRANSLATE_ENDPOINT) },
+    { value: 2, id: 'baidu', label: 'Baidu Translate', charLimit: 6000, credentialGroup: 'baidu-credentials', supportsFormatting: false, host: hostOf(BAIDU_ENDPOINT) },
+    { value: 3, id: 'youdao', label: 'Youdao Translate', charLimit: 5000, credentialGroup: 'youdao-credentials', supportsFormatting: false, host: hostOf(YOUDAO_ENDPOINT) },
 ];
 
 export function getProvider(value) {
@@ -551,7 +564,7 @@ export function buildBaiduRequest({ appid, secretKey, fromText, sourceLang, targ
     if (!from || !to) return { error: { code: 'unsupported-language', detail: `${sourceLang}->${targetLang}` } };
     const sign = hash.md5Hex(`${appid}${fromText}${salt}${secretKey}`);
     return {
-        url: 'https://fanyi-api.baidu.com/api/trans/vip/translate',
+        url: BAIDU_ENDPOINT,
         method: 'POST',
         contentType: 'application/x-www-form-urlencoded',
         headers: {},
@@ -582,7 +595,7 @@ export function buildYoudaoRequest({ appid, secretKey, fromText, sourceLang, tar
         `${appid}${youdaoTruncate(fromText)}${salt}${curtime}${secretKey}`
     );
     return {
-        url: 'https://openapi.youdao.com/api',
+        url: YOUDAO_ENDPOINT,
         method: 'POST',
         contentType: 'application/x-www-form-urlencoded',
         headers: {},

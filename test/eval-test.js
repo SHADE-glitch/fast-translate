@@ -1004,6 +1004,10 @@ global.testRunnerPromise = (async () => {
                     w.destroy();
                     return { success: false, error: "Dict card showed an empty example line" };
                 }
+                if (w._dictExHeader.visible !== true) {
+                    w.destroy();
+                    return { success: false, error: "Dict card did not show the examples section header" };
+                }
                 // Synonyms section (English-only): header + one row, hidden slot
                 // beyond the data.
                 if (w._dictSynHeader.visible !== true || w._dictSynRows[0].visible !== true) {
@@ -1085,8 +1089,10 @@ global.testRunnerPromise = (async () => {
 
         // Test 3k: auto-direction. A word whose detected language matches the
         // configured target flips so the result lands in the other language;
-        // prose and AUTO sources are left alone. _buildRequestSpec must consume
-        // the effective direction (asserted via the Google URL, no network).
+        // prose is left alone. An AUTO source cannot be promoted into the target
+        // slot, so it flips within the ZH<->EN pair instead. _buildRequestSpec
+        // must consume the effective direction (asserted via the Google URL, no
+        // network).
         {
             const savedSource = indicator._source_lang;
             const savedTarget = indicator._target_lang;
@@ -1106,7 +1112,21 @@ global.testRunnerPromise = (async () => {
                 if (d.source !== "ZH" || d.target !== "EN-US") {
                     return { success: false, error: "Prose must keep the configured direction, got " + d.source + "->" + d.target };
                 }
+                // AUTO source: an English word under AUTO->EN would echo, so it
+                // flips to EN->ZH; a Chinese word is left to translate ZH->EN.
+                indicator._source_lang = "AUTO";
+                indicator._target_lang = "EN-US";
+                d = indicator._effectiveDirection("hello");
+                if (d.source !== "EN" || d.target !== "ZH") {
+                    return { success: false, error: "AUTO->EN English word should flip to EN->ZH, got " + d.source + "->" + d.target };
+                }
+                d = indicator._effectiveDirection("银行");
+                if (d.source !== "AUTO" || d.target !== "EN-US") {
+                    return { success: false, error: "AUTO->EN Chinese word must stay AUTO->EN-US, got " + d.source + "->" + d.target };
+                }
                 // Wiring: the Google request must carry the effective direction.
+                indicator._source_lang = "ZH";
+                indicator._target_lang = "EN-US";
                 indicator._translation_service = 1; // Google
                 const spec = indicator._buildRequestSpec("hello", () => {}, indicator._effectiveProvider("hello"));
                 if (!spec || spec.url.indexOf("sl=en&tl=zh") === -1) {
@@ -1165,6 +1185,40 @@ global.testRunnerPromise = (async () => {
                 indicator._source_lang = savedSource;
                 indicator._target_lang = savedTarget;
                 indicator._translation_service = savedService;
+                if (w) { try { w.destroy(); } catch (_e) {} }
+                if (indicator._floatingWindow) {
+                    try { indicator._floatingWindow.destroy(); } catch (_e) {}
+                    indicator._floatingWindow = null;
+                }
+            }
+        }
+
+        // Test 3m: when the configured source is AUTO the header shows the
+        // language the reply actually detected instead of a permanent "Auto",
+        // and a source that is already concrete is never overwritten.
+        {
+            let w = null;
+            try {
+                const FloatingTranslationWindow = indicator.FloatingTranslationWindow;
+                w = new FloatingTranslationWindow("银行", "bank", "AUTO", "EN");
+                if (String(w._srcLang).toUpperCase() !== "AUTO") {
+                    return { success: false, error: "Detected-source: header should start at AUTO" };
+                }
+                w.applyDetectedSource("zh-CN");
+                if (w._srcLang !== "ZH") {
+                    return { success: false, error: "Header did not adopt the detected language: " + w._srcLang };
+                }
+                if (w._title.text.indexOf("ZH") === -1 || w._title.text.indexOf("AUTO") !== -1) {
+                    return { success: false, error: "Title text did not follow the detected language: " + w._title.text };
+                }
+                // A later detection must not clobber a concrete source.
+                w.applyDetectedSource("en");
+                if (w._srcLang !== "ZH") {
+                    return { success: false, error: "A concrete source must not be overwritten: " + w._srcLang };
+                }
+            } catch (e) {
+                return { success: false, error: "Detected-source test failed: " + e.message };
+            } finally {
                 if (w) { try { w.destroy(); } catch (_e) {} }
                 if (indicator._floatingWindow) {
                     try { indicator._floatingWindow.destroy(); } catch (_e) {}

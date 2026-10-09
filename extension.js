@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, mergeEnrichedDict, baseLangCode, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -78,12 +78,17 @@ const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
 // Google returns far more than this (up to ~20 terms per part of speech, ~30
 // examples), so these are the display cut, not the provider's limit.
 const DICT_MAX_POS = 6;
-const DICT_MAX_TERMS = 15;
+const DICT_MAX_TERMS = 20;
 const DICT_MAX_EXAMPLES = 5;
 const DICT_MAX_SYN_POS = 2;
 const DICT_MAX_SYN_WORDS = 12;
 const DICT_MAX_DEF_POS = 2;
 const DICT_MAX_DEFS_PER_POS = 2;
+
+// Best-effort reverse-lookup budget for enriching a ZH->EN dictionary card
+// (see _enrichZhToEnDict). Shorter than SAFETY_TIMEOUT_MS: the forward card is
+// already on screen, so a slow enrich is dropped rather than left hanging.
+const DICT_ENRICH_TIMEOUT_MS = 6000;
 
 // Part-of-speech labels, translated. Built lazily and memoised because
 // gettext's domain is bound during enable(): a module-level _() call would run
@@ -521,8 +526,18 @@ var FastTranslate = GObject.registerClass(
                     if (w) {
                         try {
                             if (toText && toText.trim() !== "") {
-                                if (dict && dict.isDictionary) w.setDictionary(dict);
-                                else w.setTargetText(toText);
+                                if (dict && dict.isDictionary) {
+                                    w.setDictionary(dict);
+                                    this._enrichZhToEnDict(dict, useDir, (enriched) => {
+                                        try {
+                                            if (this._destroyed || this._floatingWindow !== w || w._winDestroyed) return;
+                                            if (enriched && enriched !== dict) w.setDictionary(enriched);
+                                        } catch (_e) {}
+                                    });
+                                } else {
+                                    w.setTargetText(toText);
+                                }
+                                if (dict && dict.detectedLang) w.applyDetectedSource(dict.detectedLang);
                             } else {
                                 w.setErrorState(errMsg || _('Translation failed — please try again.'));
                             }
@@ -676,8 +691,21 @@ var FastTranslate = GObject.registerClass(
                         const dismissedByUser = !!(myWin && myWin._userDismissed);
                         if (myWin && this._floatingWindow === myWin) {
                             try {
-                                if (dict && dict.isDictionary) myWin.setDictionary(dict);
-                                else myWin.setTargetText(toText);
+                                if (dict && dict.isDictionary) {
+                                    myWin.setDictionary(dict);
+                                    // A ZH->EN lookup carries only the bilingual
+                                    // term list; enrich it from a reverse lookup
+                                    // once the card is already on screen.
+                                    this._enrichZhToEnDict(dict, effDir, (enriched) => {
+                                        try {
+                                            if (this._destroyed || this._floatingWindow !== myWin || myWin._winDestroyed) return;
+                                            if (enriched && enriched !== dict) myWin.setDictionary(enriched);
+                                        } catch (_e) {}
+                                    });
+                                } else {
+                                    myWin.setTargetText(toText);
+                                }
+                                if (dict && dict.detectedLang) myWin.applyDetectedSource(dict.detectedLang);
                             } catch (_e) {}
                         }
                         if (!dismissedByUser &&
@@ -742,10 +770,76 @@ var FastTranslate = GObject.registerClass(
         // fields on every settings change). For a single word whose detected
         // language equals the configured target, the pair is flipped so the
         // result lands in the other language (English word while configured
-        // ZH->EN-US yields EN->ZH). Prose and AUTO sources are left alone; see
-        // resolveDirection() in translation-helper.js.
+        // ZH->EN-US yields EN->ZH; an AUTO source flips within the ZH<->EN
+        // pair). Prose is left alone; see resolveDirection() in
+        // translation-helper.js.
         _effectiveDirection(fromText) {
             return resolveDirection(this._source_lang, this._target_lang, fromText);
+        }
+
+        // Google returns synonyms, monolingual definitions and examples only
+        // for English headwords, so a ZH->EN word lookup arrives with just its
+        // bilingual term list. Enrich it by looking the English translation
+        // back up EN->ZH and merging the sections the forward reply could not
+        // carry (see mergeEnrichedDict). Best-effort and out-of-band: the
+        // forward card is already on screen, so any failure — timeout, non-200,
+        // parse error — simply leaves it as-is. onDone always runs exactly once
+        // with either the enriched or the original dictionary.
+        _enrichZhToEnDict(forwardDict, effDir, onDone) {
+            const done = (d) => { try { onDone(d); } catch (_e) {} };
+            try {
+                if (this._destroyed || !this._httpSession) return done(forwardDict);
+                if (!forwardDict || !forwardDict.isDictionary) return done(forwardDict);
+                // Only when the headword is Chinese and the target is English —
+                // the one shape whose reverse lookup is the rich direction.
+                const detected = baseLangCode(String(forwardDict.detectedLang || '').toUpperCase());
+                if (detected !== 'ZH' || baseLangCode(effDir?.target) !== 'EN')
+                    return done(forwardDict);
+                // Nothing to add if the forward reply already carried them.
+                if ((forwardDict.synonyms || []).length > 0
+                    || (forwardDict.definitions || []).length > 0)
+                    return done(forwardDict);
+                const head = forwardDict.translation;
+                if (!head || !looksLikeWord(head)) return done(forwardDict);
+
+                const spec = buildGoogleRequest('EN', 'ZH', head);
+                const message = Soup.Message.new(spec.method, spec.url);
+                if (!message) return done(forwardDict);
+                message.set_request_body_from_bytes(spec.contentType, new GLib.Bytes(spec.body));
+                for (const name in spec.headers)
+                    message.request_headers.replace(name, spec.headers[name]);
+
+                // Own cancellable and watchdog: this must never disturb the
+                // shared floating request's seq/cancellable state.
+                const cancellable = new Gio.Cancellable();
+                const state = { settled: false };
+                const watchdogId = GLib.timeout_add(GLib.PRIORITY_DEFAULT,
+                    DICT_ENRICH_TIMEOUT_MS, () => {
+                        if (state.settled) return GLib.SOURCE_REMOVE;
+                        state.settled = true;
+                        try { cancellable.cancel(); } catch (_e) {}
+                        done(forwardDict);
+                        return GLib.SOURCE_REMOVE;
+                    });
+                this._httpSession.send_and_read_async(message, GLib.PRIORITY_DEFAULT,
+                    cancellable, (session, result) => {
+                        if (state.settled) return; // watchdog already answered
+                        state.settled = true;
+                        try { GLib.Source.remove(watchdogId); } catch (_e) {}
+                        let merged = forwardDict;
+                        try {
+                            const bytes = session.send_and_read_finish(result);
+                            if (message.status_code === 200) {
+                                const json = JSON.parse(
+                                    new TextDecoder('utf-8').decode(bytes.get_data()));
+                                merged = mergeEnrichedDict(forwardDict, parseGoogleDict(json));
+                            }
+                        } catch (_e) {}
+                        done(merged);
+                    });
+            } catch (_e) {
+                done(forwardDict);
+            }
         }
 
         // Describe the outgoing request for the configured provider as plain
@@ -1025,7 +1119,12 @@ var FastTranslate = GObject.registerClass(
                             }
                             if (parsed.text && parsed.text.trim() !== "") {
                                 if (useCache) this._cacheSet(indepCacheKey, parsed.text);
-                                callback(parsed.text, undefined, dict && dict.isDictionary ? dict : null);
+                                // Hand the whole Google dictionary to the caller
+                                // (not only dictionary-shaped replies) so a prose
+                                // reply's detectedLang is available too; every
+                                // consumer guards on dict.isDictionary before
+                                // rendering a card. Non-Google leaves dict null.
+                                callback(parsed.text, undefined, dict);
                             } else {
                                 failIfCurrent(this._providerErrorText(parsed.error, provider));
                             }
@@ -1881,6 +1980,11 @@ class FloatingTranslationWindow {
             this._dictTermsLabels.push(termsL);
         }
 
+        // Examples section. Header mirrors the Synonyms/Definitions sections so
+        // the example sentences are not just a bare run of italic lines.
+        this._dictExHeader = new St.Label({ text: _('Examples'),
+            style_class: 'translate-dict-section', visible: false });
+        card.add_child(this._dictExHeader);
         this._dictExLabels = [];
         for (let i = 0; i < DICT_MAX_EXAMPLES; i++) {
             const exL = wrap(new St.Label({ text: '', style_class: 'translate-dict-ex' }));
@@ -1956,6 +2060,7 @@ class FloatingTranslationWindow {
             if (i < examples.length) { label.text = examples[i]; label.visible = true; }
             else label.visible = false;
         }
+        this._dictExHeader.visible = examples.length > 0;
 
         const syns = (dict.synonyms || []).slice(0, DICT_MAX_SYN_POS);
         let synShown = false;
@@ -2215,6 +2320,23 @@ class FloatingTranslationWindow {
         } catch (_e) {}
     }
 
+    // The reply carries the language Google actually detected (e.g. 'zh-CN').
+    // When the header still reads AUTO — the configured source was left
+    // untouched by auto-direction — replace it with the concrete language so
+    // the title matches the translation instead of showing a placeholder. A
+    // no-op once the displayed source is concrete (a swap or a flip already
+    // set it). The code is normalised to the base form the labels expect
+    // ('zh-CN' -> 'ZH').
+    applyDetectedSource(code) {
+        try {
+            if (this._winDestroyed || !code) return;
+            if (String(this._srcLang).toUpperCase() !== 'AUTO') return;
+            const base = baseLangCode(String(code).toUpperCase());
+            if (!base) return;
+            this.refreshLangs(base, this._tgtLang);
+        } catch (_e) {}
+    }
+
     destroy() {
         if (this._winDestroyed) return; // idempotent: guard before setting the flag
         this._winDestroyed = true;
@@ -2248,6 +2370,7 @@ class FloatingTranslationWindow {
         this._dictPosLabels = null;
         this._dictTermsLabels = null;
         this._dictExLabels = null;
+        this._dictExHeader = null;
         this._dictSynHeader = null;
         this._dictSynRows = null;
         this._dictSynPosLabels = null;

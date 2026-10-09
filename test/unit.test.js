@@ -1,7 +1,7 @@
 import assert from "assert";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, baseLangCode, detectLang, resolveDirection, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, baseLangCode, detectLang, resolveDirection, mergeEnrichedDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
 
 // Real Google `translate_a/single` replies captured live on 2026-10-09 (see the
 // fixtures' provenance note). They pin parseGoogleDict against the provider's
@@ -531,8 +531,20 @@ assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello world"), { source:
     "prose is never flipped");
 assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "你好！"), { source: "ZH", target: "EN-US" },
     "punctuated CJK is prose");
-assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello"), { source: "AUTO", target: "EN-US" },
-    "an AUTO source cannot be swapped into the target slot");
+// AUTO source: the pair has no second member to fall back to, so the flip
+// lands in the only pair detectLang understands (ZH<->EN).
+assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello"), { source: "EN", target: "ZH" },
+    "an English word under AUTO->EN flips to EN->ZH instead of echoing");
+assert.deepStrictEqual(resolveDirection("AUTO", "EN", "银行"), { source: "AUTO", target: "EN" },
+    "a Chinese word under AUTO->EN is left alone");
+assert.deepStrictEqual(resolveDirection("AUTO", "ZH", "hello"), { source: "AUTO", target: "ZH" },
+    "an English word under AUTO->ZH is left alone (it translates EN->ZH)");
+assert.deepStrictEqual(resolveDirection("AUTO", "ZH", "爱"), { source: "ZH", target: "EN" },
+    "a Chinese word under AUTO->ZH flips to ZH->EN instead of echoing");
+assert.deepStrictEqual(resolveDirection("AUTO", "ES", "hello"), { source: "AUTO", target: "ES" },
+    "AUTO flips only within the ZH/EN pair");
+assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello world"), { source: "AUTO", target: "EN-US" },
+    "AUTO never flips prose");
 assert.deepStrictEqual(resolveDirection("EN", "EN-US", "hello"), { source: "EN", target: "EN-US" },
     "no self-swap when source and detected already agree");
 assert.deepStrictEqual(resolveDirection("EN", "ZH", "爱"), { source: "ZH", target: "EN" },
@@ -545,6 +557,39 @@ assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "123"), { source: "ZH", t
     resolveDirection(s, t, "hello");
     assert.strictEqual(s, "ZH");
     assert.strictEqual(t, "EN-US");
+}
+
+// mergeEnrichedDict: fill only the sections the forward reply could not carry.
+{
+    const forward = {
+        translation: "bank", phonetic: "yínháng", detectedLang: "zh-CN",
+        entries: [{ pos: "noun", terms: ["bank"] }],
+        synonyms: [], definitions: [], examples: [], isDictionary: true,
+    };
+    const reverse = {
+        translation: "银行", phonetic: "bæŋk", detectedLang: "en",
+        entries: [{ pos: "noun", terms: ["银行"] }],
+        synonyms: [{ pos: "noun", words: ["depository"] }],
+        definitions: [{ pos: "noun", defs: [{ text: "a financial institution", example: "the bank" }] }],
+        examples: ["I went to the bank."], isDictionary: true,
+    };
+    const merged = mergeEnrichedDict(forward, reverse);
+    assert.deepStrictEqual(merged.synonyms, reverse.synonyms, "empty forward synonyms are filled");
+    assert.deepStrictEqual(merged.definitions, reverse.definitions, "empty forward definitions are filled");
+    assert.deepStrictEqual(merged.examples, reverse.examples, "empty forward examples are filled");
+    assert.strictEqual(merged.translation, "bank", "the forward translation is preserved");
+    assert.strictEqual(merged.phonetic, "yínháng", "the forward phonetic is preserved");
+    assert.deepStrictEqual(merged.entries, forward.entries, "the forward entries are preserved");
+
+    // A forward reply that already has the sections wins; the reverse is ignored.
+    const rich = { ...forward, synonyms: [{ pos: "verb", words: ["keep"] }] };
+    assert.deepStrictEqual(mergeEnrichedDict(rich, reverse).synonyms, rich.synonyms,
+        "existing forward synonyms are never overwritten");
+
+    // Defensive: a missing reverse or a non-dictionary forward is returned as-is.
+    assert.strictEqual(mergeEnrichedDict(forward, null), forward);
+    const notDict = { isDictionary: false };
+    assert.strictEqual(mergeEnrichedDict(notDict, reverse), notDict);
 }
 
 console.log("✅ auto-direction tests passed successfully!\n");

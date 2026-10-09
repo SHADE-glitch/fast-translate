@@ -411,9 +411,14 @@ export function detectLang(text) {
  * ('EN', not 'EN-US') so Google never receives a regional source code; the new
  * target is the old source, which the source enum keeps regional-free.
  *
- * Left unchanged when: the input is prose, the language is unrecognised, the
- * configured source is AUTO (it cannot become a target), or the pair is
- * already same-language.
+ * An AUTO source cannot be promoted into the target slot, so it is handled
+ * separately: when the detected language already equals the configured target
+ * the request would echo the input back, so it is flipped into the only pair
+ * detectLang understands — ZH<->EN — and the counterpart becomes the target
+ * (English word while configured AUTO->EN yields EN->ZH).
+ *
+ * Left unchanged when: the input is prose, the language is unrecognised, or
+ * the pair is already same-language.
  * @param {?string} sourceLang
  * @param {?string} targetLang
  * @param {?string} text
@@ -424,10 +429,42 @@ export function resolveDirection(sourceLang, targetLang, text) {
     if (!looksLikeWord(text)) return unchanged;
     const detected = detectLang(text);
     if (!detected) return unchanged;
-    if (String(sourceLang).toUpperCase() === 'AUTO') return unchanged;
-    if (baseLangCode(targetLang) === detected && baseLangCode(sourceLang) !== detected)
-        return { source: baseLangCode(targetLang), target: sourceLang };
+    const tgt = baseLangCode(targetLang);
+    if (String(sourceLang).toUpperCase() === 'AUTO') {
+        // detected is 'ZH' or 'EN', so tgt === detected implies tgt is one of
+        // those two and the counterpart is well defined.
+        if (tgt === detected) {
+            const counterpart = detected === 'ZH' ? 'EN' : 'ZH';
+            return { source: tgt, target: counterpart };
+        }
+        return unchanged;
+    }
+    if (tgt === detected && baseLangCode(sourceLang) !== detected)
+        return { source: tgt, target: sourceLang };
     return unchanged;
+}
+
+/**
+ * Fold a reverse-direction dictionary into a forward one, filling only the
+ * sections the forward reply could not carry. Google returns synonyms,
+ * monolingual definitions and examples for English headwords only, so a
+ * ZH->EN word lookup comes back with just its bilingual term list; the caller
+ * looks the English translation back up EN->ZH and passes that reply here.
+ * Forward data always wins, so an already-rich lookup is returned untouched.
+ * Pure and defensive: a null/non-dictionary input is returned as-is.
+ * @param {Object} forward - the parsed forward dictionary
+ * @param {?Object} reverse - the parsed reverse dictionary
+ * @returns {Object} forward, with missing sections filled from reverse
+ */
+export function mergeEnrichedDict(forward, reverse) {
+    if (!forward || !forward.isDictionary || !reverse) return forward;
+    const pick = (a, b) => (Array.isArray(a) && a.length > 0) ? a : (Array.isArray(b) ? b : []);
+    return {
+        ...forward,
+        synonyms: pick(forward.synonyms, reverse.synonyms),
+        definitions: pick(forward.definitions, reverse.definitions),
+        examples: pick(forward.examples, reverse.examples),
+    };
 }
 
 /**

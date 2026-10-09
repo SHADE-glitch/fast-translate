@@ -3,8 +3,12 @@
 # 维护手册
 
 这是本 fork 的运维知识，不是用户指南——用户文档见
-[README.zh-CN.md](README.zh-CN.md)。下面每一条都是在这台机器上实测或从 shell
-源码里读出来的；没有实测过的统一标注 *(待确认)*。
+[README.zh-CN.md](README.zh-CN.md)。本文与 `docs/maintenance/` 里的每一条，都是在这台
+机器上实测或从 shell 源码里读出来的；没有实测过的统一标注 *(待确认)*。
+
+本文件是一个**路由器**。每段正文只住在一处，即 `docs/maintenance/` 下按主题分的文件，
+这样一个事实只有一个归属地。来这里是为了知道该读哪份文件，留在这里的是那三样没有别的
+归宿的内容。
 
 ## 1. 先读这一段
 
@@ -17,208 +21,68 @@
 - 唯一目标环境：**Ubuntu 26.04 + GNOME Shell 50.1 + Wayland。**用
   `gnome-shell --version` 和 `/etc/os-release` 核实过，不是假设。
 
+各内容归属：
+
+| 想查什么 | 去哪份文件 |
+|---|---|
+| 哪些东西绝不能被改回去？ | [INVARIANTS.zh-CN.md](INVARIANTS.zh-CN.md) |
+| 向平台要了什么、验证到哪一步？ | [docs/maintenance/compatibility-matrix.zh-CN.md](docs/maintenance/compatibility-matrix.zh-CN.md) |
+| 碰了哪些壳内部接口、升版怎么适配？ | [docs/maintenance/shell-internals.zh-CN.md](docs/maintenance/shell-internals.zh-CN.md) |
+| 该跑什么来证明一个改动、按什么顺序？ | [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md) |
+| CPU/RSS 怎么测才让数字有意义？ | [docs/maintenance/cost-measurement.zh-CN.md](docs/maintenance/cost-measurement.zh-CN.md) |
+| 知道但没修的问题？ | [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) |
+| 逐个提交改了什么、为什么？ | [CHANGELOG.md](CHANGELOG.md)（仅有英文版） |
+| 在本仓工作的规则（给 agent 也给人） | [AGENTS.md](AGENTS.md)（仅有英文版） |
+| 会话状态：版本、未推送、待决 | [docs/reports/STATE.md](docs/reports/STATE.md)（仅有英文版） |
+
 ## 2. 不变量：这些不要"顺手修正"
 
-| 看起来像 bug | 为什么必须保持 |
-|---|---|
-| `gettext-domain` 是 `fast-translate@tazztone.github.io`，而 `uuid` 是 `fast-translate@local` | 编译出的 `.mo` 文件名必须与 domain 对齐，改了会静默失去翻译。 |
-| 没有 `stylesheet.css`，只有 `stylesheet-light.css` + `stylesheet-dark.css` | `_loadExtensionStylesheet` 依次尝试 `${sessionMode}-${variant}.css`、`stylesheet-${variant}.css`、`${sessionMode}.css`、`stylesheet.css`，**命中第一个就停**。只有 `-light`/`-dark` 命名才会挂到 `notify::color-scheme` 的实时重载上。 |
-| `shell-version` 列 `"45"`…`"50"` | 只比大版本，见 §8。没验证过就不要加新大版本。 |
-| `metadata.json` 的 `url` 指向本 fork | 刻意为之：这是冻结上游的承接 fork。 |
-
-不改写原型、扩展代码里不用 `imports.ui.*`、不注入 shell 内部函数、没有后台定时
-器、没有自建 D-Bus 服务。所以任何失效的影响面只有本扩展自己，不会拖垮 shell 或
-邻居 fork。
+已移到 [INVARIANTS.zh-CN.md](INVARIANTS.zh-CN.md)——"不要改回去"由那份文件承载，
+而 `npm run check:log --invariants` 会直接从记录里打印 `CHANGELOG.md` 中已归档的行为
+修复，所以没有任何东西是手抄的第二份。
 
 ## 3. 依赖
 
-全部由 GNOME 自带，无需新增任何东西。
-
-| 依赖 | 本机版本 | 谁在用 | 缺失后果 |
-|---|---|---|---|
-| `gjs` | 1.88.0 | 宿主 | 加载不了 |
-| `gnome-shell` | 50.1-0ubuntu1.2 | `ui/main.js`、`panelMenu`、`popupMenu`、St/Shell | 加载不了 |
-| mutter 18（`Clutter-18`、`Meta-18`） | 随壳 | `Meta.SelectionOwner::owner-changed`、Clutter 事件/动画 | 双击拷贝失效 |
-| **`libsoup3`**（`gi://Soup?version=3.0`） | 3.6.6 | 所有 HTTP 请求 | **整个功能失效** |
-| GLib/Gio/GObject | 2.x | 含 `compute_checksum_for_string`、`compute_hmac_for_data`、`base64_encode` | 百度/有道签名失效 |
-| Pango | 1.57.0 | 只用 `Pango.WrapMode` | 换行异常 |
-| GTK4 + libadwaita | 4.22.4 / 1.9.1 | **只有 `prefs.js`** | 设置窗口打不开，**翻译照常** |
-| 图标主题（Yaru/Adwaita） | — | 弹窗与 prefs 里 9 个 `*-symbolic` 名 | 按钮画成破碎图标 |
-
-- `libsoup3` 是唯一显式钉版本的 import，也是最集中的单点故障。
-- 面板图标是按**文件路径**从 `icons/` 读的（`Gio.Icon.new_for_string`），不依赖
-  主题；只有弹窗和 prefs 的按钮图标来自主题。
-- 没有任何 CSS 声明 `font-family`，字体继承 Cantarell/Yaru。
-- **不**依赖：Python 或任何外部二进制（没有 `Gio.Subprocess`/`spawn`）、运行时
-  的 `node_modules`、任何 D-Bus 服务，以及**任何文件持久化**——翻译缓存纯内存，
-  `disable()` 即清。
+已移到 [docs/maintenance/compatibility-matrix.zh-CN.md](docs/maintenance/compatibility-matrix.zh-CN.md)，
+那里现在还写明 `shell-version` 含 45 所隐含的 libadwaita API 下限。
 
 ## 4. 测试矩阵
 
-| 命令 | 耗时 | 覆盖 | 是否写状态 |
-|---|---|---|---|
-| `npm test` | 秒级 | `translation-helper.js` 导出、`destroy()` 完整性、GLib 与 node 加密已知答案对撞、`prefs.js` 布局 | 不写 |
-| `npm run integration` | 约 2–4 分钟 | 真实无头壳：ACTIVE、面板按钮、弹窗结构、双击拷贝行为 | 不写（内存后端） |
-| `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 分钟 | 单次事件成本与空闲 CPU/RSS | 不写；JSON 落在 `~/.cache/fast-translate-perf/` |
-
-**`CHANGELOG.md` 使用的层级名**按"结论需要什么环境"定义，不按工具定义：**L0** = `npm test`（
-完全不需要 shell）、**L1** = `npm run integration` / `npm run perf`（私有总线上的是一次性无头壳）、
-**L2** = §9 真机会话验证，本仓没有任何东西能把它自动化。
-
-`npm test` **不覆盖** `extension.js` 的运行时（约 1900 行）：纯 Node 下它根本加载
-不了，因为 `gi://` 不可用。运行时路径只有 `npm run integration` 会走。
-
-`test/prefs-validator.js` 只是冒烟测试 `fillPreferencesWindow()` 不抛异常，对控件
-绑定、凭据分组都不断言。
+已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)，
+与 L0/L1/L2 证据层级、以及"新守卫必须先被看到失败"的规则放在一起。
 
 ## 5. 无头 harness
 
-`test/integration.sh` 与 `test/perf-probe.sh` 用同一套配方。**改配方必须同时改两
-处。**
-
-```
-dbus-run-session  +  GSETTINGS_BACKEND=memory  +  XDG_DATA_HOME=<tmp>/data（符号链接到本仓库）
-XDG_RUNTIME_DIR=<tmp>/runtime  +  --headless --wayland-display=wayland-<唯一名> --unsafe-mode
-```
-
-- 光有 `dbus-run-session` **不算写隔离**：dconf 写入由真实 `XDG_CONFIG_HOME` 服务，
-  会落进 `~/.config/dconf/user`。让它真正不写的是 `GSETTINGS_BACKEND=memory`。这是
-  安全属性而不是整洁问题——`eval-test.js` 会强制 set 本扩展 schema 的三个键。
-- 内存后端下 `enabled-extensions` 是 schema 默认值（空），`gnome-extensions enable`
-  传不到嵌套壳。所以由 `test/bootstrap.js` 走壳自己的 `_callExtensionInit` →
-  `_callExtensionEnable`，顺带把样式表真实加载一遍。
-- GNOME 50 上提供 `org.gnome.Shell.Eval` 的是 `--unsafe-mode`（不是 `--devkit`），
-  且它不出现在 `--help-all` 里。
-- **没有** Eval 的 shell 会返回 `(false, ...)` 且**退出码为 0**。所以要轮询回复里的
-  `(true,`；只测退出码会立刻"成功"，然后静默把调用打到别的进程上。
-- `ExtensionState`：`ACTIVE 1, INACTIVE 2, ERROR 3, OUT_OF_DATE 4, INITIALIZED 6`。
-  `INITIALIZED` 表示对象已存在但 `extension.js` **尚未** import，`stateObj` 还是
-  undefined；而 `createExtensionObject` 压根不设 `state`，所以轮询 `lookup(uuid)`
-  是否为真值不够，要轮询 `state !== undefined`。
-- 在 `bash -c '...'` 体内不能出现未转义的撇号：它会截断字符串，剩下的部分跑到外层
-  shell 执行。这事真发生过一次，表现是一条莫名其妙的 `trap: usage`。
-- 跑完检查有没有遗留的嵌套壳：`pgrep -af 'gnome-shell --headless'`。每个占约
-  230 MB 和若干 CPU，而且会污染你自己的测量。
+已移到 [docs/maintenance/cost-measurement.zh-CN.md](docs/maintenance/cost-measurement.zh-CN.md)
+——隔离配方，以及那些"曾产出看起来正确的错误结果"的陷阱。
 
 ## 6. `test/eval-test.js` 里的脆弱断言
 
-改弹窗结构前先 grep 锚点；行号会漂。
-
-| 锚点 | 钉住的东西 |
-|---|---|
-| `menuItems.length !== 1` | 面板菜单只有 Settings 一项 |
-| `w._copyBtn.opacity !== 110` / `!== 255` | 复制按钮禁用态/可用态外观 |
-| `_destLabel.style_class.indexOf('error')` | 错误样式既要是加上，也要在重试后清掉 |
-| `children.length < 6` | 窗口 actor 的子节点数量 |
-| `children[0]` / `children[5].get_children()[0]` | header 是第一个子节点；动作行是第 6 个，其中复制按钮排第一 |
-| `style_class !== 'translate-floating-overlay'` / `'...-window'` | 类名字符串**全等**——再追加第二个类就会让测试失败 |
-| `wantBg` 深色 `0x36363a` / 浅色 `0xffffff` | 变体样式表确实生效 |
-| `padTop !== 24` | 证明 `stylesheet-base.css` 通过 `@import` 加载成功 |
-| overlay 与 work area | 弹窗覆盖的是自己显示器的 work area，不是整个 stage |
-| `_currentTarget.indexOf('same')` | 同语言的卡片必须带解释——它耦合的是**英文 msgid**，翻译这句话会让断言失败 |
-| ⇄ 之后 `armCalls === 0` | swap 路径必须重新挂 12 秒看门狗 |
-| `_dismiss()` 后 `w.overlay.reactive !== false` | 被关掉的遮罩必须立刻停止吞点击 |
-| 等 800ms 后 `w._winDestroyed` | 销毁不能只依赖动画回调（无头环境永远不完成） |
-
-### 已生效的请求前置守卫
-
-每条判定都是 `translation-helper.js` 里的纯函数，既在 Node 里做单元测试，也在壳内
-被真实触发（`test/eval-test.js` 的 Test 3b–3h）：
-
-| 纯函数 | 挡住的问题 |
-|---|---|
-| `swapLanguages` | ⇄ 把 `AUTO` 放进目标槽——没有服务商接受，且污染会持续到用户改动设置 |
-| `safeTruncate`、`codePointLength` | `slice(0, limit)` 切半代理对 → `URIError` 被原样显示成 "Error: URI malformed"；以及 emoji 被数成两个字符 |
-| `isSameLanguage` | 花一次网络往返把原文原样还回去（只在两码完全相等时拦截：`EN-GB -> EN-US` 是正当请求） |
-| `hasVisibleText` | `trim()` 覆盖不到 U+200B–U+200F 与 U+2060，于是一串不可见字符也会发出请求 |
-
-`_dismiss()` 另外会置 `_userDismissed`，用来阻止晚到的译文在用户已经关掉卡片后
-仍改写剪贴板；后台模式不受影响，因为它根本不显示卡片。
+已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)，
+与请求前置守卫表、以及那条目前守不住生产分支的守卫放在一起。
 
 ## 7. 实测成本基线
 
-`npm run perf`，GNOME 50.1，隔离无头壳，2026-10-01。**无头是虚拟显示器上的软件
-渲染，绝对值不能换算到真实会话**，只有相对结论站得住。1 tick = 主线程 10 ms CPU。
-
-| 事件 | 实测 |
-|---|---|
-| 启动：import + 构造 | 2–3 ticks，约 21 ms wall |
-| 启动：样式表加载 + `enable()` | 2 ticks，约 22 ms wall |
-| 热启用（含被推迟的 idle） | 4–11 ticks，61–79 ms wall |
-| disable | 1–2 ticks，11–28 ms wall |
-| 构造一个 `FloatingTranslationWindow` | 4.83–4.86 ms |
-| 翻译缓存打满（200 次 × 2000 字符） | 收敛到 `size=50`、125 350 字符，**+108…236 KB** |
-| 一次剪贴板事件（同步部分） | 10–22 µs |
-| 空闲 CPU | 见下 |
-
-- **开关周期无泄漏。** 20 轮、每 5 轮采样：第 5 轮 `+4088 KB`，之后
-  `2660 / 2448 / 2908 KB`，而且第 20 轮的绝对 RSS 比第 5 轮**还低**。这是分配器
-  arena 爬坡后饱和，不是线性泄漏。早前这版探针一度报出可疑的 `+3 MB`，原因纯粹是
-  循环前后的沉降时间不对称（前 6s 后 4s）——改这里时务必两侧相等。
-- **空闲 CPU 处在分辨率极限。** 交替的 4 × 30s A/B/A/B 窗口跑两次：一次
-  `启用 - 关闭 = +4.0 ticks`（组内波动 1），另一次 `+0.5`（波动 2）。诚实的说法是
-  **0 – 0.13% 单核**，无法稳定与壳自身地板分离。之前"实测为零"的表述说过头了。
-- **空闲 RSS 同样分不出来**：gc 后启用态对比未加载态，一次 `+1792 KB`，一次
-  `-28 KB`。
-- 无头测不到、但真正决定你体感延迟的两项：每次复制的 `Clipboard.get_text()`
-  Wayland 往返，以及服务商的网络 RTT。
+已移到 [docs/maintenance/cost-measurement.zh-CN.md](docs/maintenance/cost-measurement.zh-CN.md)，
+与产出它的采样规则同处一份文件。无头的绝对值永远不能换算到真实会话，只有相对结论站得住。
 
 ## 8. 小版本更新的失效面
 
-GNOME 的版本闸门**只比大版本**——`extensionSystem.js` 的 `_isOutOfDate()` 是
-`shell-version.some(v => v.startsWith(PACKAGE_VERSION.split('.')[0]))`。所以
-`50.2`、`50.3`… 会**不带任何警告**地加载本扩展，真实不兼容只会以运行时 JS 错误
-出现。在 Ubuntu 上，多数"小版本更新"其实是上游号不变、Ubuntu 修订号变并带着下游
-补丁（`extensionSystem.js` 自己就有 `Desktop.is('ubuntu')` 分支）。
-
-按命中概率排序，附你会看到的症状：
-
-1. **剪贴板链路** — `global.display.get_selection()`、
-   `Meta.SelectionOwner::owner-changed`、`St.Clipboard.get_text()`，加上
-   50ms–2s 同文双拷判定。Wayland 剪贴板的 offer/owner 语义是 mutter 里改动最活跃的
-   部分之一。已有特性检测兜底，最坏是触发**静默失效**，不会崩。
-   *症状：面板图标在，双击 Ctrl+C 没反应。*
-2. **`global.stage.connect('captured-event')`** 抓 Esc — Clutter 输入路由，只在弹窗
-   打开期间挂。*症状：Esc 失灵。*
-3. **`PanelMenu.Button` / `PopupMenu.PopupMenuItem` / `Main.panel.statusArea`** 以及
-   变体样式表文件名约定。*症状：`enable()` 抛错、面板图标消失（只它自己）。若只是
-   Yaru/Adwaita 改了类名，则纯属外观。*
-4. **GI 绑定形状**，例如 `GLib.compute_hmac_for_data` 收 3 个参数（实测并写在
-   `signing.js` 里）。*只影响百度/有道签名，DeepL 与 Google 不签名。*
-5. **`prefs.js` 用到的 libadwaita 控件** — Ubuntu 会独立升 libadwaita。*症状：设置
-   窗口打不开，翻译照常，可用 `dconf write` 绕过。*
-6. **服务商改 API / 换域名** 比上面任何一条都更容易先坏，而且百度与有道的语言表还
-   是 *(待确认)*，见 §13。
-
-跨到 **GNOME 51** 是另一回事：直接 `OUT_OF_DATE` 完全不加载，直到往 `shell-version`
-里加上 `"51"`。
-
-分诊顺序：
-
-```bash
-gnome-extensions info fast-translate@local          # 期望 State: ACTIVE
-journalctl --user -b --no-pager -o cat _PID=$(pgrep -x gnome-shell) \
-  | grep -iE 'fast-translate|JS ERROR' | tail -40
-```
-
-必须按 `_PID=` 过滤——上一次登录的壳会写进同一段 boot 日志。然后看症状：有图标但
-没反应 ⇒ 第 1/2 条；没图标 ⇒ 第 3 条。
+已移到 [docs/maintenance/shell-internals.zh-CN.md](docs/maintenance/shell-internals.zh-CN.md)，
+那份文件现在同时是按 file:line 列出的接口清单和升级适配手册。
 
 ## 9. 真机会话验证
 
-- `scripts/reload.sh` 只做 disable+enable。GNOME 50 上这**不会**重新 import 改过的
-  `extension.js`（ESM 模块缓存是进程级的），所以它永远验证不了代码改动。要重启
-  壳——Wayland 下意味着注销再登录。
-- 日志：`journalctl -f -o cat /usr/bin/gnome-shell`，或按上面的 `_PID=` 过滤。
-- 读本扩展自己的键要带 schema 目录：
-  `GSETTINGS_SCHEMA_DIR=$PWD/schemas gsettings get org.gnome.shell.extensions.fast-translate <key>`。
-- 四件事只能真机手工验：浅/深色实时切换后的弹窗、Esc、多显示器定位、以及翻译延迟
-  （它受网络支配）。
+已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)。
+值得在这里重说一遍的那一条：GNOME 50 上 `scripts/reload.sh` 验证不了代码改动——
+disable/enable 不会重新 import 改过的 ES 模块。
 
 ## 10. 打包与翻译
 
 - `scripts/pack.sh` 在临时目录里构建（唯一安全方式），但它还会创建 `venv/` 并需要
   联网，且传了 `--podir=po`。
+- `pack.sh` 拷的是一份**显式清单**，所以 `docs/`、`test/`、`scripts/` 和根目录的
+  `*.md` 永远进不了 zip。往仓库里加维护文档，对发什么东西没有任何影响。
 - **本机没有 `msgfmt`/`xgettext`**，所以只要 `po/` 存在，`gnome-extensions pack`
   就会硬失败。仓库里没有 `locale/` 也没有 `.mo`，因此翻译从未加载过：每个 `_()`
   都直接返回 msgid。为将来的打包版修 msgid 仍然有意义，但 `scripts/update-po*.sh`
@@ -242,6 +106,8 @@ journalctl --user -b --no-pager -o cat _PID=$(pgrep -x gnome-shell) \
 - 扩展不写文件、不留剪贴板历史；缓存纯内存且 `disable()` 即清。
 - 若干错误分支会把服务商返回的 detail 文本拼进消息里并落到 journal。应当假定剪贴板
   内容可能出现在日志中。
+- 本节是**维护者**的边界。至于*用户*被告知了什么，是另一个仍未关闭的缺口——见
+  [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) 第 5 节。
 
 ## 12. 平台事实（每条都在 50.1 上验证过）
 
@@ -265,53 +131,12 @@ journalctl --user -b --no-pager -o cat _PID=$(pgrep -x gnome-shell) \
 
 ## 13. 待办与未确认
 
-- 百度与有道的语言表是**故意不完整**的：两家官方文档的表格由客户端渲染，读不回来，
-  也没有凭据去探测。缺码会返回清晰的本地提示，而错码会返回一个令人费解的 HTTP 200
-  错误体。拿到真实凭据后需重新核实。
-- 百度/有道架构完成但**从未端到端跑过**——没有凭据。腾讯（TC3-HMAC-SHA256）、阿里
-  云（HMAC-SHA1 RPC）、华为云（SDK-HMAC-SHA256）不需要新增依赖：GLib 原生覆盖。
-- 弹窗的真机行为（§9），以及那约 40 ms/30s 的空闲增量来源（若用更多窗口能分辨的
-  话）仍未归因。
-- **RTL 属未验证，不是已修复。** 从 `libst` 里读不到 `text-align` 的取值表，Yaru 的
-  CSS 也没有可参照用法，因此 St 是否接受 `text-align: start` 是未知的。警告标签仍
-  保持 `left` 对齐，标题在 RTL 语言对里也仍指向 `➜`。在证明该取值被接受之前不要改。
-- **各区域用自己的上限之后，dest 面板是否还有多余空白未经测量。** 原缺陷是十几像素
-  的空白而非功能故障，在壳里断言它等于复刻私有布局推算，所以没有加专门测试；现有
-  套件只能证明无回归。真机上目的地面板是否仍留空白需要人眼确认。
-- **prefs 不按服务商过滤语言下拉。** 百度仍能在选择器里选到它映射表拒绝的 6 种
-  （ID、LT、LV、SK、SL、TR）；修法是让报错点名具体语言对，而不是藏掉选项——过滤
-  共享枚举会让这行偏好依赖服务商状态，还可能藏起用户已经存过的语言。
-- 那 5 个遗留 schema 键（`auto-copy`、`auto-paste`、`auto-translate`、
-  `keybinding-translate-clipboard`、`shortcut-enabled`）已在 schema 里加注说明，但
-  **刻意不删**：删键会丢掉用户已存的值，属于删功能。
-- **词典卡（D-021、D-023、D-025、D-028）只挂在 Google 上，且是部分实现。** 只有 Google 返回
-  词典数据；DeepL/百度不返回（有道会，但需要 key）。单个词即使当前选的是别的服务商，也会
-  自动路由到 Google（D-022，`looksLikeWord`）；整句仍用所选服务商。卡片由一组结构化
-  actor 组成——译文标题、音标、按词性分组的义项、例句，再是同义词（`d[11]`）与英文释义
-  （`d[12]`），各带自己的样式类。显示量有上限（6 个词性、20 个义项、5 条例句、2 组同义词/
-  释义），虽然 Google 给得更多。同义词与英文释义只有英文词才有：ZH→EN 的中文词前向请求两者
-  皆无，因此会再反向查一次 EN→ZH 并合并（D-028，`_enrichZhToEnDict`/`mergeEnrichedDict`），
-  卡片先出、后台补全，补查失败或超时（6s）静默保留前向卡片。复制按钮复制的是译文，不是整张卡。
-  Google 响应**不进 LRU 缓存**（单词与句子的响应形状不同），靠 2.5 s 同文本冷却兜底。
-- **自动方向（D-024、D-026、D-027）只覆盖 ZH/EN 两种语言、且只对词生效。** 当检测到的输入
-  语言等于配置的目标语言时反转方向（`resolveDirection`）；检测器只认汉字→ZH、拉丁字母→EN。
-  整句保持配置方向。`AUTO` 源另有分支：检测语言等于目标基码时改译到 ZH<->EN 的对侧（D-027），
-  消除默认 AUTO→EN 复制英文词的原样回显。卡片标题显示有效方向（D-026），源为 AUTO 时改用
-  Google 回复里的 `detectedLang` 刷新标题（D-027，`applyDetectedSource`）；⇄ 交换该显示对，
-  标题不会再与卡片不一致；交换是临时的，绝不改写配置里的 `source-lang`/`target-lang`。
-- **`looksLikeWord` 是保守启发式。** 无空白、码点 ≤ 40、无句末标点的 token 才算词。
-  因此无空格无标点的 CJK 长片段会被当成词发给 Google；代价仅是该片段由 Google 而非
-  所选服务商翻译。
-- **`curl` 看到的 Google 429 是 curl 的问题，不是扩展的问题。**
-  `translate.googleapis.com…client=gtx` 对 curl 返回 429，对 Soup（扩展用的客户端）
-  返回 200。要复现 Google 故障请用 `Soup`/`gjs` 探测，不要用 curl。扩展现已改用
-  `clients5.google.com…client=dict-chrome-ex`——即返回词典段的那个端点。
-- D-021 新增的词性 `_()` msgid 尚未进入 `po/`（缺 gettext）——今天无副作用，与整个
-  目录一致（没有任何 `.mo` 文件）。
-- `po/` 在这台机器上无法重生成（缺 gettext）。
+已移到 [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md)。
+"知道但没修"只写在那一处——不进 `CHANGELOG.md`（未修的东西没有提交可挂），也不进
+`docs/reports/AUDIT.md`（那是它自己那次提交的快照）。
 
 ## 14. 回滚
 
-一次提交只管一件事，格式为 `type: 中文摘要`。上面每个步骤都是独立提交，
-`git revert <sha>` 就精确退掉一个。`git push` 每次都需要明确决定；历史永不 rebase、
-永不改写。
+已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)
+的提交纪律一节。一行的版本：一次提交只管一件事，格式 `type: 中文摘要`，而 `git push`
+每一次都需要明确决定。

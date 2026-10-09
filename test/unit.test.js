@@ -1,6 +1,12 @@
 import assert from "assert";
 import crypto from "node:crypto";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
+import { readFileSync } from "node:fs";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
+
+// Real Google `translate_a/single` replies captured live on 2026-10-09 (see the
+// fixtures' provenance note). They pin parseGoogleDict against the provider's
+// actual positional array instead of a hand-written guess.
+const fixture = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
 
 // Node-backed stand-in for signing.js's GLib bundle. translation-helper.js must
 // stay free of gi:// imports because this file runs under plain Node, so the
@@ -79,12 +85,18 @@ console.log("✅ getFlagEmoji and formatLanguageLabel tests passed successfully!
 console.log("⏳ Running request builder tests...");
 
 // Google: URL shape, AUTO handling, form-urlencoded body (must stay "q=Hello"
-// for the existing eval-test contract)
+// for the existing eval-test contract).
+//
+// Host and client are pinned deliberately: translate.googleapis.com with
+// client=gtx answers 429 "automated queries" from this machine's proxy exit IP,
+// while clients5.google.com with client=dict-chrome-ex answers 200 for the same
+// request (measured 2026-10-09). The dt list must keep asking for the
+// dictionary sections the word card renders.
 let g = buildGoogleRequest("EN", "ES", "Hello");
 assert.strictEqual(
     g.url,
-    "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t",
-    "Google URL should encode sl/tl lowercase"
+    "https://clients5.google.com/translate_a/single?client=dict-chrome-ex&sl=en&tl=es&dt=t&dt=bd&dt=rm&dt=md&dt=ss&dt=ex",
+    "Google URL must use the clients5 dict-chrome-ex endpoint and request the dictionary sections"
 );
 assert.strictEqual(g.body, "q=Hello", "Google body must be form urlencoded q=Hello");
 assert.strictEqual(g.contentType, "application/x-www-form-urlencoded");
@@ -289,6 +301,58 @@ assert.deepStrictEqual(parseProviderResponse("deepl", null).error,
     { code: "malformed-response", detail: "deepl" }, "A null body must not throw");
 
 console.log("✅ provider registry tests passed successfully!\n");
+
+// ==========================================
+// 5b. parseGoogleDict (dictionary card)
+// ==========================================
+console.log("⏳ Running Google dictionary parser tests...");
+
+// A recognised word: dictionary sections present. Every field the card renders
+// is asserted against the real captured reply.
+const runDict = parseGoogleDict(fixture("google-dict-run.json"));
+assert.strictEqual(runDict.isDictionary, true, "run is a dictionary word");
+assert.strictEqual(runDict.translation, "跑步", "translation is the joined d[0] segments");
+assert.strictEqual(runDict.phonetic, "rən", "phonetic comes from d[0][1][3]");
+assert.strictEqual(runDict.detectedLang, "en", "detected language comes from d[2]");
+assert.strictEqual(runDict.entries[0].pos, "verb", "first POS block is verb");
+assert.ok(runDict.entries[0].terms.includes("运行"), "verb terms include 运行");
+assert.ok(runDict.entries.length >= 3, "a rich word carries several POS blocks");
+assert.strictEqual(runDict.examples[0], "Bobby set off at a run",
+    "example HTML (<b>run</b>) must be stripped to plain text");
+
+const bankDict = parseGoogleDict(fixture("google-dict-bank.json"));
+assert.strictEqual(bankDict.isDictionary, true, "bank is a dictionary word");
+assert.strictEqual(bankDict.translation, "银行");
+assert.strictEqual(bankDict.entries[0].pos, "noun");
+
+// A sentence: no dictionary sections. The parser must still yield the
+// translation and must NOT report a dictionary, so the card falls back to plain
+// translation.
+const sentence = parseGoogleDict(fixture("google-plain-sentence.json"));
+assert.strictEqual(sentence.isDictionary, false, "a sentence is not a dictionary entry");
+assert.strictEqual(sentence.translation, "河岸很陡。", "sentence translation survives");
+assert.strictEqual(sentence.phonetic, null, "no phonetic for a sentence");
+assert.deepStrictEqual(sentence.entries, [], "no entries for a sentence");
+
+// An unknown word echoes itself and carries no dictionary sections.
+const unknown = parseGoogleDict(fixture("google-plain-unknown.json"));
+assert.strictEqual(unknown.isDictionary, false, "an unknown word is not a dictionary entry");
+assert.strictEqual(unknown.translation, "asdfghqwer");
+
+// Defensive: the reply is a positional array, so a shape change must degrade to
+// a plain translation, never throw.
+assert.deepStrictEqual(parseGoogleDict(null),
+    { translation: "", phonetic: null, detectedLang: null, entries: [], examples: [], isDictionary: false },
+    "null body yields the empty shape");
+assert.strictEqual(parseGoogleDict([]).isDictionary, false, "empty array yields the empty shape");
+assert.strictEqual(parseGoogleDict([[null, null]]).translation, "",
+    "null translation segments are skipped, not stringified");
+assert.strictEqual(parseGoogleDict({}).isDictionary, false, "a non-array body yields the empty shape");
+// A dictionary block with no usable terms is dropped rather than shown empty.
+const noTerms = parseGoogleDict([[[["x", "x"]]], [["noun", [], null]], "en"]);
+assert.strictEqual(noTerms.isDictionary, false, "a term-less POS block is dropped");
+
+console.log("✅ Google dictionary parser tests passed successfully!\n");
 
 // ==========================================
 // 6. swapLanguages guard

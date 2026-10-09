@@ -942,6 +942,80 @@ global.testRunnerPromise = (async () => {
             }
         }
 
+        // Test 3i: a word renders as a dictionary card in the destination
+        // region. The card is Pango markup set on the SAME label the plain
+        // translation uses, so the height/scroll machinery is unchanged; the
+        // copy button must still copy the plain translation, not the markup.
+        {
+            let w = null;
+            try {
+                let FloatingTranslationWindow = indicator.FloatingTranslationWindow;
+                w = new FloatingTranslationWindow("bank", "银行", "EN", "ZH");
+                const dict = {
+                    translation: "银行",
+                    phonetic: "bæŋk",
+                    detectedLang: "en",
+                    // The '&' and '<' exercise escapeMarkup: a raw '<' would make
+                    // set_markup throw and land in this block's catch.
+                    entries: [
+                        { pos: "noun", terms: ["银行", "岸", "a<b&c"] },
+                        { pos: "verb", terms: ["存款"] },
+                    ],
+                    examples: ["the bank of the river"],
+                    isDictionary: true,
+                };
+                w.setDictionary(dict);
+                // get_text() returns the parsed text (markup stripped), so a
+                // literal "<b>" here would prove set_markup was never applied.
+                const shown = w._destLabel.get_text();
+                if (shown.indexOf("<b>") !== -1 || shown.indexOf("</b>") !== -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card rendered raw markup: " + shown };
+                }
+                if (shown.indexOf("bæŋk") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card lost the phonetic: " + shown };
+                }
+                if (shown.indexOf("noun") === -1 || shown.indexOf("银行") === -1 || shown.indexOf("岸") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card lost POS/terms: " + shown };
+                }
+                if (shown.indexOf("a<b&c") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card mangled an escaped term: " + shown };
+                }
+                if (shown.indexOf("the bank of the river") === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card lost the example: " + shown };
+                }
+                if (w._currentTarget !== "银行") {
+                    w.destroy();
+                    return { success: false, error: "Dict card copy target should be the plain translation, got: " + w._currentTarget };
+                }
+                if (w._loading !== false) {
+                    w.destroy();
+                    return { success: false, error: "Dict card must not be in the loading state" };
+                }
+                if (w._destLabel.style_class.indexOf('dict') === -1) {
+                    w.destroy();
+                    return { success: false, error: "Dict card did not add the 'dict' class: " + w._destLabel.style_class };
+                }
+                // Switching back to a plain translation must clear the class,
+                // or a later sentence would keep the dictionary's weight.
+                w.setTargetText("plain sentence");
+                if (w._destLabel.style_class.indexOf('dict') !== -1) {
+                    w.destroy();
+                    return { success: false, error: "Plain text did not clear the 'dict' class: " + w._destLabel.style_class };
+                }
+                w.destroy();
+                if (indicator._floatingWindow === w)
+                    indicator._floatingWindow = null;
+            } catch (e) {
+                if (w) { try { w.destroy(); } catch (_e) {} }
+                return { success: false, error: "Dict card test failed: " + e.message };
+            }
+        }
+
         // Test 4: FloatingTranslationWindow layout, centering, overlay click-to-close, Esc-to-close
         try {
             const GLib = imports.gi.GLib;

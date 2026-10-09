@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -71,6 +71,36 @@ const DISMISS_FALLBACK_MS = 500;
 // Same-text re-trigger suppression window (µs). After a floating window is
 // triggered, repeated double-copies of the SAME text are ignored for this long.
 const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
+
+// Only '&', '<' and '>' are special in Pango markup. Any provider text placed
+// into a markup string (phonetic, terms, examples) must be escaped first, or a
+// stray '<' becomes a markup parse error and an injected tag would be honoured.
+function escapeMarkup(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// Part-of-speech labels, translated. Built lazily and memoised because
+// gettext's domain is bound during enable(): a module-level _() call would run
+// before that and freeze the untranslated English. Unknown parts of speech
+// (Google returns raw English names) fall through unchanged.
+let _posLabels = null;
+function posLabel(pos) {
+    if (!pos) return '';
+    if (!_posLabels) {
+        _posLabels = {
+            noun: _('noun'), verb: _('verb'), adjective: _('adjective'),
+            adverb: _('adverb'), pronoun: _('pronoun'),
+            preposition: _('preposition'), conjunction: _('conjunction'),
+            interjection: _('interjection'), determiner: _('determiner'),
+            article: _('article'), numeral: _('numeral'),
+            abbreviation: _('abbreviation'), phrase: _('phrase'),
+        };
+    }
+    return _posLabels[String(pos).toLowerCase()] || pos;
+}
 
 class Tooltip {
     constructor(actor, text) {
@@ -474,14 +504,15 @@ var FastTranslate = GObject.registerClass(
                 // Same identity guard as the main reply path: the window that was
                 // open when swap was pressed may be gone by the time we answer.
                 const targetWin = this._floatingWindow;
-                this._translateTextIndependent(requestText, (toText, errMsg) => {
+                this._translateTextIndependent(requestText, (toText, errMsg, dict) => {
                     if (this._destroyed) return;
                     if (targetWin && this._floatingWindow !== targetWin) return;
                     const w = this._floatingWindow;
                     if (w) {
                         try {
                             if (toText && toText.trim() !== "") {
-                                w.setTargetText(toText);
+                                if (dict && dict.isDictionary) w.setDictionary(dict);
+                                else w.setTargetText(toText);
                             } else {
                                 w.setErrorState(errMsg || _('Translation failed — please try again.'));
                             }
@@ -620,7 +651,7 @@ var FastTranslate = GObject.registerClass(
             // would defeat the whole guard.
             if (sameLangPair)
                 return;
-            this._translateTextIndependent(requestText, (toText, errMsg) => {
+            this._translateTextIndependent(requestText, (toText, errMsg, dict) => {
                 if (toText && toText.trim() !== "") {
                     if (this._destroyed) return;
 
@@ -638,7 +669,10 @@ var FastTranslate = GObject.registerClass(
                         // Background mode (nothing ever shown) still copies above.
                         const dismissedByUser = !!(myWin && myWin._userDismissed);
                         if (myWin && this._floatingWindow === myWin) {
-                            try { myWin.setTargetText(toText); } catch (_e) {}
+                            try {
+                                if (dict && dict.isDictionary) myWin.setDictionary(dict);
+                                else myWin.setTargetText(toText);
+                            } catch (_e) {}
                         }
                         if (!dismissedByUser &&
                             this._settings.get_boolean('floating-auto-copy') === true) {
@@ -825,10 +859,18 @@ var FastTranslate = GObject.registerClass(
                 : '';
             const indepCacheKey = this._makeCacheKey(
                 this._translation_service, this._source_lang, this._target_lang, fromText, indepCacheExtra);
-            const indepCached = this._cacheGet(indepCacheKey);
-            if (indepCached !== undefined) {
-                try { callback(indepCached); } catch (_e) {}
-                return;
+            // Google replies are variable-shape: a word carries a dictionary
+            // payload and a sentence does not. The cache stores plain strings and
+            // evicts by .length, so rather than teach it a second value shape
+            // Google is left uncached. Its requests are small and fast, and the
+            // same-text cooldown already absorbs rapid re-triggers.
+            const useCache = providerId !== 'google';
+            if (useCache) {
+                const indepCached = this._cacheGet(indepCacheKey);
+                if (indepCached !== undefined) {
+                    try { callback(indepCached); } catch (_e) {}
+                    return;
+                }
             }
 
             const spec = this._buildRequestSpec(fromText, fail);
@@ -923,11 +965,23 @@ var FastTranslate = GObject.registerClass(
                             // Providers report their own failures inside a 200
                             // body (Baidu error_code, Youdao errorCode), so the
                             // envelope is parsed per provider instead of being
-                            // assumed to be a success.
-                            const parsed = parseProviderResponse(providerId, json);
+                            // assumed to be a success. Google additionally
+                            // carries a dictionary payload when the input is a
+                            // word; it is handed to the callback as a third
+                            // argument so the window can render a card.
+                            let parsed;
+                            let dict = null;
+                            if (providerId === 'google') {
+                                dict = parseGoogleDict(json);
+                                parsed = dict.translation
+                                    ? { text: dict.translation }
+                                    : { error: { code: 'empty-translation', detail: 'google' } };
+                            } else {
+                                parsed = parseProviderResponse(providerId, json);
+                            }
                             if (parsed.text && parsed.text.trim() !== "") {
-                                this._cacheSet(indepCacheKey, parsed.text);
-                                callback(parsed.text);
+                                if (useCache) this._cacheSet(indepCacheKey, parsed.text);
+                                callback(parsed.text, undefined, dict && dict.isDictionary ? dict : null);
                             } else {
                                 failIfCurrent(this._providerErrorText(parsed.error));
                             }
@@ -1709,21 +1763,67 @@ class FloatingTranslationWindow {
         this._setErrorUi(false);
         try {
             if (this._winDestroyed || !this._destLabel) return;
+            this._destLabel.remove_style_class_name('dict');
             this._destLabel.set_text(text);
-            // Reset stability tracker for new measurement epoch.
-            this._settleCount = 0; this._settleFp = null;
-            // Let label allocate at wrapped width first, then measure (double-idle).
+            this._afterDestTextChanged();
+        } catch (_e) {}
+    }
+
+    // Render a word's dictionary entry as a rich card in the destination
+    // region: phonetic, part-of-speech-grouped terms, then example sentences.
+    //
+    // Rendered as Pango markup into the SAME St.Label the translation uses, so
+    // the whole height/scroll machinery (_computeCaps/_applyHeightCaps) keeps
+    // working untouched — no new actors to measure. _currentTarget is set to
+    // the plain translation so the copy button copies usable text, not markup.
+    setDictionary(dict) {
+        if (!dict || !dict.isDictionary) return;
+        const markup = this._buildDictMarkup(dict);
+        this._currentTarget = dict.translation || '';
+        this.setLoading(false);
+        this._setErrorUi(false);
+        try {
+            if (this._winDestroyed || !this._destLabel) return;
+            // 'dict' drops the label's bold base weight (see stylesheet-base.css)
+            // so the <b> POS tags stand out instead of everything being bold.
+            this._destLabel.add_style_class_name('dict');
+            this._destLabel.get_clutter_text().set_markup(markup);
+            this._afterDestTextChanged();
+        } catch (_e) {}
+    }
+
+    _buildDictMarkup(dict) {
+        const MAX_POS = 4;
+        const MAX_TERMS = 6;
+        const MAX_EXAMPLES = 2;
+        const lines = [];
+        if (dict.phonetic)
+            lines.push(`<i>${escapeMarkup(dict.phonetic)}</i>`);
+        for (const entry of (dict.entries || []).slice(0, MAX_POS)) {
+            const terms = entry.terms.slice(0, MAX_TERMS).map(t => escapeMarkup(t)).join(' · ');
+            lines.push(`<b>${escapeMarkup(posLabel(entry.pos))}</b>  ${terms}`);
+        }
+        for (const example of (dict.examples || []).slice(0, MAX_EXAMPLES))
+            lines.push(`<i>${escapeMarkup(example)}</i>`);
+        return lines.join('\n');
+    }
+
+    // Shared relayout + re-measure tail for anything written into _destLabel
+    // (plain text, error text, or dictionary markup). Resets the stability
+    // tracker for a new measurement epoch and lets the label allocate at its
+    // wrapped width first, then measures on a double idle.
+    _afterDestTextChanged() {
+        this._settleCount = 0; this._settleFp = null;
+        this.actor.queue_relayout();
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (this._winDestroyed) return GLib.SOURCE_REMOVE;
             this.actor.queue_relayout();
             GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                if (this._winDestroyed) return GLib.SOURCE_REMOVE;
-                this.actor.queue_relayout();
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    if (!this._winDestroyed) this._applyHeightCaps();
-                    return GLib.SOURCE_REMOVE;
-                });
+                if (!this._winDestroyed) this._applyHeightCaps();
                 return GLib.SOURCE_REMOVE;
             });
-        } catch (_e) {}
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // Failure text in the destination region, styled as an error with the

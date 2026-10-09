@@ -79,6 +79,13 @@
     font-weight: normal;
 }
 
+/* A dictionary card reuses this label (extension.js setDictionary() renders
+   Pango markup into it). Drop the bold base weight so the <b> part-of-speech
+   tags carry the emphasis instead of every line being bold. */
+.translate-floating-text-dest.dict {
+    font-weight: normal;
+}
+
 .translate-floating-actions {
     spacing: 12px;
     margin-top: 8px;

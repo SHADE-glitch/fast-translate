@@ -109,8 +109,29 @@ export function parseLanguageName(description) {
 }
 
 /**
- * Builds a Google Translate (auth-free) request. Pure: byte-identical to the
- * previously inline logic in extension.js.
+ * Google's auth-free translate endpoint.
+ *
+ * Host/client choice is deliberate and was measured on this machine
+ * (2026-10-09): `translate.googleapis.com` with `client=gtx` answers
+ * `429 "automated queries"` from the user's proxy exit IP, while
+ * `clients5.google.com` with `client=dict-chrome-ex` answers 200 for the very
+ * same request. dict-chrome-ex is the backend Chrome's own dictionary uses, so
+ * it is the one that returns the dictionary sections below.
+ */
+const GOOGLE_TRANSLATE_ENDPOINT =
+    'https://clients5.google.com/translate_a/single?client=dict-chrome-ex';
+
+/**
+ * Builds a Google Translate (auth-free) request.
+ *
+ * The `dt` list asks for everything the endpoint can return in one round trip:
+ *   dt=t  translation segments      dt=bd  bilingual dictionary (POS + terms)
+ *   dt=rm transliteration/phonetic  dt=md  monolingual definitions
+ *   dt=ss synonyms                  dt=ex  example sentences
+ * A word comes back with the dictionary sections populated; a sentence or
+ * paragraph comes back with only `dt=t` populated. extension.js renders a
+ * dictionary card when the reply actually carries entries and a plain
+ * translation otherwise, so no client-side word/sentence heuristic is needed.
  * @param {string} sourceLang - Source code ('AUTO' allowed)
  * @param {string} targetLang - Target code
  * @param {string} fromText - Text to translate
@@ -120,7 +141,7 @@ export function buildGoogleRequest(sourceLang, targetLang, fromText) {
     const sl = sourceLang === 'AUTO' ? 'auto' : String(sourceLang).toLowerCase();
     const tl = String(targetLang).toLowerCase();
     return {
-        url: `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t`,
+        url: `${GOOGLE_TRANSLATE_ENDPOINT}&sl=${sl}&tl=${tl}&dt=t&dt=bd&dt=rm&dt=md&dt=ss&dt=ex`,
         body: buildRequestQuery({ q: fromText }),
         contentType: 'application/x-www-form-urlencoded',
     };
@@ -473,6 +494,97 @@ export function parseProviderResponse(providerId, json) {
     default:
         return { error: { code: 'unknown-provider', detail: String(providerId) } };
     }
+}
+
+/**
+ * Strip the HTML tags Google embeds in example sentences
+ * (e.g. "Bobby set off at a <b>run</b>"). The examples are the only field that
+ * carries markup, and St.Label renders Pango markup, not HTML, so the tags are
+ * removed rather than forwarded. Deliberately regex-only: this module must stay
+ * gi://-free so test/unit.test.js can import it under plain Node.
+ * @param {string} s
+ * @returns {string}
+ */
+function stripTags(s) {
+    return String(s ?? '').replace(/<[^>]*>/g, '');
+}
+
+/**
+ * Parse a Google `translate_a/single` reply into a translation plus, when the
+ * word was recognised, the dictionary payload.
+ *
+ * The shape was captured live on 2026-10-09 (see test/fixtures/) and is a
+ * positional array, so every read is guarded — a provider change must degrade
+ * to a plain translation, never throw:
+ *   d[0]         translation segments; join [0] of each, skipping nulls
+ *   d[0][1][3]   source-language phonetic ("hello" -> "həˈlō")
+ *   d[1]         bilingual dictionary: [ [pos, [terms], [reverse…], …], … ]
+ *   d[2]         detected source language
+ *   d[13]        example sentences: [ [ [html, …], … ] ]
+ * Dictionary and example sections are simply absent for sentences and for
+ * words Google does not know, which is what `isDictionary` reports.
+ * @param {*} json - the parsed reply body
+ * @returns {{translation:string, phonetic:?string, detectedLang:?string,
+ *            entries:Array<{pos:string, terms:string[]}>, examples:string[],
+ *            isDictionary:boolean}}
+ */
+export function parseGoogleDict(json) {
+    const result = {
+        translation: '',
+        phonetic: null,
+        detectedLang: null,
+        entries: [],
+        examples: [],
+        isDictionary: false,
+    };
+    if (!Array.isArray(json)) return result;
+
+    const segs = Array.isArray(json[0]) ? json[0] : [];
+    result.translation = segs
+        .map(s => (Array.isArray(s) && typeof s[0] === 'string') ? s[0] : '')
+        .join('');
+
+    if (typeof json[2] === 'string') result.detectedLang = json[2];
+
+    // Phonetic lives in the second translation segment; [2] is the target
+    // transliteration (pinyin) and [3] the source one (the pronunciation).
+    const translit = segs[1];
+    if (Array.isArray(translit) && typeof translit[3] === 'string'
+        && translit[3].trim() !== '') {
+        result.phonetic = translit[3];
+    }
+
+    // d[1]: one block per part of speech. [1] holds the target-language terms;
+    // a block with no usable terms is dropped rather than shown empty.
+    const dict = json[1];
+    if (Array.isArray(dict)) {
+        for (const block of dict) {
+            if (!Array.isArray(block)) continue;
+            const pos = typeof block[0] === 'string' ? block[0] : '';
+            const terms = Array.isArray(block[1])
+                ? block[1].filter(t => typeof t === 'string' && t.trim() !== '')
+                : [];
+            if (terms.length === 0) continue;
+            result.entries.push({ pos, terms });
+        }
+    }
+
+    // d[13]: [ group, … ] where each group is [ [html, …], … ].
+    const ex = json[13];
+    if (Array.isArray(ex)) {
+        for (const group of ex) {
+            if (!Array.isArray(group)) continue;
+            for (const item of group) {
+                if (Array.isArray(item) && typeof item[0] === 'string'
+                    && item[0].trim() !== '') {
+                    result.examples.push(stripTags(item[0]).trim());
+                }
+            }
+        }
+    }
+
+    result.isDictionary = result.entries.length > 0;
+    return result;
 }
 
 

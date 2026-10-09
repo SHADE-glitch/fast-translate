@@ -13,6 +13,9 @@
  *
  * Aggregate counts are printed here and are never hand-copied into the documents they count
  * (README.md already states this rule for commit counts; this extends it to the record).
+ *
+ * `--invariants` is a print mode, not a sixth check: it lists the kind:fix entries so
+ * INVARIANTS.md can stay a pointer file. It still refuses to print nothing.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -70,6 +73,27 @@ if (!anchorSha) fail(`1. coverage anchor does not resolve: ${anchor}`);
 const entryRe = /^### (D-\d+) · (\d{4}-\d{2}-\d{2}) · ([a-z]+)(?: · (.*))?$/gm;
 const entries = [...changelog.matchAll(entryRe)];
 const ids = entries.map((m) => m[1]);
+
+/** `--invariants`: print the recorded behaviour fixes instead of checking coverage.
+ *  INVARIANTS.md is a pointer file and must not hold a hand-copied list, so this is
+ *  the supported way to read that list out of the record. An empty result is a
+ *  failure, not an empty report: a silently blank invariant list is worse than none. */
+if (process.argv.includes('--invariants')) {
+  const fixes = entries.filter((m) => m[3] === 'fix');
+  if (fixes.length === 0) {
+    console.error('[check:log --invariants] FAIL: no kind:fix entry in the record');
+    process.exit(1);
+  }
+  for (const m of fixes) {
+    const body = changelog.slice(changelog.indexOf(m[0]) + m[0].length).split(/^### /m)[0];
+    const commit = (body.match(/^Commit\s+(.*)$/m) || [, '(none stated)'])[1].trim();
+    console.log(`${m[1]} · ${m[2]} · ${commit}`);
+    const symptom = (body.match(/^Symptom\s+(.*)$/m) || [, ''])[1].trim();
+    if (symptom) console.log(`      ${symptom}`);
+  }
+  console.log(`[check:log --invariants] ${fixes.length} recorded fix(es) — the authority is CHANGELOG.md, not INVARIANTS.md`);
+  process.exit(0);
+}
 
 // A check whose target set is empty is a fake green: it reports PASS over nothing.
 if (entries.length === 0) {

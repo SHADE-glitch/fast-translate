@@ -29,7 +29,7 @@ msgstr ""
 msgid "Auto Copy to clipboard"
 msgstr ""
 
-#: extension.js:203
+#: extension.js:270
 msgid "Settings"
 msgstr ""
 
@@ -53,11 +53,11 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: extension.js:437 extension.js:479 extension.js:613 extension.js:649
+#: extension.js:1057
 msgid "Invalid URL"
 msgstr ""
 
-#: extension.js:440 extension.js:482 extension.js:615 extension.js:651
+#: extension.js:649 extension.js:963
 msgid "Error"
 msgstr ""
 
@@ -66,19 +66,19 @@ msgstr ""
 msgid "Translate"
 msgstr ""
 
-#: extension.js:533 extension.js:573
+#: extension.js:687
 msgid "Translated"
 msgstr ""
 
-#: extension.js:537 extension.js:685
+#: extension.js:1169
 msgid "Rate-limited or blocked by Google Translate. Please try again later."
 msgstr ""
 
-#: extension.js:539 extension.js:687
+#: extension.js:1203
 msgid "Auth failed (403): check API key and URL in settings"
 msgstr ""
 
-#: extension.js:548
+#: extension.js:1262
 msgid "Cancelled"
 msgstr ""
 
@@ -126,7 +126,7 @@ msgstr ""
 msgid "Target language: "
 msgstr ""
 
-#: extension.js:1339
+#: extension.js:1707
 msgid "Auto Copy"
 msgstr ""
 
@@ -146,7 +146,7 @@ msgstr ""
 msgid "The translation service provider to use"
 msgstr ""
 
-#: prefs.js:78
+#: prefs.js:80
 msgid "Source Language"
 msgstr ""
 
@@ -154,7 +154,7 @@ msgstr ""
 msgid "Language of the text to be translated"
 msgstr ""
 
-#: prefs.js:95
+#: prefs.js:97
 msgid "Target Language"
 msgstr ""
 
@@ -162,8 +162,7 @@ msgstr ""
 msgid "The language into which the text should be translated"
 msgstr ""
 
-#: prefs.js:112
-#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:100
+#: prefs.js:114
 msgid "Formality"
 msgstr ""
 
@@ -174,23 +173,23 @@ msgid ""
 "language"
 msgstr ""
 
-#: prefs.js:127
+#: prefs.js:129
 msgid "DeepL Translation API Configuration"
 msgstr ""
 
-#: prefs.js:133
+#: prefs.js:136
 msgid "DeepL API URL"
 msgstr ""
 
-#: prefs.js:140
+#: prefs.js:143
 msgid "API Key"
 msgstr ""
 
-#: prefs.js:148
+#: prefs.js:194
 msgid "Formatting Options"
 msgstr ""
 
-#: prefs.js:153
+#: prefs.js:199
 msgid "Split Sentences"
 msgstr ""
 
@@ -198,7 +197,7 @@ msgstr ""
 msgid "Split the input text into sentences before translating"
 msgstr ""
 
-#: prefs.js:160
+#: prefs.js:206
 msgid "Preserve Formatting"
 msgstr ""
 
@@ -234,7 +233,7 @@ msgstr ""
 msgid "Copy floating translation results automatically to the clipboard"
 msgstr ""
 
-#: prefs.js:209
+#: prefs.js:226
 msgid "Double-copy Background Mode"
 msgstr ""
 
@@ -244,8 +243,7 @@ msgid ""
 "Translate in background on double-copy instead of showing the floating window"
 msgstr ""
 
-#: prefs.js:216
-#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:150
+#: prefs.js:233
 msgid "Show Notification in Background Mode"
 msgstr ""
 
@@ -262,7 +260,7 @@ msgstr ""
 msgid "Style & Integration"
 msgstr ""
 
-#: prefs.js:239
+#: prefs.js:250
 msgid "Show Notifications"
 msgstr ""
 
@@ -270,7 +268,7 @@ msgstr ""
 msgid "Show system notifications upon translation completions"
 msgstr ""
 
-#: prefs.js:246
+#: prefs.js:267
 msgid "Dark Theme Indicator"
 msgstr ""
 
@@ -295,23 +293,23 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: prefs.js:308
+#: prefs.js:306
 msgid "About"
 msgstr ""
 
-#: prefs.js:314
+#: prefs.js:312
 msgid "Extension Details"
 msgstr ""
 
-#: prefs.js:319
+#: prefs.js:317
 msgid "Version"
 msgstr ""
 
-#: prefs.js:325
+#: prefs.js:323
 msgid "Author"
 msgstr ""
 
-#: prefs.js:331
+#: prefs.js:338
 msgid "Description"
 msgstr ""
 
@@ -323,7 +321,7 @@ msgstr ""
 msgid "Project Homepage"
 msgstr ""
 
-#: prefs.js:358
+#: prefs.js:387
 msgid "Buy me a coffee"
 msgstr ""
 
@@ -449,366 +447,368 @@ msgid ""
 "in the output box"
 msgstr ""
 
-#: extension.js:68
+#: extension.js:102
 msgid "noun"
 msgstr ""
 
-#: extension.js:68
+#: extension.js:102
 msgid "verb"
 msgstr ""
 
-#: extension.js:68
+#: extension.js:102
 msgid "adjective"
 msgstr ""
 
-#: extension.js:69
+#: extension.js:103
 msgid "adverb"
 msgstr ""
 
-#: extension.js:69
+#: extension.js:103
 msgid "pronoun"
 msgstr ""
 
-#: extension.js:70
+#: extension.js:104
 msgid "preposition"
 msgstr ""
 
-#: extension.js:70
+#: extension.js:104
 msgid "conjunction"
 msgstr ""
 
-#: extension.js:71
+#: extension.js:105
 msgid "interjection"
 msgstr ""
 
-#: extension.js:71
+#: extension.js:105
 msgid "determiner"
 msgstr ""
 
-#: extension.js:72
+#: extension.js:106
 msgid "article"
 msgstr ""
 
-#: extension.js:72
+#: extension.js:106
 msgid "numeral"
 msgstr ""
 
-#: extension.js:73
+#: extension.js:107
 msgid "abbreviation"
 msgstr ""
 
-#: extension.js:73
+#: extension.js:107
 msgid "phrase"
 msgstr ""
 
-#: extension.js:421
+#: extension.js:505
 msgid "Unknown"
 msgstr ""
 
-#: extension.js:452 extension.js:583 extension.js:786
+#: extension.js:547 extension.js:727 extension.js:999
 msgid "Translation failed — please try again."
 msgstr ""
 
-#: extension.js:460
+#: extension.js:557
 msgid "Translating…"
 msgstr ""
 
-#: extension.js:538
+#: extension.js:664
 msgid "Source and target language are the same — pick a different target."
 msgstr ""
 
-#: extension.js:599 extension.js:962 extension.js:997
+#: extension.js:752 extension.js:1229
 msgid "Request timed out. Please check your connection and try again."
 msgstr ""
 
-#: extension.js:700 extension.js:758
+#: extension.js:893
 msgid "Unknown translation service selected in settings."
 msgstr ""
 
-#: extension.js:711
+#: extension.js:912
 msgid "DeepL URL must use HTTPS"
 msgstr ""
 
-#: extension.js:728
+#: extension.js:929
 msgid "Baidu Translate needs an APP ID and a secret key."
 msgstr ""
 
-#: extension.js:743
+#: extension.js:944
 msgid "Youdao Translate needs an app key and an app secret."
 msgstr ""
 
-#: extension.js:769
+#. fallback provider name used in error messages.
+#: extension.js:974
 msgid "the translation service"
 msgstr ""
 
-#: extension.js:772
+#. first %s is the offending "source->target" pair, second %s the provider
+# label (e.g. "Baidu Translate"). The pair is what the user can act on, so it
+# must not be dropped.
+#: extension.js:980
 msgid "The selected language pair (%s) is not supported by %s."
 msgstr ""
 
-#: extension.js:773
+#: extension.js:981
 msgid "unknown"
 msgstr ""
 
-#: extension.js:776
+#. %s is the provider label.
+#: extension.js:985
 msgid "%s returned an empty translation."
 msgstr ""
 
-#: extension.js:778
+#. first %s is the provider label, second %s the untranslated error text the
+# provider itself sent back.
+#: extension.js:989
 msgid "%s rejected the request: %s"
 msgstr ""
 
-#: extension.js:780
+#: extension.js:991
 msgid "unknown error"
 msgstr ""
 
-#: extension.js:782
+#: extension.js:993
 msgid "The translation service returned a malformed response."
 msgstr ""
 
-#: extension.js:784
+#. shown when '⇄' is pressed while the source language is "Auto detect", which
+# cannot become a target.
+#: extension.js:997
 msgid "Reverse translation needs a specific source language. Choose one in Settings first."
 msgstr ""
 
-#: extension.js:932
+#: extension.js:1197
 msgid "Rate-limited (429): too many requests. Please wait a moment and try again."
 msgstr ""
 
-#: extension.js:935
+#: extension.js:1200
 msgid "Auth failed (401): check API key and URL in settings"
 msgstr ""
 
-#: extension.js:941
+#: extension.js:1206
 msgid "Bad request (400)."
 msgstr ""
 
-#: extension.js:943
+#: extension.js:1208
 msgid "Hint: DeepL does not accept regional codes (e.g. EN-US) as the source language."
 msgstr ""
 
-#: extension.js:948
+#: extension.js:1213
 msgid "Request timed out (408). Please check your connection and try again."
 msgstr ""
 
-#: extension.js:951
+#: extension.js:1216
 msgid "Translation service unavailable. Please try again later."
 msgstr ""
 
-#: extension.js:971 extension.js:1009
+#: extension.js:1238
 msgid "Network error: cannot reach the translation service. Please check your connection."
 msgstr ""
 
-#: extension.js:981 extension.js:1000
+#: extension.js:1248
 msgid "Proxy error: cannot reach the translation service through the configured proxy."
 msgstr ""
 
-#: extension.js:987 extension.js:1003
+#: extension.js:1254
 msgid "Secure connection failed (TLS/certificate). Please check your network or proxy settings."
 msgstr ""
 
-#: extension.js:1235
+#. %s is the translation service name (Google / DeepL). The counts stay outside
+# the msgid — they are locale-neutral.
+#: extension.js:1537
 msgid "Text exceeds the %s single-request limit and was truncated"
 msgstr ""
 
-#: extension.js:1339
+#: extension.js:1672
 msgid "Swap source and target languages"
 msgstr ""
 
-#: extension.js:1614
+#: extension.js:2030
 msgid "Examples"
 msgstr ""
 
-#: extension.js:1625
+#: extension.js:2043
 msgid "Synonyms"
 msgstr ""
 
-#: extension.js:1644
+#: extension.js:2063
 msgid "Definitions"
 msgstr ""
 
-#: prefs.js:43
+#: prefs.js:44
 msgid "Preferences"
 msgstr ""
 
-#: prefs.js:57
-msgid "Google Translate needs no key; DeepL, Baidu and Youdao each need their own credentials below"
-msgstr ""
-
-#: prefs.js:75
+#: prefs.js:81
 msgid "Default source language for new translations"
 msgstr ""
 
-#: prefs.js:91
+#: prefs.js:98
 msgid "Default target language for new translations"
 msgstr ""
 
-#: prefs.js:107
+#: prefs.js:115
 msgid "Lean towards formal or informal language structure (DeepL only)"
 msgstr ""
 
-#: prefs.js:121
-msgid "Configure the DeepL API endpoint URL and your private authentication key"
-msgstr ""
-
-#: prefs.js:140
+#: prefs.js:152
 msgid "Baidu Translate API Configuration"
 msgstr ""
 
-#: prefs.js:141
-msgid "APP ID and secret key from the Baidu Translate open platform. The secret is used locally to sign each request and is stored in plaintext in dconf."
-msgstr ""
-
-#: prefs.js:146
+#: prefs.js:158
 msgid "APP ID"
 msgstr ""
 
-#: prefs.js:152
+#: prefs.js:164
 msgid "Secret Key"
 msgstr ""
 
-#: prefs.js:160
+#: prefs.js:173
 msgid "Youdao Translate API Configuration"
 msgstr ""
 
-#: prefs.js:161
-msgid "Application key and secret from the Youdao open platform. The secret is used locally to compute the v3 signature and is stored in plaintext in dconf."
-msgstr ""
-
-#: prefs.js:166
+#: prefs.js:179
 msgid "App Key"
 msgstr ""
 
-#: prefs.js:172
+#: prefs.js:185
 msgid "App Secret"
 msgstr ""
 
-#: prefs.js:186
+#: prefs.js:200
 msgid "Split the input text into sentences to improve translation context and quality"
 msgstr ""
 
-#: prefs.js:193
+#: prefs.js:207
 msgid "Retain original formatting details like capitalization, spacing, and newlines"
 msgstr ""
 
-#: prefs.js:199
+#: prefs.js:214
 msgid "Double-Copy Instant Translation"
 msgstr ""
 
-#: prefs.js:204
+#: prefs.js:219
 msgid "Auto Copy (Floating)"
 msgstr ""
 
-#: prefs.js:205
+#: prefs.js:220
 msgid "Automatically copy the translated text to the clipboard when using the floating window"
 msgstr ""
 
-#: prefs.js:212
+#: prefs.js:227
 msgid "Translate silently in the background on double-copy (Ctrl+C Ctrl+C) without showing the floating UI"
 msgstr ""
 
-#: prefs.js:219
-msgid "Show a desktop notification with the translation result when running in background mode"
-msgstr ""
-
-#: prefs.js:227
+#: prefs.js:245
 msgid "System Integration"
 msgstr ""
 
-#: prefs.js:233
+#: prefs.js:254
 msgid "Show a system notification when a translation fails"
 msgstr ""
 
-#: prefs.js:239
+#: prefs.js:260
 msgid "Show Panel Icon"
 msgstr ""
 
-#: prefs.js:240
+#: prefs.js:261
 msgid "Show the extension icon in the top panel (double-copy translation still works when hidden)"
 msgstr ""
 
-#: prefs.js:247
+#: prefs.js:268
 msgid "Use dark theme friendly status icons in the top panel"
 msgstr ""
 
-#: prefs.js:283
+#: prefs.js:345
 msgid "Links and Support"
 msgstr ""
 
-#: prefs.js:57
+#: prefs.js:62
 msgid "The text you copy is sent to a translation service on the internet."
 msgstr ""
 
-#: prefs.js:338
+#. %s is a hostname such as "clients5.google.com". The sentence tells the user
+# where the copied text is sent.
+#: prefs.js:492
 msgid "The text you copy is sent to %s for translation."
 msgstr ""
 
-#: prefs.js:340
+#. points at the key fields in the group below this row.
+#: prefs.js:495
 msgid " Its key is entered below."
 msgstr ""
 
-#: prefs.js:341
+#. this provider needs no account and no key.
+#: prefs.js:497
 msgid " It needs no key."
 msgstr ""
 
-#: prefs.js:343
+#. %s is Google's hostname. A single word also goes there because only Google
+# returns the dictionary card.
+#: prefs.js:501
 msgid "Single words are also sent to %s for the dictionary."
 msgstr ""
 
-#: prefs.js:319
+#. an action that returns this group's settings to their factory values. It
+# never touches credentials.
+#: prefs.js:416
 msgid "Restore this section’s defaults"
 msgstr ""
 
-#: prefs.js:320
+#. %d is the number of settings the row will reset.
+#: prefs.js:418
 msgid "Resets %d settings in this section. Keys are never touched."
 msgstr ""
 
-#: prefs.js:330
+#: prefs.js:430
 msgid "Clear the keys in this section"
 msgstr ""
 
-#: prefs.js:331
+#: prefs.js:431
 msgid "Empties %d stored fields. This cannot be undone."
 msgstr ""
 
-#: prefs.js:339
+#. shown after the first click; the second click deletes.
+#: prefs.js:440
 msgid "Click again to confirm — the stored key will be erased."
 msgstr ""
 
-#: prefs.js:121
+#: prefs.js:130
 msgid "The API key below is secret; the URL above is not. Both are stored on this machine in plain text."
 msgstr ""
 
-#: prefs.js:141
+#: prefs.js:153
 msgid "Both values come from the same page of the Baidu console. The Secret Key is the one that must stay private: it signs every request on this machine and is stored in plain text."
 msgstr ""
 
-#: prefs.js:161
+#: prefs.js:174
 msgid "Both values come from the same page of the Youdao console. The App Secret is the one that must stay private: it signs every request on this machine and is stored in plain text."
 msgstr ""
 
-#: prefs.js:219
+#: prefs.js:236
 msgid "Show a notification with the copied text and its translation. The text is visible on the lock screen."
 msgstr ""
 
-#: prefs.js:256
+#: prefs.js:287
 msgid "Close the popup with Escape"
 msgstr ""
 
-#: prefs.js:257
+#: prefs.js:288
 msgid "Escape dismisses the translation popup. Turning this off frees the key for the app behind it."
 msgstr ""
 
-#: prefs.js:297
+#: prefs.js:332
 msgid "License"
 msgstr ""
 
-#: prefs.js:298
+#: prefs.js:333
 msgid "MIT License — Copyright © the authors and contributors named in LICENSE"
 msgstr ""
 
-#: prefs.js:315
+#: prefs.js:354
 msgid "This fork"
 msgstr ""
 
-#: prefs.js:331
+#: prefs.js:372
 msgid "Upstream project"
 msgstr ""
+

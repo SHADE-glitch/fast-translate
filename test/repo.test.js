@@ -47,6 +47,12 @@ function listFiles() {
 const FILES = listFiles();
 const read = (rel) => fs.readFileSync(path.join(REPO, rel), "utf8");
 
+// Source with whole-line comments removed, for guards that must measure code and
+// not the prose describing it. Deliberately narrow: only lines whose first
+// non-space characters are `//`, so a `//` inside a string literal stays.
+const srcCode = (src) =>
+    src.split("\n").filter((line) => !/^\s*\/\//.test(line)).join("\n");
+
 describe("a guard's test runs in the branch production actually takes", () => {
     // Each of these is a pure decision that exists to stop a specific user-visible
     // defect, and test/unit.test.js asserts its behaviour. That coverage is
@@ -59,7 +65,7 @@ describe("a guard's test runs in the branch production actually takes", () => {
         ["isSameLanguage", "a same-language pair must not cost a round trip"],
         ["hasVisibleText", "invisible-only selections must not fire a request"],
     ];
-    const EXT = read("extension.js");
+    const EXT = srcCode(read("extension.js"));
 
     for (const [name, why] of GUARDED_DECISIONS) {
         it(`${name}() is called from extension.js`, () => {
@@ -70,6 +76,116 @@ describe("a guard's test runs in the branch production actually takes", () => {
                 `Either delegate to the helper or move the assertion to L1.`);
         });
     }
+});
+
+describe("the settings window reads the provider registry, not enum integers", () => {
+    // prefs.js used to hardcode `service === 0 / 2 / 3` for which credential group
+    // to show, duplicating the table in translation-helper.js. Reordering PROVIDERS
+    // would then silently show another provider's keys.
+    const PREFS = srcCode(read("prefs.js"));
+
+    it("imports the registry", () => {
+        assert.match(PREFS, /from "\.\/translation-helper\.js"/,
+            "prefs.js must import the provider registry it depends on");
+        assert.match(PREFS, /\bgetProvider\b/,
+            "and resolve the current service through it, not through its integer");
+    });
+
+    it("contains no enum-index comparison for service visibility", () => {
+        const hits = PREFS.match(/\b(service|value)\s*===?\s*[0-3]\b/g) || [];
+        assert.deepEqual(hits, [],
+            `prefs.js decides which group to show from ${hits.join(", ") || "nothing"} — ` +
+            `those are enum integers, and the registry is the only place they belong`);
+    });
+});
+
+describe("the main thread never touches the disk", () => {
+    // AGENTS.md: no synchronous IO on the shell main loop. This one was real —
+    // _get_icon() probed `<name>.svg` then `<name>.png` with query_exists(), so
+    // every theme or darktheme change ran two synchronous stats inside the
+    // compositor. Existence is a repo property, so it is asserted here instead.
+    const EXT = srcCode(read("extension.js"));
+    const ACTIVE_ICONS = [
+        "icons/fast-translate-active-dark.svg",
+        "icons/fast-translate-active-light.svg",
+    ];
+
+    it("the panel icons the code names by path are actually shipped", () => {
+        for (const rel of ACTIVE_ICONS)
+            assert.ok(FILES.includes(rel),
+                `${rel} is referenced by _set_icon_indicator() by file path; shipping without it renders a broken icon`);
+    });
+
+    it("extension.js does not stat at runtime", () => {
+        // Measured against CODE, not prose: the comment in _get_icon() names the
+        // call that was removed, so a substring test would match the very fix it
+        // certifies. EXT already had whole-line comments stripped.
+        assert.ok(!/\.query_exists\s*\(/.test(EXT),
+            "query_exists() is a synchronous stat on the compositor thread — the two active icons are " +
+            "asserted to exist above, so probe nothing at runtime");
+    });
+});
+
+describe("the card's geometry constants still match the CSS they mirror", () => {
+    // The floating card sizes itself with numbers copied out of the stylesheet:
+    // _computeCaps() measures the truncation warning at card width minus borders
+    // and padding, and CHROME sums padding, spacing and dividers. St ignores
+    // max-height, so CSS cannot bound the card and these literals ARE the
+    // layout contract — but they live in two files. Change a declaration here
+    // without the arithmetic there and the warning is measured at a width the
+    // card never renders at, so the budget is off by a line height in silence.
+    const EXT = srcCode(read("extension.js"));
+    // A declaration's value, or 0 when the block does not carry it. The leading
+    // boundary keeps `min-width:` / `padding-top:` from answering for `width:`
+    // and `padding:`.
+    const px = (block, prop) => {
+        const m = block.match(new RegExp(`(?:^|[{\\s])${prop}:\\s*(\\d+)px`, "m"));
+        return m ? Number(m[1]) : 0;
+    };
+    const baseRule = (selector) => {
+        const m = read("stylesheet-base.css").match(
+            new RegExp(`\\.${selector}\\s*\\{[^}]*\\}`));
+        assert.ok(m, `stylesheet-base.css no longer declares .${selector} — the card is unstyled`);
+        return m[0];
+    };
+    const variantRule = (rel) => {
+        const m = read(rel).match(/\.translate-floating-window\s*\{[^}]*\}/);
+        assert.ok(m, `${rel} no longer styles .translate-floating-window — the card lost its variant`);
+        return m[0];
+    };
+    const card = baseRule("translate-floating-window");
+    const border = px(variantRule("stylesheet-light.css"), "border");
+    const padding = px(card, "padding");
+    const cardWidth = px(card, "width");
+
+    it("both variants give the card the same border", () => {
+        assert.equal(border, px(variantRule("stylesheet-dark.css"), "border"),
+            "light and dark must agree on the card border: the height budget subtracts it once, " +
+            "so a variant-specific border makes the budget wrong in exactly one theme");
+    });
+
+    it("the width the warning is measured at is the card's content width", () => {
+        const expected = cardWidth - 2 * padding - 2 * border;
+        const literals = [...EXT.matchAll(/get_preferred_height\((\d+)\)/g)].map((m) => Number(m[1]));
+        assert.deepEqual(literals, [expected],
+            `_computeCaps() measures at ${literals.join(", ") || "no literal width"}, but CSS gives the ` +
+            `card ${cardWidth}px - 2*${padding}px padding - 2*${border}px border = ${expected}px. ` +
+            `Either fix the literal or update the CHROME comment beside it.`);
+    });
+
+    it("CHROME is the sum of the declarations it cites", () => {
+        // Spacing, divider and the actions margin come straight out of the base
+        // stylesheet; the header, the actions row and the warning are measured
+        // widget heights that only a live shell can re-derive (L2), so they are
+        // deliberately NOT asserted here.
+        const spacing = px(card, "spacing");
+        const divider = px(baseRule("translate-floating-divider"), "height");
+        const actionsMargin = px(baseRule("translate-floating-actions"), "margin-top");
+        assert.ok(spacing === 16 && divider === 1 && actionsMargin === 8,
+            `CHROME = 232 was added up from 5*${spacing} spacing + 2*${divider} divider + ` +
+            `${actionsMargin} actions margin-top; those CSS terms changed, so re-measure the whole ` +
+            `budget in a live shell`);
+    });
 });
 
 describe("documentation conventions hold", () => {

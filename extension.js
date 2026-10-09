@@ -1313,19 +1313,16 @@ var FastTranslate = GObject.registerClass(
         _set_icon_indicator() {
             let themeString = (this._darktheme ? 'dark' : 'light');
             let iconString = `fast-translate-active-${themeString}`;
-            let icon = this._get_icon(iconString);
-            if (icon) this.icon.set_gicon(icon);
+            this.icon.set_gicon(this._get_icon(iconString));
         }
 
         _get_icon(iconName) {
-            const iconsDir = this._extension.dir.get_child("icons");
-            let fileIcon = iconsDir.get_child(`${iconName}.svg`);
-            if (fileIcon.query_exists(null) === false) {
-                fileIcon = iconsDir.get_child(`${iconName}.png`);
-            }
-            if (fileIcon.query_exists(null) === false) {
-                return null;
-            }
+            // No runtime stat: which icon files ship is a repository property, and
+            // test/repo.test.js asserts the two this path can name are present.
+            // query_exists() ran two synchronous stats on the compositor's main
+            // thread every time the theme or darktheme changed, and could only ever
+            // confirm a file that is installed by construction.
+            const fileIcon = this._extension.dir.get_child("icons").get_child(`${iconName}.svg`);
             return Gio.Icon.new_for_string(fileIcon.get_path());
         }
 
@@ -2200,14 +2197,29 @@ class FloatingTranslationWindow {
     // get_preferred_height() at 710. So these caps are the ONLY thing bounding
     // the card and they must leave room for the chrome.
     //
-    // Chrome, measured at card width 650px: 1px border + 24px padding x2 +
-    // header 48 + two 1px dividers + five 16px gaps + actions 44 + 8px
-    // actions margin-top = 232px. The truncation warning is measured rather
-    // than guessed because its text wraps at card width.
+    // CHROME is a sum of terms, most of them CSS declarations rather than JS
+    // guesses. Anchors for each, at the card's declared width 650px
+    // (stylesheet-base.css:45):
+    //   2 × 1px border          stylesheet-light.css:30, stylesheet-dark.css:29
+    //   2 × 24px padding        stylesheet-base.css:43
+    //   48px header             measured; .translate-floating-header is built at
+    //                           extension.js:1481 and styled at stylesheet-base.css:48
+    //   2 × 1px divider         stylesheet-base.css:64, added at extension.js:1521
+    //                           and extension.js:1573
+    //   5 × 16px spacing        stylesheet-base.css:44 — gaps between the card's
+    //                           children, so this count changes with its child list
+    //   44px actions            measured; .translate-floating-actions at
+    //                           extension.js:1641, styled at stylesheet-base.css:140
+    //   8px actions margin-top  stylesheet-base.css:142
+    // Sum = 232. The truncation warning is measured rather than guessed because
+    // its text wraps at card width, and the 600px passed to it below is that
+    // width minus borders and padding — test/repo.test.js recomputes it from
+    // the CSS so the two cannot drift apart silently.
     //
     // 60% of the work area is the ceiling the old max-height was aiming at;
     // what is left after chrome is split between src and dest in the original
-    // 25:40 ratio. Re-measure CHROME if the card padding/spacing changes.
+    // 25:40 ratio. Re-measure CHROME against the anchors above whenever the
+    // card's padding, spacing or child list changes.
     _computeCaps() {
         const h = this._area?.height ?? 800;
         const CHROME = 232;
@@ -2240,6 +2252,10 @@ class FloatingTranslationWindow {
         // until next layout. Priority: scroll viewport width (already constrained)
         // first, then capped label width. <5000 guards stale huge reads.
         const _getLabelWidth = (label, scroll) => {
+            // 48 = 2 * the card's 24px padding (stylesheet-base.css:43). Unlike
+            // the warning measurement in _computeCaps() this leaves the 1px
+            // borders in, so it wraps 2px wider than the card's content box; if
+            // the padding changes, this literal and CHROME change together.
             const cap = Math.max(200, (this._allocatedWidth && this._allocatedWidth > 100)
                 ? this._allocatedWidth - 48 : this.actor.get_width() - 48);
             const sw = scroll?.get_width?.();
@@ -2252,6 +2268,11 @@ class FloatingTranslationWindow {
         // appears. Real width can't be read reliably (sb.get_width() returns 0),
         // so we measure in two stages: full width first to detect overflow, then
         // full width minus a conservative scrollbar estimate to get the real wrap.
+        // 16 rather than the ~10 above because over-estimating only widens the
+        // measured wrap into space the scrollbar then reclaims; the +HEIGHT_SAFETY
+        // below is what keeps the last line from clipping either way. The exact
+        // St scrollbar width has never been measured in a live session — needs
+        // manual confirmation, and this value is the safe side of that unknown.
         const SCROLLBAR_ESTIMATE = 16;
         const HEIGHT_SAFETY = 16;
         const _measureActor = (label, scroll, cap) => {

@@ -140,10 +140,16 @@ const GOOGLE_TRANSLATE_ENDPOINT =
 export function buildGoogleRequest(sourceLang, targetLang, fromText) {
     const sl = sourceLang === 'AUTO' ? 'auto' : String(sourceLang).toLowerCase();
     const tl = String(targetLang).toLowerCase();
+    // The whole request shape lives here, method and User-Agent included: the
+    // translate path reaches it through _buildRequestSpec while the dictionary
+    // enrich calls this builder directly, and a caller that had to invent the
+    // missing half silently stopped sending requests.
     return {
         url: `${GOOGLE_TRANSLATE_ENDPOINT}&sl=${sl}&tl=${tl}&dt=t&dt=bd&dt=rm&dt=md&dt=ss&dt=ex`,
+        method: 'POST',
         body: buildRequestQuery({ q: fromText }),
         contentType: 'application/x-www-form-urlencoded',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
     };
 }
 

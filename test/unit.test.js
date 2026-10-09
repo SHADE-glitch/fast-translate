@@ -105,6 +105,17 @@ g = buildGoogleRequest("AUTO", "ZH", "Hello world!");
 assert.ok(g.url.includes("sl=auto&tl=zh"), "AUTO source should map to sl=auto");
 assert.strictEqual(g.body, "q=Hello+world%21", "Google body must escape spaces and !");
 
+// The spec must be complete on its own. `_enrichZhToEnDict` consumes this builder
+// directly instead of going through _buildRequestSpec, and
+// `Soup.Message.new(undefined, url)` throws — which silently killed the whole
+// reverse dictionary lookup, because its caller swallows the error.
+assert.ok(g.method === "POST",
+    "Google spec must carry its own HTTP method: every caller builds a Soup message from it, "
+    + `got ${JSON.stringify(g.method)}`);
+assert.ok(g.headers && g.headers["User-Agent"] === "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Google spec must own its User-Agent too, so the dictionary path and the translate path "
+    + "cannot diverge again");
+
 // DeepL formality mapping (must stay omitted on default for eval-test contract)
 assert.strictEqual(mapDeepLFormality("default"), undefined, "default formality must be omitted");
 assert.strictEqual(mapDeepLFormality(null), undefined, "null formality must be omitted");
@@ -255,6 +266,8 @@ const yReq = buildYoudaoRequest({
     sourceLang: "EN", targetLang: "ZH", salt: "s1", curtime: "1700000000", hash: nodeHash,
 });
 assert.strictEqual(yReq.url, "https://openapi.youdao.com/api");
+assert.ok(yReq.method === "POST",
+    `Youdao spec must declare its own HTTP method like Baidu's does, got ${JSON.stringify(yReq.method)}`);
 assert.strictEqual(yReq.contentType, "application/x-www-form-urlencoded");
 assert.strictEqual(
     yReq.body,

@@ -33,3 +33,8 @@ jobs:
 
       - name: Record coverage check
         run: npm run check:log
+
+      # Coverage reading (not a gate): Node's built-in coverage over the three
+      # plain-Node suites. No threshold, so it cannot fail the run.
+      - name: Coverage reading
+        run: npm run test:coverage

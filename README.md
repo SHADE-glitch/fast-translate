@@ -1,6 +1,6 @@
 <p align="right"><a href="README.md"><b>English</b></a> | <a href="README.zh-CN.md">简体中文</a></p>
 
-# Fast Translate — Local Maintenance Fork
+# 🌐 Fast Translate — Local Maintenance Fork
 
 Instant translation from a double copy — Google Translate and DeepL in your GNOME Shell.
 

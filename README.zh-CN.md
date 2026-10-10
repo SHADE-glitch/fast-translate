@@ -1,6 +1,6 @@
 <p align="right"><a href="README.md">English</a> | <a href="README.zh-CN.md"><b>简体中文</b></a></p>
 
-# Fast Translate —— 本地维护分支
+# 🌐 Fast Translate —— 本地维护分支
 
 双击复制，即时翻译 —— 在 GNOME Shell 中直接使用 Google 翻译与 DeepL。
 

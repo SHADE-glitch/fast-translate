@@ -401,6 +401,11 @@ msgstr ""
 msgid "Source language"
 msgstr "Idioma origen"
 
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:81
+msgid ""
+"The translation service to use (Google Translate, DeepL, Baidu or Youdao)"
+msgstr ""
+
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:85
 msgid "Target language"
 msgstr "Idioma destino"
@@ -460,6 +465,16 @@ msgstr "Mostrar notificaciones"
 msgid "Show notifications on translation"
 msgstr "Mostrar notificaciones cuando se realiza una traducción"
 
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:123
+msgid ""
+"APP ID from the Baidu Translate open platform. Required when the translation "
+"service is Baidu."
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:122
+msgid "Baidu Translate APP ID"
+msgstr ""
+
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:125
 msgid "Dark theme"
 msgstr "Tema oscuro"
@@ -467,6 +482,16 @@ msgstr "Tema oscuro"
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:126
 msgid "Enable dark theme otherwise light theme"
 msgstr "Establece el tema oscuro"
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:128
+msgid ""
+"Secret key paired with the Baidu APP ID. Used locally to compute the request "
+"signature; sent nowhere else."
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:127
+msgid "Baidu Translate secret key"
+msgstr ""
 
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:130
 msgid "Auto paste"
@@ -478,6 +503,16 @@ msgstr ""
 "Pegar automáticamente el contenido del portapapeles en el cuadro de texto de "
 "entrada"
 
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:133
+msgid ""
+"Application ID from the Youdao open platform. Required when the translation "
+"service is Youdao."
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:132
+msgid "Youdao Translate app key"
+msgstr ""
+
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:135
 msgid "Auto copy"
 msgstr "Copia automática"
@@ -486,6 +521,16 @@ msgstr "Copia automática"
 msgid "Copy automatically the content of the output box in the clipboard"
 msgstr ""
 "Copiar automáticamente el contenido del cuadro de salida en el portapapeles"
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:138
+msgid ""
+"Application secret paired with the Youdao app key. Used locally to compute "
+"the v3 request signature."
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:137
+msgid "Youdao Translate app secret"
+msgstr ""
 
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:140
 #, fuzzy
@@ -517,6 +562,36 @@ msgid ""
 msgstr ""
 "Traduce automáticamente el contenido de la casilla de entrada y el resultado "
 "se muestra en la casilla de salida"
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:208
+msgid ""
+"Enable or disable the Super+T keyboard shortcut for clipboard translation"
+msgstr ""
+
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:207
+msgid "Enable keyboard shortcut"
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:203
+msgid ""
+"Show the extension icon in the top panel; when disabled, translation via "
+"double-copy (Ctrl+C Ctrl+C) and shortcuts still works"
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:202
+msgid "Show panel icon"
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:158
+msgid ""
+"Shortcut to close the floating translation window. Registered only while the "
+"window is open; clear it (via dconf) to disable."
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml:157
+msgid "Close floating window"
+msgstr ""
 
 #~ msgid "Ok"
 #~ msgstr "Aceptar"

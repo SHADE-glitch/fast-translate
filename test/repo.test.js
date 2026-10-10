@@ -416,6 +416,76 @@ describe("the translation catalogs cover the strings the code asks to translate"
         });
     }
 
+    // The schemas are a **second translatable source** that nothing above can see: glib
+    // translates `<summary>`/`<description>` because `<schemalist gettext-domain="…">` declares
+    // a domain, and no `_()` call is involved — so renaming a provider or adding a key
+    // de-translates the settings schema while every guard stays green. Measured 2026-10-10: 15
+    // of the strings the schema asked for were in no catalog, and the template still held the
+    // pre-Baidu/Youdao wording for others.
+    const xmlUnescape = (s) => s
+        .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+
+    function schemaStrings() {
+        const entries = [];
+        const tags = new Map();
+        for (const rel of FILES.filter((f) => f.endsWith(".gschema.xml")).sort()) {
+            const lines = read(rel).split("\n");
+            let domain = null;
+            for (let i = 0; i < lines.length; i++) {
+                const d = lines[i].match(/<schemalist\b[^>]*\bgettext-domain="([^"]*)"/);
+                if (d) domain = d[1];
+                const t = lines[i].match(/<(summary|description)>([^<]*)<\/\1>/);
+                if (t && t[2]) entries.push({ text: xmlUnescape(t[2]), where: `${rel}:${i + 1}`, domain });
+            }
+            tags.set(rel, (read(rel).match(/<(summary|description)>/g) || []).length);
+        }
+        return { entries, tags };
+    }
+
+    const schema = schemaStrings();
+    const schemaAsked = schema.entries;
+
+    it("every <summary>/<description> in the schemas is readable one per line", () => {
+        // The reader above assumes one element per line, which is how every schema here is
+        // written. A wrapped element would make the coverage assertion silently demand less,
+        // so the assumption is checked instead of trusted.
+        const blind = [...schema.tags].filter(([rel, n]) =>
+            n !== schemaAsked.filter((s) => s.where.startsWith(rel)).length)
+            .map(([rel, n]) => `${rel} holds ${n} opening tag(s) but the reader collected ` +
+                `${schemaAsked.filter((s) => s.where.startsWith(rel)).length}`);
+        assert.deepEqual(blind, [],
+            `${blind.join("; ")} — one element is split across lines, so this guard is now blind to it. ` +
+            `Put it back on one line or teach the reader to join them`);
+    });
+
+    it("the schema asks gettext in the domain the extension binds", () => {
+        // If these two ever differ, every schema string in the catalog is dead weight: the
+        // compiled schema looks the messages up under the domain it declares, and the shell
+        // binds the one from metadata.json.
+        const meta = JSON.parse(read("metadata.json"));
+        const domains = [...new Set(schemaAsked.map((s) => s.domain))];
+        assert.deepEqual(domains, [meta["gettext-domain"]],
+            `the <schemalist> gettext-domain(s) ${JSON.stringify(domains)} do not match metadata.json's ` +
+            `${JSON.stringify(meta["gettext-domain"])}`);
+    });
+
+    it("the catalogs carry every string the schemas ask gettext to translate", () => {
+        assert.ok(schemaAsked.length > 40,
+            `only ${schemaAsked.length} schema string(s) parsed — the <summary>/<description> reader ` +
+            `stopped working, so this guard is checking nothing`);
+        const want = [...new Set(schemaAsked.map((s) => s.text))];
+        for (const rel of ["po/messages.pot", "po/de.po", "po/es.po", "po/nl.po"]) {
+            const have = catalogMsgids(rel);
+            const missing = want.filter((s) => !have.has(s)).sort();
+            assert.deepEqual(missing, [],
+                `${rel} is missing ${missing.length} of ${want.length} schema msgid(s): ` +
+                `${missing.map((s) => JSON.stringify(s)).join(", ")} — a schema string that is not in ` +
+                `the catalog can never be translated, and the translator never sees it`);
+        }
+    });
+
     it("the template carries the hints the sources write", () => {
         const potHints = catalogHints("po/messages.pot");
         const missing = hints.filter((h) => h.msgid && src.has(h.msgid) && !potHints.has(h.msgid));

@@ -36,8 +36,8 @@ Where each thing lives:
 | What is known but not fixed? | [docs/maintenance/open-items.md](docs/maintenance/open-items.md) |
 | What was changed, and why, commit by commit? | [CHANGELOG.md](CHANGELOG.md) |
 | Rules for working in this repo (agents and humans) | [AGENTS.md](AGENTS.md) |
-| Session state: version, unpushed work, pending decisions | [docs/reports/STATE.md](docs/reports/STATE.md) |
-| What was actually run to prove the current batch | [docs/reports/VERIFY.md](docs/reports/VERIFY.md) |
+| Session state: version, unpushed work, pending decisions | `docs/reports/STATE.md` — **a local draft, not committed** (a clone cannot see it) |
+| What was actually run to prove the current batch | `docs/reports/VERIFY.md` — **a local draft, not committed** (a clone cannot see it) |
 
 ## 2. Invariants
 

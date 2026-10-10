@@ -14,7 +14,7 @@ handbook: operational knowledge lives behind the router in
 
 ## 0. Start here
 
-- **Read [docs/reports/STATE.md](docs/reports/STATE.md) first.** It carries the
+- **Read `docs/reports/STATE.md` first** (a local draft, not committed — a clone cannot see it). It carries the
   current version, what is committed but unpushed, open decisions and the next
   step. A session that skips it will re-decide something already settled.
 - Priority order for every decision: **stability > performance > code aesthetics**,

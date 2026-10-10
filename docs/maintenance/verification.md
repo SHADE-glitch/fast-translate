@@ -274,6 +274,6 @@ The rules these provocations earned:
 
 ## 5. Rollback and commit discipline
 
-One concern per commit, `type: 中文摘要`. Every step above is a separate commit,
+One concern per commit, `type: <Chinese subject>`. Every step above is a separate commit,
 so `git revert <sha>` undoes exactly one. `git push` requires an explicit
 decision each time; history is never rebased or rewritten.

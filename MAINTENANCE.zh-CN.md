@@ -33,8 +33,8 @@
 | 知道但没修的问题？ | [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) |
 | 逐个提交改了什么、为什么？ | [CHANGELOG.md](CHANGELOG.md)（仅有英文版） |
 | 在本仓工作的规则（给 agent 也给人） | [AGENTS.md](AGENTS.md)（仅有英文版） |
-| 会话状态：版本、未推送、待决 | [docs/reports/STATE.md](docs/reports/STATE.md)（仅有英文版） |
-| 这一批到底跑了什么来证明 | [docs/reports/VERIFY.md](docs/reports/VERIFY.md)（仅有英文版） |
+| 会话状态：版本、未推送、待决 | `docs/reports/STATE.md` —— **本地草稿，不入库**（仅有英文版，clone 下来看不到） |
+| 这一批到底跑了什么来证明 | `docs/reports/VERIFY.md` —— **本地草稿，不入库**（仅有英文版，clone 下来看不到） |
 
 ## 2. 不变量：这些不要"顺手修正"
 

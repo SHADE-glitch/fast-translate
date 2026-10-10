@@ -98,6 +98,17 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - 双击复制行为，包括后台模式与完成提示
 - 格式与主题选项
 
+## 🧪 测试
+
+`npm test` 跑离线套件：纯函数单测（`test/unit.test.js`，纯 Node）、teardown 完整性守卫
+（`test/teardown-guard.test.js`）、仓库级守卫（`test/repo.test.js`）、文档 lint
+（`test/docs-lint.mjs`），以及两项 gjs 检查——签名交叉校验（`test/signing-crosscheck.js`）
+与偏好设置布局校验（`test/prefs-validator.js`）。后两项需要 `gjs`；`prefs-validator.js`
+还需要显示环境与 GTK4 / libadwaita typelib，所以只在桌面会话下跑，不能在 headless 下跑。
+
+`npm run integration` 与 `npm run perf` 会起一次性 headless shell；`npm run check:log` 是
+CHANGELOG 覆盖率门。每条命令各自打印自己的条数，本文不抄写。
+
 ## 🆚 相对上游的改动
 
 本分支移除了原面板菜单翻译器与可配置的全局快捷键，仅保留双击复制工作流，并新增可靠性改进。提交数**有意不写死**——`git rev-list --count 420251c..HEAD` 才是权威（`420251c` 是本分支历史的起点，即冻结上游版本的导入提交）。

@@ -206,7 +206,7 @@ The rules these provocations earned:
   is redirected to. Whether any of it reached disk is **no longer checkable**: every scratch file
   of the round was deleted, and reading the key back in order to search for it would itself break
   the rule. So neither "a key leaked" nor "nothing leaked" is claimed here — what is claimed is
-  that a value-printing read is never the right取证 tool for an *unchanged* property. The run's
+  that a value-printing read is never the right forensic tool for an *unchanged* property. The run's
   own log was checked and holds no credential value (its three `apikey|secret|appid` matches are
   all `org.freedesktop.secrets` D-Bus noise), the pair was re-proven by digest, and no repo script
   may now run `dconf dump`/`read` or `gsettings get`/`list` — that is a guard.

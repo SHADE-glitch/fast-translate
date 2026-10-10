@@ -4,6 +4,14 @@ Rules for working in this repo, for AI agents and for me. It is a rule list, not
 handbook: operational knowledge lives behind the router in
 [MAINTENANCE.md](MAINTENANCE.md).
 
+> **Shared standard.** Root file names, the process-draft location (`docs/reports/`), the
+> `CHANGELOG` entry format, CI version pinning and entry commands, the test entry command, and
+> the runtime ignore list are defined once in the machine-wide `STANDARD.md` (outside this
+> repository) and are not restated here.
+>
+> **Push over SSH, never HTTPS.** Verify `git remote get-url --push origin` starts with `git@`
+> before pushing; if it starts with `https://`, fix it first — never push over HTTPS.
+
 ## 0. Start here
 
 - **Read [docs/reports/STATE.md](docs/reports/STATE.md) first.** It carries the
@@ -46,8 +54,8 @@ handbook: operational knowledge lives behind the router in
 ## Evidence discipline
 
 - **No commit unless the maintainer says to commit** — not even for docs.
-- Label every claim: **已运行验证** (ran it, output quoted) / **静态推断** (read it) /
-  **需手动验证** (needs a real session). "Verified" without a tier is not a claim.
+- Label every claim: **ran it** (output quoted) / **read it** / **needs a real session**.
+  "Verified" without a tier is not a claim.
 - Every new check must be **seen failing before it is trusted**: write the assertion
   first, run it red, then implement. A check that cannot fail is decoration.
 - A check must run in the branch production actually takes. `test/unit.test.js`

@@ -98,6 +98,19 @@ Open **GNOME Settings → Extensions → Fast Translate → Settings** to config
 - Double-copy behavior, including background mode and the completion toast
 - Formatting and theme options
 
+## 🧪 Testing
+
+`npm test` runs the offline suite: the pure-helper unit tests (`test/unit.test.js`, plain
+Node), the teardown-totality guard (`test/teardown-guard.test.js`), the repository guards
+(`test/repo.test.js`), the docs lint (`test/docs-lint.mjs`), and two GJS checks — the signing
+cross-check (`test/signing-crosscheck.js`) and the preferences-layout validator
+(`test/prefs-validator.js`). The last two need `gjs`; `prefs-validator.js` also needs a display
+plus the GTK4 / libadwaita typelibs, so it runs on a desktop, not headless.
+
+`npm run integration` and `npm run perf` boot a throwaway headless shell; `npm run check:log`
+gates the CHANGELOG coverage. Each command prints its own count, which is never copied into
+this file.
+
 ## 🆚 Changes vs upstream
 
 This fork removes the original panel-menu translator and the configurable global keybinding, keeping only the double-copy workflow, and adds reliability work. The count is deliberately not stated — `git rev-list --count 420251c..HEAD` is authoritative (`420251c` is the frozen-upstream import this fork's history starts from).

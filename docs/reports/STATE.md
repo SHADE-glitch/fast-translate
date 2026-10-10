@@ -5,20 +5,23 @@
 **Read this first in any new session.** It carries what a fresh context cannot see:
 what is settled, what is committed but unpushed, and what the next step is.
 
-Last updated 2026-10-10, after the first pass that read the live session (D-048…D-050), the two
-`St` measurements, and a packaging fix that came out of trying to run `scripts/pack.sh` (D-051,
-D-052). PLAN.md describes the batches.
+Last updated 2026-10-10, after the gettext round: the packaging path was run for real and its
+artifact unpacked and inspected, a catalog defect that broke both `pack --podir` and `msgmerge` was
+fixed and is now guarded, the "this machine has no gettext" prose was swept, and `origin` was moved
+to SSH *(maintainer's instruction)*. Earlier in the same day: the first pass that read the live
+session (D-048…D-050), the two `St` measurements, and the `scripts/pack.sh` fix (D-051, D-052).
+PLAN.md describes the batches.
 
 ## Where the repo stands
 
 | Thing | Value | How to re-check |
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
-| Branch state | `master`, ahead of `origin/master` | `git status -sb` |
-| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031), C2–C5 (D-032…D-035), the privacy batch (`b4e4c77`, `d2a2266`), and this pass — `9bffcbc` (po), `cffa892` (the two guard batches), `440f56a` (the `St` measurements), `13d40b0` (the record batch), `8b8ae82` (the docs gate + the L2 instrument), `df4b605`/`0b74d64` (that reader's own two defects), `398ea27`/`2f695b0` (records + live readings), `2fb769a` (pack.sh) and `c27c730` (the packaging-list guard). **Nothing was pushed**: no push authorization was given, and "提交完成" does not imply it | `git log --oneline origin/master..HEAD \| wc -l` |
-| Working tree | clean once this record batch is in — po, guards, measurement, the version-16 debt, the record batches, the two new tools, the live readings and the packaging fix are all committed | `git status --porcelain \| wc -l` |
+| Branch state | `master`, ahead of `origin/master` by three commits; **`origin` is now the SSH URL** (`git@github.com:SHADE-glitch/fast-translate.git`) at the maintainer's instruction, so `git push` works from this host without a one-off remote argument | `git remote -v`, `git status -sb` |
+| Unpushed | `origin/master` reads `3f48172` (the batch pushed 2026-10-10 under his authorization: `2fb769a` pack.sh, `c27c730` the packaging-list guard, `3f48172` docs). On top of it, unpushed: `da52508` (the duplicate-msgid fix), `e636e9e` (its guard), `b1db09f` (the stale-prose sweep). **Pushing these needs a fresh authorization** — the one that covered `3f48172` is spent, and "提交完成" never implies it | `git log --oneline origin/master..HEAD` |
+| Working tree | `CHANGELOG.md` plus this record pass; everything else (po fix, guard, docs sweep) is committed | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
-| Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail)'` and `node test/docs-lint.mjs` |
+| Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail\|suites)'` and `node test/docs-lint.mjs` |
 
 ## Settled — do not re-open
 
@@ -89,25 +92,57 @@ Two findings that are not code defects:
 | D-042 | Catalog-coverage guard + 91 msgid entries backfilled into `po/messages.pot` | On a machine without gettext a `_()` string can ship and never enter the catalog. The guard makes that a red test, and carries an anti-vacuity floor so a broken matcher cannot pass silently. My "71 missing" figure from earlier in the session was an undercount — the appended total is what `git show b4e4c77 -- po/messages.pot \| grep -c '^+msgid "'` prints |
 | D-043 | `test/prefs-validator.js` upgraded from "does not throw" to behaviour over all four providers | Two of its reds were **my** wrong assumptions, not implementation bugs (`get_css_classes()` vs `get_name()`, one-click-per-row counting). It also produced the measurement that killed one requested item: `AdwEntryRow` has no `subtitle` property |
 
+## D-051…D-055 — the packaging path, run for real
+
+| Record | Change | What it actually proved |
+|---|---|---|
+| D-051 | `pack.sh` checks for `msgfmt` before touching anything, and clears the staging tree **before** filling it | Its first failure was destructive: `rm -f *.zip` ran before the step that could fail, and a reused staging tree kept carrying files the repo had dropped |
+| D-052 | `test/repo.test.js` pins the packaging list's shape and order against `gnome-extensions pack`'s own auto-include set | The tool ships only four filenames and **exits 0** for an `--extra-source` that does not exist — so "listed it" was never "shipped it" |
+| D-053 | The obsolete `#~ msgid "License"` pairs were deleted from de/es/nl | `msgfmt` counts an obsolete entry against a live one and exits 1, which fails `pack --podir` *and* `msgmerge` at once. Established with three minimal `.po` control experiments, not by reading docs. No upstream translation was revived into a live entry — that is translation work |
+| D-054 | A guard that refuses any catalog defining one msgid twice, obsolete included, with a ≥180-per-file parse floor | It was written red-first on the real defect, then went green on the fix and stayed green with the 125 non-conflicting obsolete rows (47/31/47) still in place |
+| D-055 | The "this machine has no gettext" prose swept across `AGENTS.md`, `MAINTENANCE.md` §10, `docs/maintenance/open-items.md` §3/§4 and `verification.md` §3 | Those sentences were measurements of an **environment**. Several aggregates in them were also `grep` undercounts — the correction is in the record, the old entries were left alone |
+
+After gettext arrived, the artifact was finally produced and read back: 39 entries, the eight root
+files byte-identical to the repo, all 18 `icons/` files present, the three compiled `.mo` files
+re-decodable with `msgunfmt`, and `docs/`/`test/`/`scripts/`/root `*.md` genuinely absent. Two things
+that round made visible are **not** code defects and are recorded rather than fixed: `gschemas.compiled`
+never enters a zip even when it sits in the staging tree (the tool's behaviour; the installed copies on
+this machine have a compiled file whose mtime is months after their `.xml`, so it is generated locally),
+and `shexli` segfaults with exit 139 *after* the zip is written.
+
 ## Open decisions for the maintainer
 
 1. **`po/` — what is left of it.** Ordered and done on 2026-10-09: each locale now carries every
-   string the sources request (86 entries appended per file, empty `msgstr` — **no translation
-   text was invented**, and gettext falls back to the English msgid anyway), the 5 dead template
-   entries this fork had itself created were deleted, all 13 `// Translators:` hints reach the
-   four files as `#. ` comments, and every `#:` reference on a live template entry was
-   recomputed (119 tokens, 0 stale). Two new guards hold that state in place, so a future string
-   added without its four catalog edits goes red. **Still yours to decide:** the **74 msgids the
-   sources no longer request**, inherited with the frozen upstream's template — deleting them
-   means editing what three named translators wrote. Their stale `#:` references go with them
-   (measured per locale: 38 tokens on 27 still-live entries point somewhere other than the call).
-   And the actual German/Spanish/Dutch text, which is not derivable from anything in this repo:
-   de/es/nl still carry only 17/56/17 translations out of 189, so the UI stays English — no
-   `.mo` is built here either (`MAINTENANCE.md` §10), and `scripts/update-po*.sh` still cannot
-   run (gettext absent).
-2. **Push.** `2a4dad1` and `b4eefd7` were already local, and every pass since has added more on
-   top. Pushing needs your authorization for that specific action — none was given, and
-   none is implied by "按计划推进".
+   string the **JS** sources request (86 entries appended per file, empty `msgstr` — **no translation
+   text was invented**, and gettext falls back to the English msgid anyway, which was then *measured*
+   once gettext existed rather than assumed), the 5 dead template entries this fork had itself
+   created were deleted, all 13 `// Translators:` hints reach the four files as `#. ` comments, and
+   every `#:` reference on a live template entry was recomputed (119 tokens, 0 stale). Two new
+   guards hold that state in place, so a future string added without its four catalog edits goes red,
+   and a third now refuses a catalog that defines one msgid twice (`da52508`, `e636e9e` — obsolete
+   `#~` included, because that combination is what made `pack --podir` fail).
+   **Still yours to decide, and the numbers are now gettext's rather than mine** — print them with
+   `msgfmt --statistics -c -o /dev/null po/de.po` and the `xgettext`/`msgcomm` pair written out in
+   [open-items.md §3](../maintenance/open-items.md):
+   - what a regeneration would retire is **43** template entries the sources no longer request, not
+     the 74 recorded here for a month — that older figure counted `schemas/*.gschema.xml`'s own
+     translatable strings as dead, and the "translations present" figures it was paired with
+     (17/56/17) were `grep` undercounts; the real `.mo` yield is **7/34/7 translated**, plus
+     10/29/10 `#, fuzzy` rows that do not reach the user at all until a translator clears the flag.
+   - the actual German/Spanish/Dutch text for the remaining 172/126/172 untranslated rows, which is
+     not derivable from anything in this repo, so the UI stays English.
+   - **a gap no guard covers, found this round:** the catalog guard's file list is the three JS
+     modules, so the schema's `<summary>`/`<description>` strings are requested by gettext yet
+     asserted by nothing — **15 of them are absent from every catalog**, and the template still
+     carries their *pre-Baidu/Youdao* wording. Closing it means backfilling 15 empty-`msgstr`
+     entries and only then adding the gate; the deletions above are yours, so nothing was changed.
+     Details in [open-items.md §3](../maintenance/open-items.md).
+   `scripts/update-po.sh` runs since 2026-10-10; `scripts/update-pot.sh` **must not** be used — it
+   rewrites the template into a shape that puts five repository guards red.
+2. **Push.** `3f48172` was pushed on 2026-10-10 under your explicit authorization for that batch, and
+   the remote reads it (`git ls-remote origin refs/heads/master`). Everything since — `da52508`,
+   `e636e9e`, `b1db09f` and this record pass — is local only. Authorization is per-push and the last
+   one is spent, so say the word and I push over the SSH remote that is now configured.
 3. **Are `docs/reports/` tracked or ignored?** Currently **tracked**, because
    `AGENTS.md` and `MAINTENANCE.md` link `STATE.md` as the session entry point and a
    gitignored target breaks that link in a fresh clone. A sibling fork in this workspace
@@ -124,9 +159,10 @@ Two findings that are not code defects:
 
 ## Next step
 
-Nothing is queued in code. The four commits landed (`9bffcbc` po, `cffa892` guards, `440f56a` the
-`St` measurements, `13d40b0` this record pass) and the working tree is clean; **pushing is still
-unauthorized**, so `origin/master` remains behind.
+Nothing is queued in code. The gettext round landed three commits — `da52508` (the duplicate-msgid
+fix that had been failing `pack --podir`), `e636e9e` (the guard that refuses a catalog defining one
+msgid twice), `b1db09f` (the stale-prose sweep) — and this record pass is the remaining documentation
+edit. **Pushing the three is still unauthorized**, so `origin/master` stays at `3f48172`.
 
 The live-session pass began 2026-10-10 07:47. **It got further than the plan assumed**: the shell's
 own D-Bus API reported the extension ACTIVE at `version 16.0` with an empty error list, and once a
@@ -152,12 +188,14 @@ for the dictionary. `GetExtensionErrors` stayed empty through all four states, a
 back is `'DeepL'`. The walk also found a privacy gap in my own instrument, since fixed (D-050).
 Also still his call, unchanged: the `po/` decisions above, flipping the global theme for the
 light/dark live switch (a system setting this brief must not touch), task #8's older deferred
-items, and — new this pass — **whether to install gettext at all**. Without it `pack.sh` produces
-no zip on this machine by design (D-051), so nothing that carries `.mo` files has ever been built
-here; that is an environment decision, not a code one. What is **no longer** his call: the docs
-link sweep — it became a gate this pass (`test/docs-lint.mjs`, D-048, in `npm test` and in CI),
+items, and **what to do about the analyzer `pack.sh` runs last**: `shexli` segfaults (exit 139, twice
+reproduced) *after* the zip has already been written, so a non-zero exit there is not a broken
+artifact — installing or pinning it is a dependency decision, not a code one. The gettext question is
+**settled**: it was installed 2026-10-10, `pack.sh` now produces a zip on this machine, and that zip
+was unpacked and read file by file. What is **no longer** his call: the docs
+link sweep — it became a gate (`test/docs-lint.mjs`, D-048, in `npm test` and in CI),
 the L2 reader exists too (D-049), and the packaging list is now a guard rather than a hand-copy
-(`test/repo.test.js`, D-052).
+(`test/repo.test.js`, D-052), joined by the duplicate-msgid gate (D-054).
 
 ## What this pass did not verify
 
@@ -166,17 +204,18 @@ the L2 reader exists too (D-049), and the packaging list is now a guard rather t
   sha256 immediately before and after it — the zero-write property holds for this round.
 - **L2, needs a real session** (logout/login — `scripts/reload.sh` cannot re-import
   edited ES modules): the dictionary card on a live ZH→EN word (its reverse lookup only
-  reached the network for the first time as of D-029); settings-window group visibility
-  for each of the four providers after D-033; the active panel icon in light and dark
-  after D-034; live light/dark switch, Esc, multi-monitor, latency.
-- **Nothing in the settings window has been seen by a human since C3, and this batch made it
-  bigger, not smaller.** The disclosure sentence, the seven restore/clear rows and the Escape
-  switch are covered by a validator that runs against a **mocked** `Gio.Settings`: it accepts
-  key names the real schema may not have, and three of its assertion groups (hostname
+  reached the network for the first time as of D-029); the active panel icon in light and dark
+  after D-034; live light/dark switch, Esc, multi-monitor, latency. Settings-window group
+  visibility for each of the four providers is **no longer** in this list — all four were read off
+  the a11y bus in the live session (D-049/D-050), see [VERIFY.md](VERIFY.md).
+- **The settings window's structure and copy have been read from the live session; its legibility
+  has not, and it has never been seen by a human.** What the a11y readout cannot carry: geometry
+  (does the composed disclosure sentence wrap acceptably at a narrow width), whether a reset row
+  *looks* right while armed, whether the notification on a background failure reads well. What the
+  L1 validator still cannot carry: it runs against a **mocked** `Gio.Settings`, so it accepts key
+  names the real schema may not have, and three of its assertion groups (hostname
   disclosure, the two-pass reset counts, the `strv` round trip) have been *written, never
-  provoked red* — see `docs/maintenance/verification.md` §3. Whether the composed disclosure
-  reads well at a narrow window width, whether a reset row looks right, and whether a
-  background failure now actually arrives as a notification are all L2.
+  provoked red* — see `docs/maintenance/verification.md` §3.
 - GNOME 45–49 remain unrun here; the declared range is inherited from the upstream, and
   `Adw-1.typelib` being versionless means this machine cannot prove a symbol's
   introduction version. Marked *(needs manual confirmation)* wherever it bites. That floor is

@@ -84,6 +84,22 @@
   上游时代的行号：2026-10-10 按 locale 实测，落在**仍活着**的 JS 串上的引用 token 里有 38 个指的并
   不是真正的 `_()` 调用行，涉及 27 条条目，另有 28 个落在 gschema 条目上。模板本身是干净的（活串
   引用 119 个 token，0 个过期），因为本仓只在自己新增或改动过的条目上重算了引用，译者的那些行没碰。
+- **目录守卡的作用域只有 JS，所以 schema 自己那些可翻译的串可以在所有门全绿的情况下跑偏。**
+  `test/repo.test.js` 读的是 `TRANSLATED = ["extension.js", "prefs.js", "translation-helper.js"]`；
+  而 `schemas/*.gschema.xml` 在 `<schemalist>` 上声明了 `gettext-domain`，因此它同样在向 gettext
+  索要 `<summary>`/`<description>` 这些串，可没有任何东西断言它们到位了。2026-10-10 实测：源码请求
+  161 条内容 msgid，模板里有 189 条，共有 146 条——也就是说**源码（schema）在请求的 15 条根本不在
+  `po/messages.pot` 里**（de/es/nl 也不在：抽了 `Baidu Translate APP ID`、`Show panel icon`、
+  `Close floating window` 三条，每份都是 0 命中），同时模板里有 43 条已经没人请求。这 15 条不是"没有
+  生成器"造成的：模板里那些 schema 行还是**百度/有道之前**的措辞，例如 msgid
+  `"The translation service to use (DeepL or Google Translate)"`，而 schema 现在写的是
+  `(Google Translate, DeepL, Baidu or Youdao)`。结论：任何一个改了服务商名字或加了密钥的 fork，都会
+  悄悄把自己那套设置 schema 变成未翻译状态。**还欠着，而且不能直接加门**："schema 请求的每条 msgid
+  都要在模板里"这条断言现在就是红的，所以它必须和那 15 条的回填（`msgstr` 留空——不编造译文）落在
+  同一个改动里，而 43 条的删除等维护者拍板。别信上面这段话，自己打出来：
+  `xgettext --from-code=UTF-8 --add-comments=Translators -o - -- *.js schemas/*.xml` 与
+  `po/messages.pot` 对比，交集用 `msgcomm`。schema 的 `description` 到底会不会**显示**成译文，还取决于
+  编译 schema 的那一方有没有传 `--gettext-package`，这台机器从未观察到 *(需人工确认)*。
 - **`.mo` 发的比目录看起来有的少。** `msgfmt` 只把 `msgstr` 非空**且**不是 `#, fuzzy` 的条目写进去，
   所以每份目录真正随包发布的译文数是
   `msgfmt --statistics -c -o /dev/null po/de.po` 里的 translated 那个数；fuzzy 的那些（de/nl 10 条、

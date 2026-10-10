@@ -193,7 +193,7 @@ came in with that commit and were orphaned by the next one). The 86 went in with
 | `npm run check:log` | exit 0 — 43 entries, 32 commits cited (`po/` and `test/` are not in `CODE_PATHS`, so no new entry is forced yet; the record for this work waits on its commit) |
 | Independent coverage measure | pot: 115 live strings, 0 missing; each locale: 189 entries, `live-missing=0`, `orphans=0` |
 | Independent reference measure | pot live-entry refs: 119 exact / 0 stale. Locales: the 89 tokens on appended entries exact; 38 tokens on 27 upstream-era entries still stale **by deliberate non-edit** — recorded in open-items §3 |
-| `diff` against the pre-hint backup | 0 removed lines in each locale: 17/56/17 translations byte-preserved, `msgid`/`msgstr` counts unchanged at 190 each |
+| `diff` against the pre-hint backup | 0 removed lines in each locale: 17/56/17 translations byte-preserved, `msgid`/`msgstr` counts unchanged at 190 each — **the 56 was a `grep` undercount**, corrected below: `msgfmt --statistics` reads es as 34 translated + 29 fuzzy = 63, because `grep -c '^msgstr "[^"]'` misses every entry whose `msgstr` wraps |
 | `#.` accounting | 13 hint lines + 12 wrapped continuations in each of the four files |
 
 One measurement trap worth keeping: `grep -c '^#. '` with an **unescaped** dot matches every
@@ -370,7 +370,7 @@ defects rather than one. Both halves are now measured, and both are guarded.
 
 | Probe | Output | Reading |
 |---|---|---|
-| `bash scripts/pack.sh` **before** the fix | `pack_sh_exit=2`, GLib-GIO-CRITICAL `Failed to execute child process "msgfmt"`, and `/tmp/fast-translate-pack` left holding all 12 staged names | `--podir=po` shells out to `msgfmt`; gettext is absent here, so the run died **after** `rm -f *.zip` and **after** staging |
+| `bash scripts/pack.sh` **before** the fix | `pack_sh_exit=2`, GLib-GIO-CRITICAL `Failed to execute child process "msgfmt"`, and `/tmp/fast-translate-pack` left holding all 12 staged names | `--podir=po` shells out to `msgfmt`; gettext was absent here **at that time** (installed later the same day — see the gettext round below), so the run died **after** `rm -f *.zip` and **after** staging |
 | the same staging into a reused tree, twice, in a `tar` copy | a file removed from the source tree between the two runs was still present in the staging tree (`pack/removed-later.js`) | `cp -r` overwrites same names only — a helper the repo has dropped keeps riding along into the zip |
 | `bash scripts/pack.sh` **after** the fix | `pack_sh_exit=1`, the message names `msgfmt`, the temp tree is **not created**, zip count 0→0, `git status` shows only `scripts/pack.sh` | the run now stops before it can destroy or contaminate anything |
 | `gnome-extensions pack` in a throwaway tree with this extension's own layout | zip held `metadata.json`, `extension.js`, `prefs.js`, `stylesheet.css` and exactly the two names passed as `--extra-source`; an unlisted root module was absent, and `--extra-source=nope.js` (a name that does not exist) still exited **0** | the auto-include set is four names, not a rule; both silent directions are real, which is what the new guard pins |
@@ -380,6 +380,32 @@ in eight `tar` copies, one mutation each, against an unmutated control copy that
 rows are in `docs/maintenance/verification.md` §3. The run worth keeping in mind is `cp -a`: the
 staging line reworded by two characters emptied the parsed list, and **two of the content guards
 reported green while measuring nothing**. The anti-vacuity floor is what turned that into a red.
+
+## The gettext round — producing the artifact, then reading it back
+
+gettext arrived on this machine 2026-10-10 (`msgfmt (GNU gettext-tools) 0.23.2`), which retired a whole
+class of "cannot be run here" statements and let the packaging path be **measured** instead of argued.
+Every row below was re-run for this record; the first five were what made D-053 and D-054 necessary.
+
+| Probe | Output | Reading |
+|---|---|---|
+| `bash scripts/pack.sh` after gettext, before the catalog fix | `gnome-extensions pack` → `Child process exited with code 1`, no zip | The failure moved from "msgfmt missing" to "a catalog msgfmt rejects" — same exit, completely different owner |
+| three minimal `.po` files, one variable each (live-only / live+obsolete twin / obsolete revived into the live entry) | `msgfmt -c` exits 0 / **1** / 0 | `msgfmt` counts an **obsolete** `#~ msgid` against a live one as `duplicate message definition`. Not a lint warning, a build failure — and the same one `msgmerge` hits |
+| `msgfmt -c -o /dev/null po/{de,es,nl}.po` after `da52508` | `de exit=0`, `es exit=0`, `nl exit=0` | Deleting the `#~` pair (three files, 2 lines + 1 blank each) is the whole repair. Nothing was revived into a live entry, because that is translation work |
+| `bash scripts/pack.sh` after the fix | `✅ Packaging complete`, `120343` bytes, `unzip -l` → **39 files** | The first zip this repo ever produced on this machine |
+| `unzip -l` + `sha256sum` per member | the 8 root members — `metadata.json`, `extension.js`, `prefs.js`, `signing.js`, `translation-helper.js`, `stylesheet-base.css`, `stylesheet-dark.css`, `stylesheet-light.css` — byte-identical to the repo; `icons/` 18 in → 18 out; `docs/`, `test/`, `scripts/`, root `*.md` and `po/` absent; `schemas/gschemas.compiled` absent while `*.xml` present | D-052's list is what actually ships. Worth naming: there is **no** `stylesheet.css` in this fork, so one of the tool's four auto-included matches nothing and all three stylesheets ride on the explicit list — a fork that renamed a CSS file and forgot the list would ship unstyled and stay green. The compiled schema is **never** packed by the tool even when staged — the installed copies here carry a compiled file whose mtime trails their `.xml` by months, so it is generated locally *(inference from mtimes, not an observation of the compile step)* |
+| `msgfmt --statistics -c -o /dev/null po/de.po` (and es, nl) | de 7 translated / 10 fuzzy / 172 untranslated; es 34 / 29 / 126; nl 7 / 10 / 172 — each 189 entries | This is the `.mo`'s real yield, and it replaces every `grep -c '^msgstr "[^"]'` figure previously written down (that read es as 56 because wrapped `msgstr` lines do not start the pattern) |
+| extract `locale/` from the built zip, then a real `gettext()` lookup per language | de `About→Info`, `Cancel→Abbrechen`; es `About→Acerca de`, `Cancel→Cancelar`; nl `About→Over`, `Cancel→Annuleren`; `License`, `Translate`, `Preferences` → **unchanged msgid** in all three | The empty-`msgstr` English fallback is no longer an assumption. Note `License` specifically: it is the msgid whose upstream translation sat on the obsolete pair, so the conservative fix leaves it English **by design** until a translator moves the text into the live entry |
+| `scripts/update-po.sh -a` | exit 0, but rewrites 417/321/417 lines across the three locales | Usable, not free: the churn is `msgmerge`'s own reflow, so any use of it needs a review of a diff that is mostly noise |
+| `scripts/update-pot.sh` | exit 0, and the product turns **five** repository guards red; the `extension.js:1534` `// Translators:` hint disappears; 43 entries per locale become orphans | Regenerating the template is therefore **retired** on this fork, and `test/repo.test.js` remains the thing that keeps the catalogs honest |
+| `venv/bin/shexli *.zip` (the last step `pack.sh` runs) | exit **139**, reproduced twice; the zip on disk is complete and valid | A non-zero exit here does not mean a bad artifact. `shexli` 0.2.1 under the venv's Python 3.14.4 is a dependency question, not a code one *(maintainer's call)* |
+| `xgettext --from-code=UTF-8 --add-comments=Translators -o - -- *.js schemas/*.xml` vs `po/messages.pot`, `msgcomm` for the intersection | sources request 161, template holds 189, **146 common** → 43 entries nothing requests, **15 requested by the schema and in no catalog** (sample-checked: `Baidu Translate APP ID`, `Show panel icon`, `Close floating window` → 0 hits in de/es/nl each) | The catalog guard's scope is the three JS modules, so the schema's own translatable strings drifted unobserved — and the template still holds their pre-Baidu/Youdao wording. Every guard was green the whole time. Recorded in [open-items.md §3](../maintenance/open-items.md), deliberately not fixed and not gated (a gate would be red until the 15 are backfilled) |
+| `git ls-remote origin refs/heads/master` over the new SSH remote | `3f48172…`, exit 0 | The remote was read, not inferred from a local tracking ref. `origin` is now `git@github.com:SHADE-glitch/fast-translate.git` because HTTPS push times out from this host |
+
+Suite state at the end of the round, as printed: `node test/repo.test.js` → `# tests 40 / # suites 9 /
+# pass 40 / # fail 0`; `node test/docs-lint.mjs` → 114 links over 24 markdown files; `npm run check:log`
+→ 55 entries, 42 distinct commits cited. These three lines are the ones to re-run before quoting them —
+they moved within this very pass, because the pass added documents.
 
 ## Not verified
 

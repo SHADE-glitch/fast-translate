@@ -1,6 +1,6 @@
 <p align="right"><a href="REVIEW.md"><b>English</b></a> · <a href="STATE.md">State</a> · <a href="AUDIT.md">Audit</a> · <a href="VERIFY.md">Verify</a></p>
 
-# Review package — this round end to end, 2026-10-09
+# Review package — this round end to end, 2026-10-09 → 2026-10-10
 
 One page for an independent reviewer. Nothing here asks you to trust a claim: each row
 names the command or `file:line` that shows it. Red→green evidence for every guard is in
@@ -9,7 +9,9 @@ names the command or `file:line` that shows it. Red→green evidence for every g
 ## Scope
 
 Docs and rules first (phase A+B, no shipped code), then the queued stability/structure
-batch (phase C1–C5, production code), then the privacy and settings batch (D-036…D-043).
+batch (phase C1–C5, production code), then the privacy and settings batch (D-036…D-043), then the
+live-session pass (D-048…D-050) and the packaging + gettext round (D-051…D-055, which is the first
+time this repo's artifact was built and read back).
 `version` **16** — 15 covered C2…C5, and this bump covers the two schema defaults plus the
 settings-window behaviour, both of which reach a user on first run. Frozen fields untouched:
 `uuid`, `extension-id`, `shell-version`, `gettext-domain` — re-read with `jq -e` in the bump commit.
@@ -26,6 +28,8 @@ settings-window behaviour, both of which reach a user on first run. Frozen field
 | `prefs.js` (settings behaviour) | Four `Restore this section’s defaults` rows calling `reset_keys` with exactly their own keys, three two-click `Clear the keys` rows for credentials, the Escape binding as an on/off switch that stores and restores what it removed, About reading `this.metadata.url` with a separate upstream row and a License row, and honest copy on the two rows whose defaults were wrong |
 | `schemas/…gschema.xml`, `po/messages.pot` | `notifications` default false→**true**, `floating-background-toast` true→**false**; 91 msgid entries backfilled with empty `msgstr` so the template covers every string the sources ask to translate (`git show b4e4c77 -- po/messages.pot | grep -c '^+msgid "') |
 | `test/*` | Call-site list (an L0-pinned decision must be called from `extension.js`), provider-registry assertions, no-stat guard on comment-stripped source, JS↔CSS geometry recomputation, Test 3i behavioural watchdog proof, harness cleanup can no longer overwrite the verdict, `prefs-validator` rebinds relative imports. Then: two more repo guards (shipped defaults vs the copy that describes them; catalog coverage with an anti-vacuity floor), a `host`↔builder-URL cross-check, and `prefs-validator` rewritten from "does not throw" into behaviour over all four providers — subtitles, seven reset/clear rows driven by click counts, Escape `strv` transitions |
+| `po/{de,es,nl}.po`, `test/repo.test.js` (D-053/D-054) | Deleted the obsolete `#~ msgid "License"` pair from each catalog — `msgfmt` counts an obsolete entry against a live one and exits 1, which is what made `pack --podir` and `msgmerge` both fail. Three lines of deletions, no translation text added or revived. The new guard refuses any catalog defining one msgid twice, obsolete included, and was written red on that real defect before it was fixed |
+| `scripts/pack.sh`, `AGENTS.md`, `MAINTENANCE.md` §10, `docs/maintenance/{open-items,verification}` ×2 (D-051/D-052/D-055) | The pre-flight `msgfmt` check and staging-before-clear ordering, the packaging-list guard, and a sweep of every sentence that described the **environment** rather than the code ("this machine has no gettext", "`update-po*.sh` cannot run", "no zip has ever been produced here"). `scripts/update-pot.sh` is now explicitly retired, with the five reds it causes listed |
 
 ## Invariants respected
 
@@ -39,21 +43,24 @@ settings-window behaviour, both of which reach a user on first run. Frozen field
   writes that file on its own, so no hash in these docs is a usable baseline), and both
   nested-shell harnesses run on a private `XDG_RUNTIME_DIR` with the memory settings backend.
 - `docs/`, `test/`, `scripts/` and root `*.md` are not in `scripts/pack.sh`'s explicit copy
-  list, so nothing ships differently.
+  list — and since the gettext round that is **read off the artifact**, not inferred from the
+  script: `unzip -l` over the built zip shows them absent, with the 8 root members, all 18
+  `icons/` files and the three compiled `.mo` files present.
 
 ## Self-check results
 
 | Command | Result |
 |---|---|
-| `npm test` | exit 0 across six steps — unit, teardown guard, `test/repo.test.js` (`# pass 39 / # fail 0`, 9 describes), `test/docs-lint.mjs`, signing known answers, and `✅ Preferences layout validation successful! (4 providers rendered)` |
+| `npm test` | exit 0 across six steps — unit, teardown guard, `test/repo.test.js` (`# tests 40 / # suites 9 / # pass 40 / # fail 0`, as printed), `test/docs-lint.mjs`, signing known answers, and `✅ Preferences layout validation successful! (4 providers rendered)` |
 | `npm run integration` | exit 0, `success:true` — re-run after the privacy batch, after the catalog work, and again with Test 5 in place; each time the dconf hash measured immediately before and after the run was identical (last pair: `291c5f98…`) |
 | `test/eval-test.js` Test 5 (new) | measures, then asserts: a vertical scrollbar withholds **8 px** (300→292 synthetic, 650→642 on the real card, control with the policy off shows 0 withheld), and `text-align: start`/`end` read back **LEFT (0)** under LTR *and* RTL while `center`/`right` read 1/2. Both assertions provoked red first — see VERIFY.md's table |
 | `npm run perf cost` | exit 0 — 7830 µs/window build, 1 tick per 500 clipboard events |
-| `npm run check:log` | exit 0 — 52 entries, 39 commits cited over 31 code-touching commits; **and it went red on its own** for `1d44c07` before D-032 existed, which is the gate proven rather than described. It also went red a second time this round, for a reason of mine: the D-051/D-052 append ran twice, and `2. id D-051 reuses number 51` / `ids must increase` is exactly the duplicate this checker exists to catch |
+| `npm run check:log` | exit 0 — 55 entries, 42 distinct commits cited, as printed by the command itself; **and it went red on its own** for `1d44c07` before D-032 existed, which is the gate proven rather than described. It also went red a second time this round, for a reason of mine: the D-051/D-052 append ran twice, and `2. id D-051 reuses number 51` / `ids must increase` is exactly the duplicate this checker exists to catch. The same class of defect on the *other* side of the toolchain — one msgid defined twice in a catalog — is what D-053/D-054 are about |
 | Guard provocations | each new assertion seen failing for the reason it names — see the C2–C5 table, the P table and the packaging table in VERIFY.md, including the controls (a comment must not redden the stat guard; `min-width` must not answer for `width`; an unmutated schema must stay green; an unmutated copy of the repo must stay green). Three prefs-validator assertion groups are **explicitly listed as provoked-not-yet-seen-failing**, not glossed over |
-| Docs link/anchor gate | now a committed gate, not a remembered number: `node test/docs-lint.mjs` reports `✅ … 109 relative link(s) and anchor(s) resolve over 24 markdown files`, exit 0, and it is wired into `npm test` and CI |
-| `bash scripts/pack.sh` | **cannot complete on this machine and now says so before it damages anything.** Old behaviour, measured: exit 2, the previous `*.zip` already deleted, and a half-filled `/tmp/fast-translate-pack` left behind — and a `cp -r` over that tree keeps files the repo has dropped (reproduced with two consecutive staging copies into the same directory). New behaviour: `command -v msgfmt` is checked first, so the run exits 1, creates nothing and deletes nothing. Pinned by `test/repo.test.js` ("the packaging list ships exactly what the repo has") over eight one-mutation copies plus an unmutated control — see VERIFY.md's packaging table |
-| Live session after the 2026-10-10 restart | `GetExtensionInfo(fast-translate@local)` → `version 16.0`, `state=1`, `error ''`; `GetExtensionErrors` → `[]`; `UserExtensionsEnabled=true`; journal for pid 367241 = 111 lines, 0 errors. `state` was **calibrated**, not assumed: 9 enabled uuids → `1`, 5 installed-but-disabled → `6`. See VERIFY.md's L2 table |
+| Docs link/anchor gate | now a committed gate, not a remembered number: `node test/docs-lint.mjs` prints its own counts (`114 relative link(s) and anchor(s) resolve over 24 markdown files` as of this pass — re-run it rather than trusting this row), exit 0, wired into `npm test` and CI |
+| `bash scripts/pack.sh` | **completes, and its output was unpacked and read file by file.** Two stages of one story, both measured: before the msgfmt pre-flight it exited 2 *after* deleting the previous `*.zip` and *after* staging into a reusable tree (so a file the repo had dropped kept riding along — reproduced with two consecutive copies), and with gettext installed the run instead exited 1 inside `gnome-extensions pack`, because a catalog defined `License` twice — once live, once obsolete. Now: `✅ Packaging complete`, `120343` bytes, 39 members. Its last step, `venv/bin/shexli`, still segfaults (exit 139, twice) *after* the zip is written, which is a dependency question, not an artifact question |
+| Packaging and catalog guards | "the packaging list ships exactly what the repo has" (`test/repo.test.js`, D-052) provoked over eight one-mutation `tar` copies plus an unmutated control that stayed green — the run worth remembering is `cp -a`, where two characters of rewording emptied the parsed list and **two content guards reported green while measuring nothing** until the anti-vacuity floor caught it. The duplicate-msgid guard (D-054) was written red on the real `License` defect first, then went green on the fix and stayed green with the 125 non-conflicting obsolete rows (47/31/47) still in the files |
+| Live session after the 2026-10-10 restart | `GetExtensionInfo(fast-translate@local)` → `version 16.0`, `state=1`, `error ''`; `GetExtensionErrors` → `[]`; `UserExtensionsEnabled=true`; journal for pid 367241 = 111 lines, 0 errors. `state` was **calibrated**, not assumed: 9 enabled uuids → `1`, 5 installed-but-disabled → `6`. `GetExtensionErrors` stayed `[]` while `translation-service` was set to each of the four values in turn and restored (final read-back `'DeepL'`), and the settings window was opened and read off the a11y bus — 256 nodes: five group titles, the four disclosure sentences each naming their own host, the restore rows counting 4/2/3/3 vs 3, the masked secret field. An a11y tree carries text and states, **not geometry**, so legibility stays L2. See VERIFY.md's L2 table |
 | `file:line` anchor sweep | the earlier round re-walked all 138; this batch added ~25 new anchors (schema defaults, disclosure, reset/clear rows, Escape switch, `test/unit.test.js:228`) and all of them were printed and re-read. Current machine check: 85 `path:name.ext:NNN` anchors resolve, 0 out of range, 0 pointing at a blank line |
 
 ## Challenge these first
@@ -66,12 +73,17 @@ settings-window behaviour, both of which reach a user on first run. Frozen field
    number behind a false assertion.
 3. **`parseLanguageName` / `detectLang` are still tested but unreferenced** by production,
    and deliberately absent from the call-site list. Deferred with a reason in open-items §4.
-4. **`/run/user/1000/gnome-shell-disable-extensions` keeps existing on this machine**, and it
-   reappeared at 18:48:12 when nothing of ours was running (no user process started in that
-   minute) — our nested shell boots inside a private `XDG_RUNTIME_DIR`, so it cannot write
-   there. Unattributed and outside the repo, so deliberately not deleted. While it exists, a
-   shell restart in this login session starts with every extension disabled — worth knowing
-   before you debug "the extension disappeared".
+4. **`/run/user/1000/gnome-shell-disable-extensions` had a cause, and it is not ours.** It
+   reappeared at 18:48:12 with nothing of ours running; the earlier note here blamed "no user
+   process started in that minute", which was a `ps` snapshot taken *after* the nested shell had
+   already exited. The journal answers it: a sibling project's harness boots
+   `gnome-shell --headless --wayland-display=wayland-copyous-harness` while exporting
+   `WAYLAND_DISPLAY` but never a private `XDG_RUNTIME_DIR`, so its nested shell writes into the
+   shared runtime dir (`copyous@local/test/headless/up.sh:121`). This project's two harnesses do
+   isolate it — proven negatively, the marker's mtime did not move across our 22:35 and 22:44 runs.
+   It is gone since the 2026-10-10 logout, which tore that tmpfs down. Fixing the cause means
+   editing another project's test scripts, which is outside this brief's boundary, so it is
+   reported rather than acted on.
 5. **The disclosure tells the user the truth and changes nothing else.** Single words still go
    to Google whatever the selector says (D-038's decision line: disclose-only, no narrowing),
    because narrowing would take the dictionary card away from every non-Google provider. If
@@ -94,3 +106,16 @@ settings-window behaviour, both of which reach a user on first run. Frozen field
    to align the warning label by direction is to pick `left`/`right` from JS. The repo now says
    this in three places (open-items §2, MAINTENANCE §12, Test 5). If you expect CSS to solve it,
    the measurement above is the counter-evidence.
+10. **D-053 deleted three obsolete pairs and revived nothing.** `License` therefore renders in
+    English even though `po/de.po` contains "Lizenz" — it sits on the entry that was obsolete, and
+    copying it into the live entry is a translation decision, not a repair. If you think the
+    shipped UI should not regress-looking-English, the argument is about who owns the translators'
+    text, and the measurement is the `.mo` lookup in VERIFY.md's gettext table.
+11. **The catalog guard cannot see the schema, and this round proved that out loud rather than
+    silently widening it.** It reads three JS modules; `schemas/*.gschema.xml` declares
+    `gettext-domain`, and **15** strings it requests are in no catalog while 43 catalog entries
+    are requested by nothing. The fix is a backfill plus a gate in one change, and the deletions
+    belong to the maintainer, so the state is recorded with the commands that print it
+    ([open-items.md §3](../maintenance/open-items.md)). A reviewer who wants this gated *now*
+    would be asking for a red `npm test` — which is the correct instinct, but it has to arrive
+    with the 15 entries attached.

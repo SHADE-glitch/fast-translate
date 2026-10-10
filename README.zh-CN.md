@@ -126,17 +126,6 @@ CHANGELOG 覆盖率门。每条命令各自打印自己的条数，本文不抄�
 - **偏好设置：** 移除「Panel Menu Automation」分组，新增各服务商凭据分组，并重排其余分组。 （D-010、D-019）
 - **测试：** 单元测试覆盖新增的纯函数（含 GJS/Node 签名交叉校验）；评估测试断言面板 UI 与快捷键已不存在。
 
-## 🤝 参与贡献
-
-1. Fork 本仓库。
-2. 新建分支：`git checkout -b <branch_name>`。
-3. 提交改动：`git commit -m '<commit_message>'`。
-4. 推送分支并创建 Pull Request。
-
-运行测试：`npm test`（Node 单元测试，外加 GJS 偏好设置布局校验）。
-维护者请先读 [MAINTENANCE.zh-CN.md](MAINTENANCE.zh-CN.md)：里面记着 harness 的隔离
-规则、实测成本基线和更新风险。
-
 ## 🙏 致谢与来源说明
 
 本扩展是 **Lorenzo Carbonell Cerezo（atareao）** 的原始项目 **Translate Assistant** 的分支，后经 **tazztone** 现代化为 **Fast Translate**。

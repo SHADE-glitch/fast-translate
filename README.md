@@ -130,17 +130,6 @@ that record. `taste` entries carry zero obligation: they may be discarded wholes
 - **Preferences:** the "Panel Menu Automation" group was removed, provider-credential groups were added, and the remaining groups reorganized. (D-010, D-019)
 - **Tests:** unit tests cover the new pure helpers (including a GJS/Node signing cross-check); the evaluation test asserts the panel UI and shortcut are gone.
 
-## 🤝 Contributing
-
-1. Fork this repository.
-2. Create a branch: `git checkout -b <branch_name>`.
-3. Commit your changes: `git commit -m '<commit_message>'`.
-4. Push the branch and open a pull request.
-
-Run the test suite with `npm test` (unit tests via Node, plus a GJS preferences-layout validator).
-Maintainers: read [MAINTENANCE.md](MAINTENANCE.md) first — it records the harness
-isolation rules, the measured cost baseline and the update risks.
-
 ## 🙏 Credits & Attribution
 
 This extension is a fork of the original **Translate Assistant** by **Lorenzo Carbonell Cerezo (atareao)**, later modernized as **Fast Translate** by **tazztone**.

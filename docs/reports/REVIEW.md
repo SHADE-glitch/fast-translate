@@ -45,13 +45,14 @@ settings-window behaviour, both of which reach a user on first run. Frozen field
 
 | Command | Result |
 |---|---|
-| `npm test` | exit 0 — `# pass 33 / # fail 0` in `test/repo.test.js` (8 describes), unit, teardown guard, signing known answers, and `✅ Preferences layout validation successful! (4 providers rendered)` |
+| `npm test` | exit 0 across six steps — unit, teardown guard, `test/repo.test.js` (`# pass 33 / # fail 0`, 8 describes), `test/docs-lint.mjs`, signing known answers, and `✅ Preferences layout validation successful! (4 providers rendered)` |
 | `npm run integration` | exit 0, `success:true` — re-run after the privacy batch, after the catalog work, and again with Test 5 in place; each time the dconf hash measured immediately before and after the run was identical (last pair: `291c5f98…`) |
 | `test/eval-test.js` Test 5 (new) | measures, then asserts: a vertical scrollbar withholds **8 px** (300→292 synthetic, 650→642 on the real card, control with the policy off shows 0 withheld), and `text-align: start`/`end` read back **LEFT (0)** under LTR *and* RTL while `center`/`right` read 1/2. Both assertions provoked red first — see VERIFY.md's table |
 | `npm run perf cost` | exit 0 — 7830 µs/window build, 1 tick per 500 clipboard events |
 | `npm run check:log` | exit 0 — 43 entries, 32 commits cited over 30 code-touching commits; **and it went red on its own** for `1d44c07` before D-032 existed, which is the gate proven rather than described |
 | Guard provocations | each new assertion seen failing for the reason it names — see the C2–C5 table and the P table in VERIFY.md, including the controls (a comment must not redden the stat guard; `min-width` must not answer for `width`; an unmutated schema must stay green). Three prefs-validator assertion groups are **explicitly listed as provoked-not-yet-seen-failing**, not glossed over |
-| Relative-link check over every `*.md` | 106 links across 24 markdown files, **0 broken** (re-run this pass with a fresh checker, not a remembered number) |
+| Docs link/anchor gate | now a committed gate, not a remembered number: `node test/docs-lint.mjs` reports `✅ … 107 relative link(s) and anchor(s) resolve over 24 markdown files`, exit 0, and it is wired into `npm test` and CI |
+| Live session after the 2026-10-10 restart | `GetExtensionInfo(fast-translate@local)` → `version 16.0`, `state=1`, `error ''`; `GetExtensionErrors` → `[]`; `UserExtensionsEnabled=true`; journal for pid 367241 = 111 lines, 0 errors. `state` was **calibrated**, not assumed: 9 enabled uuids → `1`, 5 installed-but-disabled → `6`. See VERIFY.md's L2 table |
 | `file:line` anchor sweep | the earlier round re-walked all 138; this batch added ~25 new anchors (schema defaults, disclosure, reset/clear rows, Escape switch, `test/unit.test.js:228`) and all of them were printed and re-read. Current machine check: 85 `path:name.ext:NNN` anchors resolve, 0 out of range, 0 pointing at a blank line |
 
 ## Challenge these first

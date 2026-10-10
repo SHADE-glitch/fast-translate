@@ -15,10 +15,10 @@ repository guard. PLAN.md describes the batches.
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
 | Branch state | `master`, ahead of `origin/master` | `git status -sb` |
-| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031), C2–C5 (D-032…D-035), the privacy batch (`b4e4c77`, `d2a2266`), and this pass — `9bffcbc` (po), `cffa892` (the two guard batches), `440f56a` (the `St` measurements) and this record commit. **Nothing was pushed**: no push authorization was given, and "提交完成" does not imply it | `git log --oneline origin/master..HEAD \| wc -l` |
-| Working tree | clean — the po batch, the guards, the measurement, the version-16 debt and this record pass are all committed | `git status --porcelain \| wc -l` |
+| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031), C2–C5 (D-032…D-035), the privacy batch (`b4e4c77`, `d2a2266`), and this pass — `9bffcbc` (po), `cffa892` (the two guard batches), `440f56a` (the `St` measurements), `13d40b0` (the record batch), `8b8ae82` (the docs gate + the L2 instrument) and this docs pass. **Nothing was pushed**: no push authorization was given, and "提交完成" does not imply it | `git log --oneline origin/master..HEAD \| wc -l` |
+| Working tree | clean — po, guards, measurement, the version-16 debt, the record batch and the two new tools are all committed | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
-| Test suite | green: unit, teardown guard, repo guards, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the guard count prints itself: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail)'` |
+| Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail)'` and `node test/docs-lint.mjs` |
 
 ## Settled — do not re-open
 
@@ -124,11 +124,31 @@ Two findings that are not code defects:
 
 ## Next step
 
-Nothing is queued. The privacy/settings gate is closed, both St unknowns are measured facts pinned
-by L1 assertions, and the last pass turned one of my own forensic habits into a guard. What remains
-inside the brief is the `po/` decision above, a live-session pass over the L2 list (nothing in the
-settings window has been seen by a human since C3), and task #8's older deferred items. If code
-starts again, one small change at a time with its diff and verification method, guard red first.
+Nothing is queued in code. The four commits landed (`9bffcbc` po, `cffa892` guards, `440f56a` the
+`St` measurements, `13d40b0` this record pass) and the working tree is clean; **pushing is still
+unauthorized**, so `origin/master` remains behind.
+
+The live-session pass began 2026-10-10 07:47. **It got further than the plan assumed**: the shell's
+own D-Bus API reported the extension ACTIVE at `version 16.0` with an empty error list, and once a
+sibling project's prefs dialog closed, **our own settings window was opened and read off the a11y bus
+in the real session** (256 nodes — the disclosure sentence, the four restore rows with their own
+counts, the clear row, the five group titles, the `Formality (DeepL only)` row and the Escape row all
+rendered as the L1 validator claims). The full readout is in [VERIFY.md](VERIFY.md).
+
+Three things are still **blocked on the maintainer**, and they are physical rather than analytical:
+1. Visual legibility. Screenshots are denied to an agent on GNOME 50 (`AccessDenied`), so whether the
+   long disclosure sentence wraps well, whether the panel icon looks right in light and dark, and
+   where the card lands on a multi-monitor layout are his eyes' job. (The window I opened is still on
+   his desktop — closing it means killing a prefs host shared with other extensions, which the
+   permission layer rightly refused.)
+2. The other three providers' groups. Reading them means writing `translation-service` into his live
+   profile, which needs his word; for DeepL the visibility gating is now confirmed on the real window.
+3. The double-copy trigger: faking it with `wl-copy` would destroy clipboard types this session
+   actually holds (`chromium/x-internal-source-rfh-token`, `text/html`) and cannot restore.
+Also still his call, unchanged: the `po/` decisions above, flipping the global theme for the
+light/dark live switch (a system setting this brief must not touch), and task #8's older deferred
+items. What is **no longer** his call: the docs link sweep — it became a gate this pass
+(`test/docs-lint.mjs`, D-048, in `npm test` and in CI), and the L2 reader exists too (D-049).
 
 ## What this pass did not verify
 
@@ -183,3 +203,7 @@ starts again, one small change at a time with its diff and verification method, 
   the 22:35 and 22:44 integration runs. The file sits in another project's boundary, so it was left
   in place rather than deleted. What matters for the next session: **do not treat any recorded hash
   or timestamp as a live baseline — re-measure in the same command that asserts it.**
+  **Closed by the 2026-10-10 restart**: the marker is gone (logout tore down that tmpfs), and the
+  dconf drift now has a *witnessed* mechanism — a concurrent session on this machine was running
+  `dconf write` / `dconf reset -f` against another extension's schema path (pid 387264, seen 07:54).
+  Sibling sessions move the same file, so a baseline is only good for the seconds around it.

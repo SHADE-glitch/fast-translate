@@ -262,6 +262,78 @@ by a digest, never by contents. It ships as a guard, not as advice.
 | `no script prints a settings value` | scratch copy of the repo (`tar`, no `.git`, entry module a real file): one executable `dconf dump /org/gnome/shell/extensions/fast-translate/` in `test/integration.sh` → `not ok 4 — a probe reads the settings store only as a hash`, message naming the file; separately one `gsettings get … apikey` in `test/perf-probe.sh` → the same, naming that file | the *same two lines* prefixed with `#` → 33 pass / 0 fail (the guard reads code, not prose); tree restored → green |
 | `the scan covers the harness scripts it is about` | same method, deleting `test/perf-probe.sh` from the copy → `the scan saw 20 executable file(s) and covers integration.sh=true, perf-probe.sh=false` (32 pass / 1 fail) | tree restored → 33 pass / 0 fail |
 
+## L2 — the 2026-10-10 restart
+
+The maintainer restarted the session (07:47:18), so the committed code was loaded for the first
+time in a real shell. What the live machine answered:
+
+| Probe | Output | Reading |
+|---|---|---|
+| `pgrep -x gnome-shell` + `ps -o lstart=` | one process, pid 367241, started `Sat Oct 10 07:47:18 2026`, `--mode=ubuntu` | the shell really restarted; a new process means a new module cache |
+| `/run/user/1000/gnome-shell-disable-extensions` | `No such file or directory` | the safe-mode marker is gone after logout/login (the tmpfs is torn down) |
+| `gsettings get org.gnome.shell enabled-extensions` | contains `'fast-translate@local'` among 11 uuids | the extension is enabled in the live profile |
+| `GetExtensionInfo(fast-translate@local)` | `'name': 'Fast Translate'`, `'version': <16.0>`, `'state': <1.0>`, `'error': <''>` | **the running code is the committed code** (version 16 = `13d40b0`'s `metadata.json`), and the shell reports it ACTIVE with no error |
+| `GetExtensionErrors(fast-translate@local)` | `(@as [],)` | the shell's own error collector holds nothing for this uuid |
+| calibration of `state` | 9 enabled uuids (incl. ours) → `state=1`; 5 installed-but-disabled (`ubuntu-dock@ubuntu.com`, `tiling-assistant@ubuntu.com`, `snapd-*`, `web-search-provider`) → `state=6`; a misspelled uuid → D-Bus error | `1` = ACTIVATED was *read off the machine*, not inferred from the enum's name |
+| `journalctl _PID=367241` | 111 lines total, **0** matching `JS ERROR\|Gjs-CRITICAL\|Crash`, 0 mentioning `fast-translate` | error-free load; the 0 is not vacuous because the PID's own log density was printed |
+| `UserExtensionsEnabled` property | `true` | live counterpart of the marker concern — safe mode was not entered |
+
+**One instrument failed and one worked, and both outcomes are now documented.**
+
+- `org.gnome.Shell.Screenshot.Screenshot` → `AccessDenied: Screenshot is not allowed` on GNOME 50;
+  `gnome-screenshot`, `grim`, `wf-recorder`, `spectacle` are all absent. So an agent cannot see
+  pixels here, and every visual verdict stays with the maintainer.
+- `Atspi-2.0.typelib` + the a11y bus **does** work as a pixel-free reader: it dumped another
+  extension's live prefs window completely (`[frame] "Burn-My-Windows 48"`, 402 nodes, with
+  `visible=`/`showing=` per row). Our own window was refused at first — the prefs host
+  `org.gnome.Shell.Extensions` allows one dialog, so while that other window was up both
+  `LaunchExtensionPrefs` and `OpenExtensionPrefs` answered `Already showing a prefs dialog`.
+  The other dialog closed on its own by 08:14 and **our window then opened and was read in full**
+  (see below), so this instrument does reach our own UI. Killing the other extension's host
+  process was proposed and refused by the permission layer — correctly: that window is the
+  maintainer's, and a shared host would take his other dialogs down with it.
+
+**One test was declined on purpose.** The double-copy trigger (`extension.js:299-360`: same text
+copied twice inside 50 ms–2 s) is fittable from a shell with two `wl-copy` calls, but this session's
+clipboard held `chromium/x-source-url`, `chromium/x-internal-source-rfh-token`, `text/html` and
+`text/plain`, and `wl-copy` can restore `text/plain` only. Destroying a browser-internal token to
+collect an assertion the maintainer can supply with one keystroke is the wrong trade, so the popup's
+visual half stays a human step.
+
+**Also observed, not ours:** a *concurrent* session on this machine was running `dconf write` and
+`dconf reset -f` against `/org/gnome/shell/extensions/notification-grouper/` (pid 387264, seen at
+07:54). That is a direct, witnessed mechanism for the "`~/.config/dconf/user` moves on its own"
+observation recorded above — any baseline taken on this machine can be moved by a sibling session
+within seconds.
+
+**Live settings, read by key name** (never `gsettings list` on this schema — §3 of
+`docs/maintenance/verification.md`): `notifications=true`, `floating-background-mode=false`,
+`floating-background-toast=false`, `show-panel-icon=false`, `shortcut-enabled=false`,
+`darktheme=false`, pair `Chinese (ZH)` → `English American (EN-US)`, service `DeepL`. What that
+implies for the smoke list: the background-failure leg cannot be exercised at all while
+`floating-background-mode` is false (nothing runs in the background to fail), the panel-icon leg is
+hidden by his own setting, and the trigger is clipboard-only — which is exactly the path this pass
+declined to fake.
+
+**Our own prefs window, read out of the live session (08:14, service = DeepL).** 256 nodes:
+52 labels, 18 switches, 4 combo boxes, and every row `visible=true showing=true sensitive=true`.
+
+| What the L1 mock had been asserting | What the real window actually rendered |
+|---|---|
+| the disclosure sentence per provider | `The text you copy is sent to api-free.deepl.com for translation. Its key is entered below. Single words are also sent to clients5.google.com for the dictionary.` — verbatim, on the `Translation Service` row |
+| the credentials-group warning | `The API key below is secret; the URL above is not. Both are stored on this machine in plain text.` |
+| four restore rows, counts per section | `Restore this section’s defaults` × 4, each with its own count: `Resets 4 / 2 / 3 / 3 settings in this section. Keys are never touched.` |
+| clear rows on the credential groups | `Clear the keys in this section` + `Empties 2 stored fields. This cannot be undone.` — present once, because only DeepL's group is up |
+| provider-driven group visibility | the five group titles rendered: `Language Settings`, `DeepL Translation API Configuration`, `Formatting Options`, `Double-Copy Instant Translation`, `System Integration` — i.e. Baidu/Youdao's key groups are genuinely absent for DeepL |
+| the Escape switch and its copy | `Close the popup with Escape` + `Escape dismisses the translation popup. Turning this off frees the key for the app behind it.` |
+| DeepL-only formatting rows | a `Formality` row labelled `(DeepL only)` is present, matching the live service value |
+
+Two things this readout **cannot** settle: whether the long disclosure sentence *wraps legibly*
+(a11y gives text, not geometry), and whether the other three providers' groups appear for their own
+enum values — that would mean writing `translation-service` into the maintainer's live profile, which
+needs his word. The window was left open on his desktop (closing it means killing a shared prefs
+host that also carries other extensions' dialogs, which the permission layer rightly refused).
+
 ## Not verified
 
 - **L2 / needs you**: the dictionary card on a real ZH→EN word — this is the first time

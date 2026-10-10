@@ -131,16 +131,25 @@ not worth its cost, reopen only with new evidence.
   only shows up on a live shell. Three of its assertion groups (hostname disclosure, the
   two-pass reset counts, the `strv` round trip) were written against code that already
   existed and have not each been provoked red; see `verification.md` §3.
-- **The relative-link and anchor sweep has no home in the repo.** Every session that edits
-  `docs/` re-writes a throwaway checker in `/tmp`, runs it, and deletes it — this pass measured
-  106 links over 24 markdown files, 0 broken, with a script that no longer exists. The result is
-  real but unrepeatable: the next session cannot re-run the check that certifies it.
-  **Deferred, and yours to call**: codifying it costs one `describe` in `test/repo.test.js`
-  (walk `*.md`, resolve each `](target)` and `#anchor` against the filesystem and the heading
-  slugs, plus a floor so an empty scan cannot pass), roughly 40 lines and no new dependency.
-  Against it: it slows every prose edit, and GitHub-style slug rules differ from a hand-written
-  checker's, so a heading reworded by hand can go red for a reason nobody intended. The bilingual
-  *pairing* half of this problem is already a guard; only the link half is missing.
+- **What the docs gate still does not check.** The link/anchor sweep is now a real gate
+  (`test/docs-lint.mjs`, recorded as D-048), so the two residual gaps are these, and neither is
+  cheap: (1) the bilingual *pairing* guard only compares `##` counts and the language-switcher
+  opener — nothing notices if a zh paragraph loses a sentence its English twin keeps, so a topic
+  pair can go semantically out of step while every gate stays green; (2) nothing proves a stated
+  *number* in prose still matches the machine (the rule is "print it from the command", but prose
+  written earlier can rot). **Deferred**: (1) needs a paragraph-level alignment check, which is a
+  real algorithm rather than a regex, and would flag deliberate rewordings; (2) has no ground
+  truth to compare against unless every count is generated from the file it describes.
+- **What the L2 reader still cannot answer.** Our own prefs window *has* now been read off a live
+  session (`gjs -m test/l2-prefs-dump.mjs`, D-049 — 256 nodes, five group titles, the disclosure
+  sentence and the Escape row verbatim, four restore rows counting 4/2/3/3 keys), so the old "never
+  seen by a human since C3" gap is closed for structure and copy. Two residuals stay open, and
+  neither is an instrument problem: (1) the a11y tree carries text and states but no geometry, so
+  whether the long disclosure sentence *wraps legibly* in a narrow window is still a human verdict;
+  (2) only the currently selected provider's groups render, so the other three groups' visibility
+  needs `translation-service` written into the maintainer's live profile — a settings write, his word
+  first. Reading the tree does **not** prove the popup itself: the shell exposes only window and
+  surface panels, and our floating card has never been observed on the a11y bus at all.
 
 ## 5. Deferred defects and their current status
 

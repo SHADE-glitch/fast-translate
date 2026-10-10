@@ -9,10 +9,11 @@ tiers depend on lives in [cost-measurement.md](cost-measurement.md).
 
 | Command | Time | Reaches | Writes |
 |---|---|---|---|
-| `npm test` | seconds | `translation-helper.js` exports, `destroy()` totality, GLib-vs-node crypto known answers, `prefs.js` layout, repository guards (`test/repo.test.js`: bilingual pairing, call-site list, provider registry, no main-thread stat, JS↔CSS geometry contract, shipped defaults vs the settings copy, catalog coverage across the template **and** all three locales, translator-hint propagation) | nothing |
-| `npm run integration` | ~2–4 min | a real headless shell: ACTIVE, panel button, popup structure, double-copy behaviour | nothing (memory backend) |
+| `npm test` | seconds | `translation-helper.js` exports, `destroy()` totality, GLib-vs-node crypto known answers, `prefs.js` layout, repository guards (`test/repo.test.js`: bilingual pairing, call-site list, provider registry, no main-thread stat, JS↔CSS geometry contract, shipped defaults vs the settings copy, catalog coverage across the template **and** all three locales, translator-hint propagation, no script prints a settings value), and the docs gate (`test/docs-lint.mjs`: every relative link and `#anchor` in every `*.md` resolves, with floors so an empty scan cannot pass) | nothing |
+| `npm run integration` | ~2–4 min | a real headless shell: ACTIVE, panel button, popup structure, double-copy behaviour, the `St` measurements of D-047 | nothing (memory backend) |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 min | cost per event and idle CPU/RSS | nothing; writes JSON to `~/.cache/fast-translate-perf/` |
 | `npm run check:log` | seconds | the record: `D-###` ids unique and gapless, code commits cited and resolvable, every `D-###` cited by a tracked doc resolves, five fields per entry, `kind` in the allowed set | nothing |
+| `gjs -m test/l2-prefs-dump.mjs apps\|tree <name>` | seconds | a **live** session's rendered windows through the a11y bus — frames, labels, switches with `VISIBLE`/`SHOWING`/`SENSITIVE` (screenshots are denied to an agent on GNOME 50). Never prints an editable field's value. Needs a desktop: not in `npm test`, not in CI | nothing |
 
 `npm test` deliberately does **not** cover `extension.js` at runtime (≈2400
 lines): it never loads under plain Node, because `gi://` is unavailable there.
@@ -184,12 +185,56 @@ The rules these provocations earned:
   so it can never verify a code change. Restart the shell — on Wayland that means
   logging out and in again.
 - Journal: `journalctl -f -o cat /usr/bin/gnome-shell`, or with the `_PID=` filter
-  from [shell-internals.md](shell-internals.md).
+  from [shell-internals.md](shell-internals.md). Always print the PID's total line count
+  alongside it: `0` error lines is only evidence if the window actually held lines
+  (measured 2026-10-10: 111 lines, 0 errors — the anti-vacuity floor for this check).
+- **The shell's own extension API answers L2 questions without unsafe-mode or Eval.**
+  `org.gnome.Shell.Extensions` on the session bus exposes `GetExtensionInfo(uuid)`
+  (→ `state`, `version`, `error`), `GetExtensionErrors(uuid)` (→ string array) and the
+  `UserExtensionsEnabled` property. Calibrated against this machine's own extensions:
+  every uuid in `enabled-extensions` reports **`state=1`**, an installed-but-disabled one
+  reports **`state=6`**, and an unknown uuid errors out — so `1` = ACTIVATED was read from
+  the machine, not assumed. `version` is the live proof that the running code is the
+  committed code (`16.0` after the 07:47 restart), and `GetExtensionErrors` returning `[]`
+  is the shell's own error collector agreeing that the load did not throw.
+  `UserExtensionsEnabled=true` is the live counterpart of the
+  `/run/user/1000/gnome-shell-disable-extensions` marker concern — safe mode off.
+- **Screenshots are not available to an agent.** `org.gnome.Shell.Screenshot.Screenshot`
+  answers `AccessDenied: Screenshot is not allowed` on GNOME 50, and `gnome-screenshot`,
+  `grim`, `wf-recorder`, `spectacle` are all absent here. So every *visual* verdict (does
+  the row wrap, does the icon look right, is the card on the intended monitor) stays with
+  the maintainer; writing one as "verified" off a D-Bus reply would be a false claim.
+- **A pixel-free instrument for real GTK windows: the a11y tree.** It is committed as
+  `gjs -m test/l2-prefs-dump.mjs apps` / `… tree <app-name-substring>`: it walks
+  `Atspi.get_desktop(0)` and prints frames, groupings, labels and switches with
+  `VISIBLE`/`SHOWING`/`SENSITIVE`. **Read `SENSITIVE`, never `ENABLED`** — GTK4's AT-SPI bridge
+  leaves `ENABLED` unset, so a healthy window reports `ENABLED=false SENSITIVE=true` for every
+  node, and an agent that trusts `ENABLED` will "discover" that the whole settings window is
+  disabled. Proven on this session — it dumped another extension's
+  prefs window completely (`[frame] "Burn-My-Windows 48"`, 402 nodes). Two hard rules, both
+  encoded in the script: **it never reads the text of an `entry`/`password-text` node** (this
+  extension's fields hold provider keys — labels only), and the prefs host
+  `org.gnome.Shell.Extensions` is **single-window** — while any extension's dialog is open,
+  `LaunchExtensionPrefs`/`OpenExtensionPrefs` fail with `Already showing a prefs dialog`, so the
+  other window must be closed first (the script prints that reminder). Whether our floating card
+  appears on the a11y bus at all is **unobserved**: the shell's tree exposed only window/surface
+  panels. It needs a desktop session, so it is not part of `npm test` and not in CI.
+- **The double-copy trigger destroys clipboard data, so the maintainer runs it.** The path
+  is `selection 'owner-changed'` plus the same text copied twice inside 50 ms–2 s
+  (`extension.js:299-360`), which an agent *can* fake with two `wl-copy` calls — but
+  `wl-copy` restores `text/plain` only. A real clipboard in this session carried
+  `chromium/x-source-url`, `chromium/x-internal-source-rfh-token` and `text/html`, none of
+  which a restore brings back. The trigger is a human step, not an automated one.
 - Reading this extension's own keys needs the schema dir:
   `GSETTINGS_SCHEMA_DIR=$PWD/schemas gsettings get org.gnome.shell.extensions.fast-translate <key>`.
-- Four things can only be verified by hand in a real session: the popup in light
-  and dark after a live switch, Esc, multi-monitor placement, and translation
-  latency (it is network-bound).
+  **Name the key** — never `gsettings list` or `dconf dump` this schema (§3). Opening the
+  prefs window writes nothing; walking the four provider groups would mean setting
+  `translation-service`, which is a write to the maintainer's live profile and needs his
+  word first.
+- What still needs a hand in a real session: the popup in light and dark after a live
+  theme switch (a theme switch is a **global** GNOME setting, so an agent must not flip
+  it), Esc, multi-monitor placement, translation latency, whether each provider's prefs
+  group is visible for its enum value, and whether the disclosure sentence is legible.
 
 ## 5. Rollback and commit discipline
 

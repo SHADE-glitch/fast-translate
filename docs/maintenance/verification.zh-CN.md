@@ -9,10 +9,11 @@
 
 | 命令 | 耗时 | 覆盖 | 是否写状态 |
 |---|---|---|---|
-| `npm test` | 秒级 | `translation-helper.js` 导出、`destroy()` 完整性、GLib 与 node 加密已知答案对撞、`prefs.js` 布局、仓库级守卡（`test/repo.test.js`：双语配对、调用点清单、服务商注册表、主线程不碰磁盘、JS↔CSS 几何契约、出厂默认值与设置文案对撞、翻译目录覆盖率——模板**与**三份 locale 都要覆盖、译者提示必须落到条目上） | 不写 |
-| `npm run integration` | 约 2–4 分钟 | 真实无头壳：ACTIVE、面板按钮、弹窗结构、双击拷贝行为 | 不写（内存后端） |
+| `npm test` | 秒级 | `translation-helper.js` 导出、`destroy()` 完整性、GLib 与 node 加密已知答案对撞、`prefs.js` 布局、仓库级守卡（`test/repo.test.js`：双语配对、调用点清单、服务商注册表、主线程不碰磁盘、JS↔CSS 几何契约、出厂默认值与设置文案对撞、翻译目录覆盖率——模板**与**三份 locale 都要覆盖、译者提示必须落到条目上、任何脚本都不许打印设置值），以及文档门（`test/docs-lint.mjs`：每份 `*.md` 里每条相对链接与 `#锚点` 都必须解析得到，并带下限让空扫描不可能通过） | 不写 |
+| `npm run integration` | 约 2–4 分钟 | 真实无头壳：ACTIVE、面板按钮、弹窗结构、双击拷贝行为、D-047 的两项 `St` 度量 | 不写（内存后端） |
 | `npm run perf [cost\|idle\|all]` | 2 / 4 / 5 分钟 | 单次事件成本与空闲 CPU/RSS | 不写；JSON 落在 `~/.cache/fast-translate-perf/` |
 | `npm run check:log` | 秒级 | 记录本身：`D-###` 唯一且连续无洞、代码提交被引用且哈希可解析、任何被 tracked `.md` 引用的 `D-###` 都有对应条目、每条五个字段齐全、`kind` 在允许集合内 | 不写 |
+| `gjs -m test/l2-prefs-dump.mjs apps\|tree <名字>` | 秒级 | 通过 a11y 总线读**真实会话**里渲染出来的窗口——frame、标签、开关连同 `VISIBLE`/`SHOWING`/`SENSITIVE`（GNOME 50 上代理拿不到截图）。绝不打印可编辑字段的值。需要桌面会话：不在 `npm test` 里，也不进 CI | 不写 |
 
 `npm test` **不覆盖** `extension.js` 的运行时（约 2400 行）：纯 Node 下它根本加载
 不了，因为 `gi://` 不可用。运行时路径只有 `npm run integration` 会走。
@@ -161,11 +162,49 @@ libadwaita 的 typelib，所以只是本地桌面门，被刻意留在 CI 之外
   `extension.js`（ESM 模块缓存是进程级的），所以它永远验证不了代码改动。要重启
   壳——Wayland 下意味着注销再登录。
 - 日志：`journalctl -f -o cat /usr/bin/gnome-shell`，或按
-  [shell-internals.zh-CN.md](shell-internals.zh-CN.md) 里的 `_PID=` 过滤。
+  [shell-internals.zh-CN.md](shell-internals.zh-CN.md) 里的 `_PID=` 过滤。一定要把该 PID 的
+  总行数一起打出来：`0` 行错误只有在"这段时间确实有日志"时才是证据（2026-10-10 实测：
+  111 行日志、0 条错误——这就是这条检查的防空转下限）。
+- **壳自己的扩展 API 不用 unsafe-mode、不用 Eval 就能回答 L2 问题。** session bus 上的
+  `org.gnome.Shell.Extensions` 提供 `GetExtensionInfo(uuid)`（返回 `state`、`version`、
+  `error`）、`GetExtensionErrors(uuid)`（返回字符串数组）和 `UserExtensionsEnabled` 属性。
+  本机自己标定过：`enabled-extensions` 里每个 uuid 都报 **`state=1`**，装了但没启用的报
+  **`state=6`**，不存在的 uuid 直接出错——所以"1 = ACTIVATED"是从机器上读来的，不是假设。
+  `version` 是"跑着的代码就是提交里的代码"的现场证据（07:47 重启后为 `16.0`），而
+  `GetExtensionErrors` 返回 `[]` 是壳自己的错误收集器认可"加载没抛异常"。
+  `UserExtensionsEnabled=true` 则是 `/run/user/1000/gnome-shell-disable-extensions` 那个顾虑
+  的现场对照——安全模式没开。
+- **代理拿不到截图。** GNOME 50 上 `org.gnome.Shell.Screenshot.Screenshot` 回
+  `AccessDenied: Screenshot is not allowed`，而 `gnome-screenshot`、`grim`、`wf-recorder`、
+  `spectacle` 本机一个都没有。于是所有*观感*结论（这行会不会折行、图标好不好看、卡片落在
+  哪块屏）只能由维护者给；拿一条 D-Bus 回复就写成"已验证"是假主张。
+- **看真 GTK 窗口的免像素仪器：a11y 树。** `Atspi-2.0.typelib` 加上在跑的 a11y 总线，可以让
+  `gjs -m test/l2-prefs-dump.mjs apps|tree <应用名子串>` 遍历 `Atspi.get_desktop(0)`，把 frame、
+  分组、标签、开关连同
+  `VISIBLE`/`SHOWING`/`SENSITIVE` 打出来。**要读 `SENSITIVE`，不要读 `ENABLED`**——GTK4 的
+  AT-SPI 桥压根不填 `ENABLED`，一个健康的窗口会对每个节点报 `ENABLED=false SENSITIVE=true`，
+  相信 `ENABLED` 的代理会"发现"整个设置窗被禁用了。这点已经被另一个扩展的设置窗完整验证过
+  （`[frame] "Burn-My-Windows 48"` 及其各子控件，402 个节点）。两条硬规矩，脚本里都写了：
+  **绝不读
+  `entry`/`password-text` 节点的文本**（本扩展的这些字段里装的是服务商密钥，只打标签），
+  以及 prefs 宿主 `org.gnome.Shell.Extensions` **只允许一个窗口**——只要任何一个扩展的对话框
+  还开着，`LaunchExtensionPrefs` 与 `OpenExtensionPrefs` 都会以
+  `Already showing a prefs dialog` 失败，所以必须先关掉它（脚本会把这条提醒打出来）。我们自己的浮窗究竟会不会出现在
+  a11y 树上**尚未观察过**：壳的树里只有 window/surface 那些 panel。它需要桌面会话，所以不在
+  `npm test` 里，也不进 CI。
+- **双击复制这条触发路径会毁掉剪贴板数据，所以由维护者来按。** 触发条件是
+  `selection 'owner-changed'` 加上同一段文本在 50ms–2s 内被复制两次（`extension.js:299-360`），
+  代理*确实*能用两次 `wl-copy` 假冒——但 `wl-copy` 只能还原 `text/plain`。本次会话里真实剪贴板
+  还带着 `chromium/x-source-url`、`chromium/x-internal-source-rfh-token` 与 `text/html`，
+  这些是还原不回来的。所以这一步是人工步骤，不是自动步骤。
 - 读本扩展自己的键要带 schema 目录：
   `GSETTINGS_SCHEMA_DIR=$PWD/schemas gsettings get org.gnome.shell.extensions.fast-translate <key>`。
-- 四件事只能真机手工验：浅/深色实时切换后的弹窗、Esc、多显示器定位、以及翻译延迟
-  （它受网络支配）。
+  **要点名具体的键**——不要对这个 schema 跑 `gsettings list` 或 `dconf dump`（见第 3 节）。
+  打开设置窗口本身不写任何东西；但要逐个走完四个服务商分组就得设 `translation-service`，
+  那是在写维护者的真实配置，得先有他这句话。
+- 仍然只能靠真机手验的：浅/深色实时切换后的弹窗（切主题是**全局** GNOME 设置，代理不许动）、
+  Esc、多显示器定位、翻译延迟、每个服务商分组是否只在自己的枚举值下可见，以及那句披露长文
+  在窄窗口里读不读得下去。
 
 ## 5. 回滚与提交纪律
 

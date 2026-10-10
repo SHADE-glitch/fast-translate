@@ -123,6 +123,10 @@ handbook: operational knowledge lives behind the router in
   they are not part of `npm test`. Both must write **nothing** outside their temp dir —
   `GSETTINGS_BACKEND=memory` is what guarantees that, and `test/integration.sh` and
   `test/perf-probe.sh` share one isolation recipe: if the recipe changes, change both.
+- **L2 instrument**: `gjs -m test/l2-prefs-dump.mjs apps|tree <name>` reads a *live* session's
+  rendered windows through the a11y bus (screenshots are denied to an agent on GNOME 50). It is
+  neither in `npm test` nor in CI — it needs a desktop session — and it deliberately never prints
+  the value of an editable field, because those fields hold provider credentials.
 - `npm test` never loads `extension.js` — `gi://` does not exist under plain Node.
 
 ## CI

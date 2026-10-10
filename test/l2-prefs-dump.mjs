@@ -34,10 +34,13 @@ function nameOf(a) {
 function stateOf(a) {
     try {
         const s = a.get_state_set();
+        // `SENSITIVE`, not `ENABLED`: GTK4's AT-SPI bridge does not populate ENABLED at all,
+        // so reading it here would report every real window as disabled. Measured on this
+        // session's own prefs window — `ENABLED=false SENSITIVE=true`.
         return `visible=${s.contains(Atspi.StateType.VISIBLE)} ` +
                `showing=${s.contains(Atspi.StateType.SHOWING)} ` +
-               `enabled=${s.contains(Atspi.StateType.ENABLED)}`;
-    } catch { return "visible=? showing=? enabled=?"; }
+               `sensitive=${s.contains(Atspi.StateType.SENSITIVE)}`;
+    } catch { return "visible=? showing=? sensitive=?"; }
 }
 
 function line(a, depth) {

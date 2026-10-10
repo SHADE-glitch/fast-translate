@@ -403,9 +403,40 @@ Every row below was re-run for this record; the first five were what made D-053 
 | `git ls-remote origin refs/heads/master` over the new SSH remote | `3f48172…`, exit 0 | The remote was read, not inferred from a local tracking ref. `origin` is now `git@github.com:SHADE-glitch/fast-translate.git` because HTTPS push times out from this host |
 
 Suite state at the end of the round, as printed: `node test/repo.test.js` → `# tests 40 / # suites 9 /
-# pass 40 / # fail 0`; `node test/docs-lint.mjs` → 114 links over 24 markdown files; `npm run check:log`
+# pass 40 / # fail 0`; `node test/docs-lint.mjs` → 114 links over 24 markdown files (113 after the
+schema batch, since a reworded bullet dropped one link); `npm run check:log`
 → 56 entries, 43 distinct commits cited. These three lines are the ones to re-run before quoting them —
-they moved inside this very pass, twice, because the pass added documents and then a record entry.
+they moved inside this very pass, three times: the documents grew, then a record entry landed, then the
+schema batch added three assertions (`# tests 43`). Re-print before quoting any of them.
+
+## The schema's strings reach the catalogs — and then get guarded
+
+The gettext round's diff left one number unexplained, and it turned out to be a real hole rather than
+a counting artifact: `test/repo.test.js` checked `_()` literals from three JS files, while
+`schemas/*.gschema.xml` declares `gettext-domain` on its `<schemalist>` and so is a **second**
+translatable source. Reading it mechanically: 48 `<summary>`/`<description>` strings requested, 33 in
+the template, **15 in no catalog at all** — and the template's own schema rows still said
+`(DeepL or Google Translate)` where the schema now says `(Google Translate, DeepL, Baidu or Youdao)`.
+
+| Probe | Output | Reading |
+|---|---|---|
+| new assertion, written **before** the backfill | `# tests 42 / # pass 41 / # fail 1` — `is missing 15 of 48 schema msgid(s): "APP ID from the Baidu Translate open platform…"` | Red on the real defect first, naming the strings rather than a synthetic one |
+| `xgettext … -o /tmp/ft-schema.pot -- schemas/*.xml`, then insert its own blocks verbatim | `75 0` added / `0` removed in **each** of `po/messages.pot`, `de.po`, `es.po`, `nl.po` | Letting gettext format the entries removes any hand-wrapping or escaping question; the run went into the file's existing schema block, in XML line order |
+| `msgfmt -c -o /dev/null po/{de,es,nl}.po` | three × `exit=0` | No new msgid collides with an obsolete or live one (the stale `(DeepL or Google Translate)` row is a *different* msgid, so both now exist — the old one is part of the 43 awaiting his decision) |
+| `msgcomm` re-diff of the schema template against `po/messages.pot` | `49` requested / `49` common → **missing 0** | The gap is closed, and the command that found it is the command that proves it |
+| `msgfmt --statistics` | de 7 translated / 10 fuzzy / **187** untranslated; es 34 / 29 / **141**; nl 7 / 10 / **187** | `translated` did not move — exactly the point: nothing was invented, and the new rows are work handed to a translator |
+| `msgfmt -o /tmp/<lang>.mo po/<lang>.po` vs the `.mo` inside the zip built **before** the change | `sha256` identical for all three (`48cc917e…`, `53d4842a…`, `3609fafa…`) | Zero user-visible change → **no version bump**, per the rule in `AGENTS.md` (bump only for what is intended to reach users) |
+| `bash scripts/pack.sh` after the backfill | `✅ Packaging complete`, then `exit=139` from `shexli` as before | The catalogs still compile inside `--podir`; the crash stays the known dependency issue |
+| five `tar` copies, one mutation each | control → `# pass 43 / # fail 0`; `metadata.json` domain changed → only the domain case red; `msgid "Show panel icon"` deleted from all four → `is missing 1 of 48`; one `<summary>` split across three lines → `holds 48 opening tag(s) but the reader collected 47`; 30 elements removed → `only 18 schema string(s) parsed` | Each new assertion seen failing for the reason it names, and the last one is the vacuity case: a schema edit that empties the set must not be able to read as green |
+
+The first version of that last self-check was an `assert` **inside the reader function**, called while
+the `describe` body ran: it aborted collection, so the file reported `# tests 25 / # pass 25 / # fail 0`
+with a `not ok` on top — a red that also destroyed the rest of the suite's output. Moved into its own
+`it()` case, it now fails one test and leaves 43 collected. Instrument bug, found by running it.
+
+One thing this did **not** establish: whether a translated schema `description` is ever *rendered*,
+which depends on whoever compiles the schema passing `--gettext-package`. Never observed on this
+machine *(needs manual confirmation)*.
 
 ## Not verified
 

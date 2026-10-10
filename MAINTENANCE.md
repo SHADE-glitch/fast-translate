@@ -116,7 +116,9 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
   does it silently — which is why the fix here deleted the pair and left `msgstr ""` for a
   translator to fill. `test/repo.test.js` ("no catalog defines the same msgid twice, obsolete
   entries included") is the gate. The catalogs remain hand-edited and kept honest by `test/repo.test.js`: every
-  `_()` literal must appear in `messages.pot` and in de/es/nl, no catalog may carry a msgid
+  `_()` literal **and every schema `<summary>`/`<description>`** (the `<schemalist gettext-domain>`
+  makes that a second translatable source — see `docs/maintenance/open-items.md` §3) must appear in
+  `messages.pot` and in de/es/nl, no catalog may carry a msgid
   the template lost, and every `// Translators:` comment must reach all four as a `#.` hint.
   Adding a user-visible string still means four `.po`-side edits before `npm test` goes green.
   Do **not** reach for `scripts/update-pot.sh`: measured on this fork it rewrites the template

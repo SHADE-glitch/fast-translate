@@ -117,25 +117,25 @@ not worth its cost, reopen only with new evidence.
   27 entries, and 28 more sit on the gschema entries. The template itself is clean (119 tokens on
   live entries, 0 stale), because the fork recomputed refs wherever it added or changed an entry
   and left the translator's lines alone.
-- **The catalog guard's scope is JS, so the schema's own translatable strings can drift with every
-  guard green.** `test/repo.test.js` reads `TRANSLATED = ["extension.js", "prefs.js",
-  "translation-helper.js"]`; `schemas/*.gschema.xml` declares `gettext-domain` on its `<schemalist>`
-  and so asks gettext for `<summary>`/`<description>` strings too, but nothing asserts they arrive.
-  Measured 2026-10-10: the sources request 161 content msgids, the template holds 189, 146 are
-  common — so **15 requested by the schema are absent from `po/messages.pot`** (and from de/es/nl:
-  sampled `Baidu Translate APP ID`, `Show panel icon`, `Close floating window` — 0 hits in each),
-  while 43 template entries are no longer requested. The 15 are not a missing-generator artifact: the
-  schema rows in the template still carry the *pre-Baidu/Youdao* wording, e.g. msgid
-  `"The translation service to use (DeepL or Google Translate)"` against the schema's now
-  `(Google Translate, DeepL, Baidu or Youdao)`. So a fork that renames a service or adds a key
-  silently de-translates its own settings schema. **Owed, and it cannot simply be gated:** a guard
-  asserting "every msgid the schema requests is in the template" is red right now, so it needs the
-  15 backfilled (empty `msgstr` — no invented text) in the same change, and the 43 deletions are the
-  maintainer's call. Print it rather than trusting this sentence:
-  `xgettext --from-code=UTF-8 --add-comments=Translators -o - -- *.js schemas/*.xml` vs
-  `po/messages.pot`, and `msgcomm` for the intersection. Whether a schema `description` is *rendered*
-  translated also depends on whoever compiles the schema passing `--gettext-package`, which this
-  machine has never observed *(needs manual confirmation)*.
+- **The schema is a second translatable source, and it is now covered — it was not.** Until
+  2026-10-10 the catalog guard's file list was the three JS modules, while
+  `schemas/*.gschema.xml` declares `gettext-domain` on its `<schemalist>` and so asks gettext for
+  its `<summary>`/`<description>` strings too. Measured that day: the schema requested 48 strings
+  and **15 of them were in no catalog at all** — the template still carried their pre-Baidu/Youdao
+  wording (e.g. msgid `"The translation service to use (DeepL or Google Translate)"` against the
+  schema's now `(Google Translate, DeepL, Baidu or Youdao)`), so a fork that renamed a service had
+  silently de-translated its own settings window with every guard green. Closed the same day, in one
+  change: the 15 appended to all four catalogs as gettext emitted them (empty `msgstr`, so nothing
+  was invented and the `.mo` is **byte-identical** — `sha256` of each compiled file before and after,
+  so no user-visible change and no version bump), plus a guard that refuses a schema string missing
+  from any catalog, one that the `<schemalist>` domain still equals `metadata.json`'s, and one that
+  the XML reader still sees every opening tag (floors and provocations:
+  `docs/maintenance/verification.md` §3). Re-measure with
+  `xgettext --from-code=UTF-8 -o - -- schemas/*.xml` diffed against `po/messages.pot` through
+  `msgcomm`. **Still owed here:** whether a schema `description` is ever *rendered* translated
+  depends on whoever compiles the schema passing `--gettext-package`, which this machine has not
+  observed *(needs manual confirmation)*; and the 15 rows need actual German/Spanish/Dutch text like
+  the other 187/141/187 untranslated ones do.
 - **The `.mo` ships less than the catalog appears to hold.** `msgfmt` writes only entries whose
   `msgstr` is non-empty *and* not `#, fuzzy`, so the translated rows each locale really ships is
   the `translated` figure of

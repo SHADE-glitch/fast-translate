@@ -18,7 +18,7 @@ PLAN.md describes the batches.
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
 | Branch state | `master`, ahead of `origin/master` by three commits; **`origin` is now the SSH URL** (`git@github.com:SHADE-glitch/fast-translate.git`) at the maintainer's instruction, so `git push` works from this host without a one-off remote argument | `git remote -v`, `git status -sb` |
-| Unpushed | `origin/master` reads `3f48172` (the batch pushed 2026-10-10 under his authorization: `2fb769a` pack.sh, `c27c730` the packaging-list guard, `3f48172` docs). On top of it, unpushed: `da52508` (the duplicate-msgid fix), `e636e9e` (its guard), `b1db09f` (the stale-prose sweep), `196fd72` (the three reports refreshed) and the record commit that carries this row. **Pushing these needs a fresh authorization** — the one that covered `3f48172` is spent, and "提交完成" never implies it | `git log --oneline origin/master..HEAD` |
+| Unpushed | `origin/master` reads `3f48172` (pushed 2026-10-10 under his authorization for that batch — `2fb769a` pack.sh, `c27c730` the packaging-list guard, `3f48172` docs). Everything since is local only: the catalog fix and its guard, the stale-prose sweep, two record passes, and the schema-catalog batch. **Pushing needs a fresh authorization** — the one that covered `3f48172` is spent, and "提交完成" never implies it | `git log --oneline origin/master..HEAD` |
 | Working tree | `CHANGELOG.md` plus this record pass; everything else (po fix, guard, docs sweep) is committed | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
 | Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail\|suites)'` and `node test/docs-lint.mjs` |
@@ -110,17 +110,34 @@ never enters a zip even when it sits in the staging tree (the tool's behaviour; 
 this machine have a compiled file whose mtime is months after their `.xml`, so it is generated locally),
 and `shexli` segfaults with exit 139 *after* the zip is written.
 
+## Same day, after the gettext round: the schema as a second translatable source
+
+The gettext round's `xgettext` diff turned up something the packaging guards could not see: the
+catalog coverage list was three JS files, while `schemas/*.gschema.xml` declares a `gettext-domain`
+and therefore asks gettext for 48 more strings — **15 of which were in no catalog**, the template
+still holding their pre-Baidu/Youdao wording. Closed in one change: the 15 backfilled as gettext
+emits them (empty `msgstr`, so the compiled `.mo` files are byte-identical and `version` stays 16),
+and three new assertions — schema-string coverage across all four catalogs, the `<schemalist>` domain
+equaling `metadata.json`'s, and a tag-count self-check that refuses a reader which silently sees
+fewer elements. Coverage re-measured to zero missing; the guard was run red on the real 15 first and
+then provoked three more ways in `tar` copies against a green control (`verification.md` §3 has the
+table). One thing this did **not** settle: whether the shell compiles an extension's schemas with
+`--gettext-package`, i.e. whether a translated `description` is ever rendered at all —
+*(needs manual confirmation)*.
+
 ## Open decisions for the maintainer
 
 1. **`po/` — what is left of it.** Ordered and done on 2026-10-09: each locale now carries every
-   string the **JS** sources request (86 entries appended per file, empty `msgstr` — **no translation
+   string the sources request (86 entries appended per file, empty `msgstr` — **no translation
    text was invented**, and gettext falls back to the English msgid anyway, which was then *measured*
    once gettext existed rather than assumed), the 5 dead template entries this fork had itself
    created were deleted, all 13 `// Translators:` hints reach the four files as `#. ` comments, and
-   every `#:` reference on a live template entry was recomputed (119 tokens, 0 stale). Two new
-   guards hold that state in place, so a future string added without its four catalog edits goes red,
-   and a third now refuses a catalog that defines one msgid twice (`da52508`, `e636e9e` — obsolete
-   `#~` included, because that combination is what made `pack --podir` fail).
+   every `#:` reference on a live template entry was recomputed (119 tokens, 0 stale). Since then the
+   catalogs have gained a duplicate-definition refusal (`da52508`, `e636e9e` — obsolete `#~` included,
+   because that combination is what made `pack --podir` fail) and coverage over the schema as a second
+   translatable source (see the third bullet below). `node test/repo.test.js | grep '^# tests'` prints
+   how many of these assertions there are now; a future string added without its four catalog edits
+   goes red either way.
    **Still yours to decide, and the numbers are now gettext's rather than mine** — print them with
    `msgfmt --statistics -c -o /dev/null po/de.po` and the `xgettext`/`msgcomm` pair written out in
    [open-items.md §3](../maintenance/open-items.md):
@@ -129,14 +146,18 @@ and `shexli` segfaults with exit 139 *after* the zip is written.
      translatable strings as dead, and the "translations present" figures it was paired with
      (17/56/17) were `grep` undercounts; the real `.mo` yield is **7/34/7 translated**, plus
      10/29/10 `#, fuzzy` rows that do not reach the user at all until a translator clears the flag.
-   - the actual German/Spanish/Dutch text for the remaining 172/126/172 untranslated rows, which is
+   - the actual German/Spanish/Dutch text for the remaining 187/141/187 untranslated rows, which is
      not derivable from anything in this repo, so the UI stays English.
-   - **a gap no guard covers, found this round:** the catalog guard's file list is the three JS
-     modules, so the schema's `<summary>`/`<description>` strings are requested by gettext yet
-     asserted by nothing — **15 of them are absent from every catalog**, and the template still
-     carries their *pre-Baidu/Youdao* wording. Closing it means backfilling 15 empty-`msgstr`
-     entries and only then adding the gate; the deletions above are yours, so nothing was changed.
-     Details in [open-items.md §3](../maintenance/open-items.md).
+   - **closed the same day it was found:** the catalog guard's file list
+     was the three JS modules, so the schema's `<summary>`/`<description>` strings were requested by
+     gettext yet asserted by nothing: **15 of them were in no catalog**, and the template still carried
+     their *pre-Baidu/Youdao* wording. Backfilled as gettext emits them (empty `msgstr`, so nothing was
+     invented and the compiled `.mo` files are **byte-identical** before and after — hence no version
+     bump), and now gated by three assertions: coverage over all four catalogs, `<schemalist
+     gettext-domain>` equals `metadata.json`'s, and the XML reader must see every opening tag.
+     [open-items.md §3](../maintenance/open-items.md) keeps the re-measure commands and what is still
+     owed (whether the shell compiles schemas with `--gettext-package` at all — *(needs manual
+     confirmation)* — and the real translations for those 15).
    `scripts/update-po.sh` runs since 2026-10-10; `scripts/update-pot.sh` **must not** be used — it
    rewrites the template into a shape that puts five repository guards red.
 2. **Push.** `3f48172` was pushed on 2026-10-10 under your explicit authorization for that batch, and

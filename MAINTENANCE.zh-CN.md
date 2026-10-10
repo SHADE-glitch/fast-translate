@@ -100,8 +100,10 @@ disable/enable 不会重新 import 改过的 ES 模块。
   本 fork 现在又请求的那条串，两个定义必须去掉一个，而去 `#~` 那一对才是安全的：把上游译文
   "复活"到活条目上是一个**翻译决定**，而 `msguniq` 会替你静默做掉——所以本轮删掉那一对，把
   `msgstr ""` 留给译者。守卡是 `test/repo.test.js`（"任何目录都不许把同一条 msgid 定义两遍，
-  obsolete 也算"）。目录仍然是手工维护、由 `test/repo.test.js` 保证它诚实：每个 `_()` 字面量都要
-  出现在 `messages.pot` 与 de/es/nl 里，任何目录都不许带着模板已不认识的 msgid，源码里每条
+  obsolete 也算"）。目录仍然是手工维护、由 `test/repo.test.js` 保证它诚实：每个 `_()` 字面量
+  **以及 schema 里每条 `<summary>`/`<description>`**（`<schemalist gettext-domain>` 让它成为第二个
+  可翻译来源——见 `docs/maintenance/open-items.zh-CN.md` 第 3 节）都要出现在 `messages.pot` 与
+  de/es/nl 里，任何目录都不许带着模板已不认识的 msgid，源码里每条
   `// Translators:` 注释都要以 `#.` 落到这四个文件。也就是说，加一条用户可见的串，就得同时改四处
   目录，`npm test` 才会绿。**别指望 `scripts/update-pot.sh`**：在本 fork 上实测它会写成让五条
   仓库守卡变红的模板形状。还欠什么见

@@ -9,8 +9,9 @@ Last updated 2026-10-10, at the end of the day: the gettext round (packaging run
 defect that broke both `pack --podir` and `msgmerge` fixed and guarded, the "this machine has no
 gettext" prose swept), then the schema-as-a-second-translatable-source batch (D-057/D-058: 15 missing
 strings backfilled and three new assertions), then the `AGENTS.md` rule that came out of it and the
-GSchema-rendering measurement (D-060). `origin` is the SSH URL *(maintainer's instruction)* and every
-commit made today is **pushed** with CI green on the head. Earlier in the same day: the first pass that
+GSchema-rendering measurement (D-060). Every commit made today is **pushed** and CI is green on the
+head that landed. (How the remote is addressed is per-clone configuration on the maintainer's machine,
+not a repository fact — what the docs assert is the method: read the remote itself.) Earlier in the same day: the first pass that
 read the live session (D-048…D-050), the two `St` measurements, and the `scripts/pack.sh` fix
 (D-051, D-052). PLAN.md describes the batches.
 
@@ -19,7 +20,7 @@ read the live session (D-048…D-050), the two `St` measurements, and the `scrip
 | Thing | Value | How to re-check |
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
-| Branch state | `master`, **level with `origin/master`** since 2026-10-10; `origin` is the SSH URL (`git@github.com:SHADE-glitch/fast-translate.git`) at the maintainer's instruction, and `ssh -T git@github.com` answers before the push | `git remote -v`, `git status -sb` |
+| Branch state | `master`, **level with `origin/master`** as of 2026-10-10: nothing is committed locally that the remote does not have. The remote's transport/URL is machine-local configuration and deliberately **not** recorded here — what is recorded is how to check level-ness without trusting a local ref: `git ls-remote origin refs/heads/master` compared against `git rev-parse HEAD` | `git status -sb`, `git ls-remote origin refs/heads/master`, `git rev-parse HEAD` |
 | Unpushed | **nothing** — the whole day's work is on the remote: the catalog fix and its guard, the stale-prose sweep, the reports passes, the schema backfill with its three assertions, the `AGENTS.md` rule and the GSchema measurement. No hand-copied sha list on purpose — they decay, and `AGENTS.md` says print rather than paste: the first command below prints nothing when level, and `git rev-list --count 420251c..origin/master` prints how much has landed in total. Every push was authorized per batch, and every remote read came from `git ls-remote` rather than the tracking ref; CI is green on the current head. **The next push needs its own authorization** — today's are spent | `git log --oneline origin/master..HEAD`, `git ls-remote origin refs/heads/master` |
 | Working tree | clean | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |

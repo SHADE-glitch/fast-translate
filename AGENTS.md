@@ -212,6 +212,14 @@ handbook: operational knowledge lives behind the router in
   so text and code could not be separated.
 - **Never state an aggregate count in a document; print it from the command instead.** This
   covers commit counts, entry counts, section counts and dependency counts.
+- **Do not record which transport or URL `origin` uses.** That is configuration on one clone of the
+  maintainer's machine, and a repo doc is read everywhere: written as a fact it is false for every
+  other clone and it silently rots the moment the remote changes. Document the *check* instead —
+  `git ls-remote origin refs/heads/master` compared against `git rev-parse HEAD`, which is how
+  "is it pushed?" gets answered without trusting a local tracking ref. (Tool availability is
+  different and is recorded on purpose where it changes behavior, e.g. gettext in
+  `MAINTENANCE.md` §10: that one is a property of the target environment, and docs say what breaks
+  without it.)
 - **Privacy in prose and in code alike.** No `Symptom`, log line, notification body or doc may
   quote clipboard content or credentials. Whatever is double-copied is sent to a third party —
   the maintainer-facing boundary is `MAINTENANCE.md` §11, and the settings window now says the

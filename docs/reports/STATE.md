@@ -230,9 +230,14 @@ the L2 reader exists too (D-049), and the packaging list is now a guard rather t
 
 ## What this pass did not verify
 
-- `npm run integration` was re-run with C2, C3 and C4 all in the tree: `success:true` and
-  exit 0. `npm run perf cost` was re-run too, and `~/.config/dconf/user` kept the same
-  sha256 immediately before and after it — the zero-write property holds for this round.
+- `npm run integration` was re-run after the schema batch (po + three new guards all in the tree):
+  **exit 0**, with the nested shell's own reply containing `"success":true` and
+  `✅ Programmatic integration tests passed successfully!`. `~/.config/dconf/user` read the same
+  sha256 immediately before and after, in the same command that asserts it — the zero-write property
+  holds for this round. Reading the verdict is its own trap: the reply is escaped JSON inside the log,
+  so the first two `grep` patterns I tried matched nothing and nearly got reported as "the test did not
+  run"; search for `success` case-insensitively or read the tail lines.
+  Earlier rounds' `npm run perf cost` re-runs (C2/C3/C4 in the tree) are recorded in VERIFY.md.
 - **L2, needs a real session** (logout/login — `scripts/reload.sh` cannot re-import
   edited ES modules): the dictionary card on a live ZH→EN word (its reverse lookup only
   reached the network for the first time as of D-029); the active panel icon in light and dark

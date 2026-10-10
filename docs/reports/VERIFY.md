@@ -404,8 +404,8 @@ Every row below was re-run for this record; the first five were what made D-053 
 
 Suite state at the end of the round, as printed: `node test/repo.test.js` → `# tests 40 / # suites 9 /
 # pass 40 / # fail 0`; `node test/docs-lint.mjs` → 114 links over 24 markdown files; `npm run check:log`
-→ 55 entries, 42 distinct commits cited. These three lines are the ones to re-run before quoting them —
-they moved within this very pass, because the pass added documents.
+→ 56 entries, 43 distinct commits cited. These three lines are the ones to re-run before quoting them —
+they moved inside this very pass, twice, because the pass added documents and then a record entry.
 
 ## Not verified
 

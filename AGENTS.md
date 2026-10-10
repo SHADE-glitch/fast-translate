@@ -211,8 +211,8 @@ handbook: operational knowledge lives behind the router in
   keeps inline only what has no other home — the read-first section, packaging/translations,
   the privacy boundary and the platform facts. Never copy a fact from `docs/maintenance/*`
   back into it.
-- Commit code first, docs in a separate commit; Chinese subjects with English
-  conventional-commit prefixes. The prefixes in use here are wider than the classic set —
+- Commit code first, docs in a separate commit; messages are **English throughout** — an English
+  subject with an English conventional-commit prefix. The prefixes in use here are wider than the classic set —
   print them instead of trusting this line:
   `git log --format='%s' 420251c..HEAD | sed -E 's/^([a-z]+).*/\1/' | sort | uniq -c | sort -rn`.
 - Commit prefixes are **not** the `kind` vocabulary in `CHANGELOG.md`. Two different lists,

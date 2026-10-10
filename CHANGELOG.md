@@ -422,3 +422,10 @@ Change   三条断言进 `test/repo.test.js` 的 catalogs describe：(1) schema 
 Evidence L0 — 先红后绿是顺序天然形成的：断言写在补条目之前，跑出来 `# tests 42 / # pass 41 / # fail 1` 与 `is missing 15 of 48 schema msgid(s): "APP ID from the Baidu Translate open platform…"`，65401f5 之后转绿。随后五份 `tar` 副本各只改一件事、另有一份未修改对照：对照 `# pass 43 / # fail 0`；改 `metadata.json` 的 domain → 只有 (2) 红；从四份目录删 `msgid "Show panel icon"` → `is missing 1 of 48`；把一条 `<summary>` 拆成三行 → `holds 48 opening tag(s) but the reader collected 47`；删掉 30 个元素 → `only 18 schema string(s) parsed`。**最后这种是改 schema 把集合清空**，正是下限要挡的假绿场景。顺带记下我自己的仪器错：(3) 最初写成读表器函数里的 `assert`，而它在 `describe` 体求值时被调用——整份文件的采集被中断，输出成 `# tests 25 / # pass 25 / # fail 0` 上面顶着一个 `not ok`，红了但同时把别人的结果全毁了；挪进独立 `it()` 后只红一条、其余 43 条照常收集
 Cost     守的是"串到没到目录"，不守译文对不对，也不守 `--gettext-package` 到底传没传（那是壳的编译步骤，本仓库观察不到）。三条断言都只认单行元素——真出现折行会红而不是静默，届时要么把 XML 排回一行，要么教读表器拼接续行
 Commit   65401f5
+
+### D-059 · 2026-10-10 · chore · v16
+Symptom  D-057/D-058 那条洞（`_()` 清单全绿，schema 请求的 48 条里有 15 条不在任何目录里）只写进了 `MAINTENANCE.md` §10 和 `docs/maintenance/open-items.md` §3。规则表里没有——而规则表是这个仓库唯一一个"动手前必读"的地方，`docs/maintenance/*` 是要先知道去哪读才读得到的。于是下一个会话如果照 `_()` 那份 `TRANSLATED` 清单去加新来源，还是同一个洞
+Change   `AGENTS.md` 的打包/翻译规则区新增一条：**任何声明 `gettext-domain` 的来源都要自己的覆盖守卡**。内容三点——`_()` 不是唯一的可翻译来源；点名三条断言（含 `<schemalist>` 的 domain 必须等于 `metadata.json` 的那条，因为两个域一旦分家、目录里所有 schema 条目都是死重）；再加一句"再来一个 `.gschema.xml` 会自动进守卡（它 glob 整棵树），但任何**别的**可翻译来源必须在同一个改动里加进那条守卡，不许假设 `_()` 清单覆盖了它"。规则文本、门和文档不重复：细节仍然只在 `docs/maintenance/*`
+Evidence L0 — 规则里引用的每条断言名都是 grep 现场确认的（`test/repo.test.js:450`、`:463`、`:474`），两个数字 48 与 15 是本轮实测而不是回忆；`node test/repo.test.js` → `# tests 43 / # pass 43 / # fail 0`，`node test/docs-lint.mjs` exit 0（AGENTS.md 也在它走的 24 份 markdown 里）
+Cost     规则本身不是门——真正会红的是那三条断言；这条的作用是让人在被门红之前知道门该长在哪。代价是规则表又长了一段（它是规则清单，不是手册，所以没往里复制任何操作细节）
+Commit   f57c253

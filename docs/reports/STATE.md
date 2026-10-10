@@ -5,12 +5,14 @@
 **Read this first in any new session.** It carries what a fresh context cannot see:
 what is settled, what is committed but unpushed, and what the next step is.
 
-Last updated 2026-10-10, after the gettext round: the packaging path was run for real and its
-artifact unpacked and inspected, a catalog defect that broke both `pack --podir` and `msgmerge` was
-fixed and is now guarded, the "this machine has no gettext" prose was swept, and `origin` was moved
-to SSH *(maintainer's instruction)*. Earlier in the same day: the first pass that read the live
-session (D-048…D-050), the two `St` measurements, and the `scripts/pack.sh` fix (D-051, D-052).
-PLAN.md describes the batches.
+Last updated 2026-10-10, at the end of the day: the gettext round (packaging run for real, the catalog
+defect that broke both `pack --podir` and `msgmerge` fixed and guarded, the "this machine has no
+gettext" prose swept), then the schema-as-a-second-translatable-source batch (D-057/D-058: 15 missing
+strings backfilled and three new assertions), then the `AGENTS.md` rule that came out of it and the
+GSchema-rendering measurement (D-060). `origin` is the SSH URL *(maintainer's instruction)* and every
+commit made today is **pushed** with CI green on the head. Earlier in the same day: the first pass that
+read the live session (D-048…D-050), the two `St` measurements, and the `scripts/pack.sh` fix
+(D-051, D-052). PLAN.md describes the batches.
 
 ## Where the repo stands
 
@@ -18,7 +20,7 @@ PLAN.md describes the batches.
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
 | Branch state | `master`, **level with `origin/master`** since 2026-10-10; `origin` is the SSH URL (`git@github.com:SHADE-glitch/fast-translate.git`) at the maintainer's instruction, and `ssh -T git@github.com` answers before the push | `git remote -v`, `git status -sb` |
-| Unpushed | **nothing** — nine commits went up on 2026-10-10 under his authorization (`da52508` catalog fix, `e636e9e` its guard, `b1db09f` the stale-prose sweep, `196fd72`+`27ec203` the reports and record, `65401f5`+`eecf2a1` the schema backfill and its record, `f57c253`+`1678340` the new `AGENTS.md` rule and its entry). The remote was read back with `git ls-remote` and answers `1678340…`; CI run `38025846410` = success. The next push needs a fresh authorization — the last one is spent | `git log --oneline origin/master..HEAD`, `git ls-remote origin refs/heads/master` |
+| Unpushed | **nothing** — the whole day's work is on the remote: the catalog fix and its guard, the stale-prose sweep, the reports passes, the schema backfill with its three assertions, the `AGENTS.md` rule and the GSchema measurement. No hand-copied sha list on purpose — they decay, and `AGENTS.md` says print rather than paste: the first command below prints nothing when level, and `git rev-list --count 420251c..origin/master` prints how much has landed in total. Every push was authorized per batch, and every remote read came from `git ls-remote` rather than the tracking ref; CI is green on the current head. **The next push needs its own authorization** — today's are spent | `git log --oneline origin/master..HEAD`, `git ls-remote origin refs/heads/master` |
 | Working tree | clean | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
 | Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail\|suites)'` and `node test/docs-lint.mjs` |
@@ -191,9 +193,11 @@ three void controls are printed in [VERIFY.md](VERIFY.md).
 Nothing is queued in code. The gettext round landed `da52508` (the duplicate-msgid fix that had been
 failing `pack --podir`), `e636e9e` (the guard that refuses a catalog defining one msgid twice) and
 `b1db09f` (the stale-prose sweep); the schema batch landed `65401f5` plus its record `eecf2a1`, and
-`f57c253`/`1678340` put the lesson into `AGENTS.md`. All of it is **pushed** — `origin/master` answers
-`1678340…` and CI is green on that head — so what remains is only the human half: the list at the top
-of this section.
+`f57c253`/`1678340` put the lesson into `AGENTS.md`, and the GSchema measurement closed the last
+`(needs manual confirmation)` that could be closed here (D-060). All of it is **pushed** — verified the
+way this file insists on: `git log --oneline origin/master..HEAD` prints nothing and
+`git ls-remote origin refs/heads/master` answers the same sha as `HEAD`, with CI green on it. So what
+remains is only the human half: the list above.
 
 The live-session pass began 2026-10-10 07:47. **It got further than the plan assumed**: the shell's
 own D-Bus API reported the extension ACTIVE at `version 16.0` with an empty error list, and once a

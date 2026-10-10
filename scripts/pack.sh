@@ -2,10 +2,26 @@
 # pack.sh: Safe extension packaging script.
 set -euo pipefail
 
+# `--podir=po` makes gnome-extensions shell out to msgfmt, and without gettext that
+# fails with `Failed to execute child process "msgfmt"` plus a GLib-CRITICAL, after
+# this script has already copied files and compiled schemas, and with no zip at all.
+# Checked first so the run stops before it touches anything.
+if ! command -v msgfmt >/dev/null 2>&1; then
+    echo "❌ msgfmt not found — the po/ step cannot run, and no zip would be produced."
+    echo "   Translations here are maintained by hand (docs/maintenance/open-items.md); install"
+    echo "   gettext only if you want a zip that carries .mo files, then re-run this script."
+    exit 1
+fi
+
 echo "🧹 Cleaning previous packages..."
 rm -f *.zip
 
+# Remove before mkdir, deliberately: a previous run that failed left this tree behind,
+# and `cp -r` only overwrites names that still exist — a helper the repo has since dropped
+# would still be copied into the zip. Measured: a stale file survived two consecutive
+# staging copies into the same directory.
 echo "📦 Copying files to temporary directory..."
+rm -rf /tmp/fast-translate-pack
 mkdir -p /tmp/fast-translate-pack
 cp -r extension.js prefs.js translation-helper.js signing.js metadata.json stylesheet-base.css stylesheet-light.css stylesheet-dark.css icons/ po/ schemas/ /tmp/fast-translate-pack/
 

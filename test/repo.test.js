@@ -446,6 +446,77 @@ describe("the translation catalogs cover the strings the code asks to translate"
     }
 });
 
+describe("the packaging list ships exactly what the repo has", () => {
+    // scripts/pack.sh stages an explicit list and then names the extras for
+    // `gnome-extensions pack`. Both halves fail silently, measured in a throwaway
+    // tree with this extension's own layout (a root module with no --extra-source
+    // line is absent from the zip; a --extra-source or cp -r name that no longer
+    // exists exits 0 and simply drops it). AUTO is the set that same probe found
+    // inside a zip built without naming any of them.
+    const LINES = read("scripts/pack.sh").split("\n").filter((line) => !/^\s*#/.test(line));
+    const SCRIPT = LINES.join("\n");
+    const at = (re) => LINES.findIndex((line) => re.test(line));
+    const stage = LINES.find((line) => /^cp -r .*\/tmp\/fast-translate-pack\/$/.test(line)) || "";
+    const STAGED = stage.replace(/^cp -r /, "").replace(/ \/tmp\/fast-translate-pack\/$/, "")
+        .split(/\s+/).filter(Boolean).map((name) => name.replace(/\/$/, ""));
+    const EXTRA = [...SCRIPT.matchAll(/--extra-source=([^\s)]+)/g)].map((m) => m[1]);
+    const AUTO = ["extension.js", "metadata.json", "prefs.js", "stylesheet.css"];
+    const SHIPS = FILES.filter((f) => !f.includes("/") && /\.(js|css)$/.test(f));
+    // A staged directory counts only if it has files under it: `cp -r` of an empty
+    // directory succeeds and the zip would carry an empty entry.
+    const inTree = (name) =>
+        FILES.includes(name) || FILES.some((f) => f.startsWith(`${name}/`));
+
+    it("the packaging list is readable and non-trivial", () => {
+        // Anti-vacuity floor: if the staging line is reworded, STAGED becomes empty
+        // and every assertion below would pass by measuring nothing.
+        assert.ok(STAGED.length >= 10 && EXTRA.length >= 6 && SHIPS.length >= 7,
+            `parsed ${STAGED.length} staged name(s), ${EXTRA.length} --extra-source name(s) and ` +
+            `${SHIPS.length} root source file(s); the script's shape changed under this guard`);
+    });
+
+    it("every root source file is staged into the zip tree", () => {
+        for (const f of SHIPS)
+            assert.ok(STAGED.includes(f),
+                `${f} is loaded by the shell but pack.sh never copies it to the staging tree, ` +
+                `so it cannot appear in the zip`);
+    });
+
+    it("every staged root source file is named for packing", () => {
+        for (const f of SHIPS)
+            assert.ok(EXTRA.includes(f) || AUTO.includes(f),
+                `${f} is staged but neither auto-included nor passed as --extra-source, so ` +
+                `gnome-extensions pack leaves it out of the zip without a word`);
+    });
+
+    it("nothing the list names has already left the repo", () => {
+        for (const name of [...new Set([...STAGED, ...EXTRA])])
+            assert.ok(inTree(name),
+                `pack.sh names ${name} but the repo has no such file or directory — the run ` +
+                `still exits 0 and the zip ships without it`);
+    });
+
+    it("the staging tree is emptied before it is filled", () => {
+        // Measured: a helper dropped from the repo survived two consecutive `cp -r`
+        // runs into the same directory and went into the zip with them.
+        const rm = at(/^rm -rf \/tmp\/fast-translate-pack$/);
+        const mkdir = at(/^mkdir -p \/tmp\/fast-translate-pack$/);
+        const cp = at(/^cp -r /);
+        assert.ok(rm >= 0 && mkdir >= 0 && cp >= 0 && rm < mkdir && mkdir < cp,
+            `expected rm -rf < mkdir -p < cp -r for the staging tree, got ${rm} / ${mkdir} / ${cp}`);
+    });
+
+    it("the gettext check runs before the previous zip is deleted", () => {
+        // Measured with gettext absent: the run exited 2, the old *.zip was already
+        // gone, and the half-filled staging tree was left to poison the next run.
+        const check = at(/command -v msgfmt/);
+        const del = at(/^rm -f \*\.zip$/);
+        assert.ok(check >= 0 && del >= 0 && check < del,
+            `the msgfmt check (${check}) must precede the zip deletion (${del}) — a run that ` +
+            `cannot produce a zip must not destroy the last one`);
+    });
+});
+
 describe("documentation conventions hold", () => {
     // House convention across every fork in this workspace: a doc that exists in
     // two languages is a two-file bilingual pair with mirrored section order,

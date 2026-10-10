@@ -140,16 +140,15 @@ not worth its cost, reopen only with new evidence.
   written earlier can rot). **Deferred**: (1) needs a paragraph-level alignment check, which is a
   real algorithm rather than a regex, and would flag deliberate rewordings; (2) has no ground
   truth to compare against unless every count is generated from the file it describes.
-- **What the L2 reader still cannot answer.** Our own prefs window *has* now been read off a live
-  session (`gjs -m test/l2-prefs-dump.mjs`, D-049 — 256 nodes, five group titles, the disclosure
-  sentence and the Escape row verbatim, four restore rows counting 4/2/3/3 keys), so the old "never
-  seen by a human since C3" gap is closed for structure and copy. Two residuals stay open, and
-  neither is an instrument problem: (1) the a11y tree carries text and states but no geometry, so
-  whether the long disclosure sentence *wraps legibly* in a narrow window is still a human verdict;
-  (2) only the currently selected provider's groups render, so the other three groups' visibility
-  needs `translation-service` written into the maintainer's live profile — a settings write, his word
-  first. Reading the tree does **not** prove the popup itself: the shell exposes only window and
-  surface panels, and our floating card has never been observed on the a11y bus at all.
+- **What the L2 reader still cannot answer.** Our own prefs window has been read off a live session
+  for **all four** providers (`gjs -m test/l2-prefs-dump.mjs`, D-049/D-050 — group titles, the four
+  disclosure sentences, restore rows counting 4/2/3/3 vs 3, the masked secret field), so the old
+  "never seen by a human since C3" gap is closed for structure and copy. What remains is not an
+  instrument problem: (1) the a11y tree carries text and states but no geometry, so whether the long
+  disclosure sentence *wraps legibly* in a narrow window is still a human verdict; (2) the floating
+  card has never appeared on the a11y bus at all — the shell exposes only window and surface panels —
+  so the popup, its light/dark variants and its monitor placement have no agent-side instrument, and
+  the double-copy trigger cannot be faked without destroying the clipboard's non-text types.
 
 ## 5. Deferred defects and their current status
 

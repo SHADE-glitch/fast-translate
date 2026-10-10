@@ -228,13 +228,16 @@ The rules these provocations earned:
 - Reading this extension's own keys needs the schema dir:
   `GSETTINGS_SCHEMA_DIR=$PWD/schemas gsettings get org.gnome.shell.extensions.fast-translate <key>`.
   **Name the key** — never `gsettings list` or `dconf dump` this schema (§3). Opening the
-  prefs window writes nothing; walking the four provider groups would mean setting
-  `translation-service`, which is a write to the maintainer's live profile and needs his
-  word first.
+  prefs window writes nothing. Walking all four provider groups does: it means setting
+  `translation-service`, a write to the maintainer's live profile, so it is done only under his
+  standing delegation, three times at most, and **read back after restoring** (this pass:
+  `DeepL → Google Translate → Baidu → Youdao → DeepL`, final read `'DeepL'`, shell error list empty
+  throughout). What that walk proved is in `docs/reports/VERIFY.md`.
 - What still needs a hand in a real session: the popup in light and dark after a live
   theme switch (a theme switch is a **global** GNOME setting, so an agent must not flip
-  it), Esc, multi-monitor placement, translation latency, whether each provider's prefs
-  group is visible for its enum value, and whether the disclosure sentence is legible.
+  it), Esc, multi-monitor placement, translation latency, and whether the disclosure
+  sentence is legible. Provider-group visibility is **off this list** — all four were read
+  from the live window (D-050).
 
 ## 5. Rollback and commit discipline
 

@@ -334,6 +334,35 @@ enum values — that would mean writing `translation-service` into the maintaine
 needs his word. The window was left open on his desktop (closing it means killing a shared prefs
 host that also carries other extensions' dialogs, which the permission layer rightly refused).
 
+**All four providers, walked in the live window (08:2x).** `translation-service` was set to each of
+the other three enum values in turn, the window re-read, and the value restored and read back
+(`'DeepL'`). `GetExtensionErrors` stayed `[]` through every switch, so `_settingsChanged` survived a
+live provider change.
+
+| Service | Groups rendered | Disclosure sentence as rendered | Credential fields | Clear row | Restore rows |
+|---|---|---|---|---|---|
+| DeepL | Language, **DeepL Translation API Configuration**, **Formatting**, Double-Copy, System Integration | `… sent to api-free.deepl.com … Single words are also sent to clients5.google.com for the dictionary.` | URL row + `password text` key row | 1 (`Empties 2 stored fields`) | 4 (`Resets 4 / 2 / 3 / 3`) |
+| Google Translate | Language, Double-Copy, System Integration (**no API group, no Formatting**) | `The text you copy is sent to clients5.google.com for translation. It needs no key.` | **none** | **none** | 3 |
+| Baidu Translate | Language, **Baidu Translate API Configuration**, Double-Copy, System Integration | `… sent to fanyi-api.baidu.com … Single words are also sent to clients5.google.com …` | `APP ID` + `Secret Key` list items, secret masked | 1 | 3 |
+| Youdao Translate | Language, **Youdao Translate API Configuration**, Double-Copy, System Integration | `… sent to openapi.youdao.com … Single words are also sent to clients5.google.com …` | its own two rows | 1 | 3 |
+
+That closes the D-033 L2 question (provider-driven visibility) and the DeepL-only `Formality` row,
+for every provider, on the real window — not on the mock.
+
+**A privacy hole the walk found, in my own instrument.** The key row is `[password text]` and was
+masked, but one editable node reported the role `text`, and the tool's blacklist was
+`entry|password text|password-text` — so that node's accessible *name* was printed. It happened to be
+the row title (`"DeepL API URL"`, verified by an exact-match count rather than by printing it), so
+nothing leaked. Still, relying on "GTK answers `get_name()` with the label today" is not a control,
+so `EDITABLE` now includes `text` and the same window prints two masked nodes and **zero** editable
+nodes with quoted content (diff against the earlier dump: exactly one line changed,
+`[text]` → `[text] (value not read)`).
+
+**Still open, L2.** Whether the long disclosure sentence *wraps legibly* (a11y carries text and
+states, no geometry), the panel icon's look in light and dark (his `show-panel-icon=false`), and the
+floating card itself — the shell exposes only window/surface panels on the bus, and the card has
+never been observed there. The double-copy trigger stays a human step for the clipboard reason above.
+
 ## Not verified
 
 - **L2 / needs you**: the dictionary card on a real ZH→EN word — this is the first time

@@ -200,11 +200,12 @@ libadwaita 的 typelib，所以只是本地桌面门，被刻意留在 CI 之外
 - 读本扩展自己的键要带 schema 目录：
   `GSETTINGS_SCHEMA_DIR=$PWD/schemas gsettings get org.gnome.shell.extensions.fast-translate <key>`。
   **要点名具体的键**——不要对这个 schema 跑 `gsettings list` 或 `dconf dump`（见第 3 节）。
-  打开设置窗口本身不写任何东西；但要逐个走完四个服务商分组就得设 `translation-service`，
-  那是在写维护者的真实配置，得先有他这句话。
+  打开设置窗口本身不写任何东西；但**逐个走完四个服务商分组是要写的**：它设的是维护者真实配置里的
+  `translation-service`，所以这是在他"有判断就用你的判断"的授权下做的取舍，而且必须以**改回并读回**
+  收尾（本轮：`DeepL → Google → Baidu → Youdao → DeepL`，最后读回 `'DeepL'`，全程
+  `GetExtensionErrors` 为空）。结果记在 `docs/reports/VERIFY.md`。
 - 仍然只能靠真机手验的：浅/深色实时切换后的弹窗（切主题是**全局** GNOME 设置，代理不许动）、
-  Esc、多显示器定位、翻译延迟、每个服务商分组是否只在自己的枚举值下可见，以及那句披露长文
-  在窄窗口里读不读得下去。
+  合上；那句披露长文在窄窗口里读不读得下去仍然只有人能给（树里没有几何）。
 
 ## 5. 回滚与提交纪律
 

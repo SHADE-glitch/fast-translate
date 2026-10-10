@@ -135,16 +135,21 @@ in the real session** (256 nodes — the disclosure sentence, the four restore r
 counts, the clear row, the five group titles, the `Formality (DeepL only)` row and the Escape row all
 rendered as the L1 validator claims). The full readout is in [VERIFY.md](VERIFY.md).
 
-Three things are still **blocked on the maintainer**, and they are physical rather than analytical:
+Two things are still **blocked on the maintainer**, and they are physical rather than analytical:
 1. Visual legibility. Screenshots are denied to an agent on GNOME 50 (`AccessDenied`), so whether the
    long disclosure sentence wraps well, whether the panel icon looks right in light and dark, and
    where the card lands on a multi-monitor layout are his eyes' job. (The window I opened is still on
    his desktop — closing it means killing a prefs host shared with other extensions, which the
    permission layer rightly refused.)
-2. The other three providers' groups. Reading them means writing `translation-service` into his live
-   profile, which needs his word; for DeepL the visibility gating is now confirmed on the real window.
-3. The double-copy trigger: faking it with `wl-copy` would destroy clipboard types this session
+2. The double-copy trigger: faking it with `wl-copy` would destroy clipboard types this session
    actually holds (`chromium/x-internal-source-rfh-token`, `text/html`) and cannot restore.
+
+**No longer blocked** (done this pass under his standing "有选择就用你的判断"): the other three
+providers' groups were read by setting `translation-service` in turn and restoring it — Google renders
+no API group, no Formatting section and no clear row, Baidu and Youdao render their own group with
+the secret field masked, and each disclosure sentence names its own host plus `clients5.google.com`
+for the dictionary. `GetExtensionErrors` stayed empty through all four states, and the final read
+back is `'DeepL'`. The walk also found a privacy gap in my own instrument, since fixed (D-050).
 Also still his call, unchanged: the `po/` decisions above, flipping the global theme for the
 light/dark live switch (a system setting this brief must not touch), and task #8's older deferred
 items. What is **no longer** his call: the docs link sweep — it became a gate this pass

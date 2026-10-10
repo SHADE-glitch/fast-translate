@@ -100,15 +100,27 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
 - `pack.sh` copies an **explicit list** of paths, so `docs/`, `test/`, `scripts/`
   and the root `*.md` never enter the zip. Adding maintenance documentation to the
   repo has no effect on what ships.
-- **`msgfmt`/`xgettext` are not installed on this machine**, so `gnome-extensions
-  pack` hard-fails while `po/` exists. There is no `locale/` and no `.mo`, so no
-  translation has ever loaded: every `_()` returns its msgid. Fixing msgids is
-  still worthwhile for a future packed build, but `scripts/update-po*.sh` cannot
-  run here — **the catalogs are therefore edited by hand and kept honest by
-  `test/repo.test.js`**: every `_()` literal must appear in `messages.pot` and in
-  de/es/nl, no catalog may carry a msgid the template lost, and every
-  `// Translators:` comment must reach all four as a `#.` hint. Adding a user-visible
-  string means four `.po`-side edits before `npm test` goes green. See
+- **gettext was installed on 2026-10-10** (`msgfmt`/`xgettext` 0.23.2), so `pack.sh` now
+  reaches `gnome-extensions pack` and produces a zip, and `scripts/update-po.sh` runs.
+  What that made visible for the first time: a `.mo` carries **only** entries with a
+  non-empty, non-fuzzy `msgstr` — so the catalogs' real yield is `msgfmt --statistics`'
+  "translated" line (read it there, not from a `grep`), the rest of the UI falls back to the
+  English msgid, and the `#, fuzzy` rows are invisible to the user until a translator clears
+  the flag. `locale/` is built from `po/` by the pack step, so the repo still has no `locale/`
+  of its own.
+- **One catalog defect can be invisible to every other guard and still break both paths.**
+  `msgfmt` counts an obsolete `#~ msgid` against a live one and exits 1, which fails
+  `pack --podir` *and* `msgmerge`. When a string upstream obsoleted comes back in this fork's
+  sources, one of the two definitions has to go, and the safe one is the `#~` pair: reviving
+  upstream's translation into the live entry is a **translation decision**, and `msguniq`
+  does it silently — which is why the fix here deleted the pair and left `msgstr ""` for a
+  translator to fill. `test/repo.test.js` ("no catalog defines the same msgid twice, obsolete
+  entries included") is the gate. The catalogs remain hand-edited and kept honest by `test/repo.test.js`: every
+  `_()` literal must appear in `messages.pot` and in de/es/nl, no catalog may carry a msgid
+  the template lost, and every `// Translators:` comment must reach all four as a `#.` hint.
+  Adding a user-visible string still means four `.po`-side edits before `npm test` goes green.
+  Do **not** reach for `scripts/update-pot.sh`: measured on this fork it rewrites the template
+  into a shape that puts five repository guards red. See
   [docs/maintenance/open-items.md](docs/maintenance/open-items.md) §3 for what is still owed.
 - `schemas/gschemas.compiled` is gitignored. A fresh clone is **broken until**
   `glib-compile-schemas schemas/`. Nothing needs installing system-wide: the

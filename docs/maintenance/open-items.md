@@ -92,19 +92,36 @@ not worth its cost, reopen only with new evidence.
   `keybinding-translate-clipboard`, `shortcut-enabled`) are annotated in the
   schema but deliberately **not removed** — deleting them would discard stored
   values and constitutes feature removal.
-- **`po/` is hand-maintained and the guards are the regeneration.** `msgfmt`/`xgettext` are
-  absent here, so `scripts/update-po*.sh` cannot run; instead `test/repo.test.js` asserts that
-  every `_()` literal appears in `messages.pot` **and** in each of de/es/nl, that no catalog
-  carries a msgid the template has lost, and that every `// Translators:` hint in the sources
-  reaches all four files as a `#.` comment. The D-021 part-of-speech msgids are in the
-  catalogs now; they stay inert at runtime only because no `.mo` is ever produced here.
-- What is still owed on `po/` is **74 msgids the sources no longer request**, inherited with
-  the frozen upstream's template. Deleting them means editing what three named translators
-  wrote, so it waits for the maintainer. Their `#:` references are also upstream-era line
-  numbers: measured per locale, 38 of the reference tokens on *live* strings point somewhere
-  other than the actual `_()` call, across 27 entries. The template itself is clean (119
-  tokens on live entries, 0 stale), because the fork recomputed refs wherever it added or
-  changed an entry and left the translator's lines alone.
+- **`po/` is hand-maintained and the guards are the coverage check.** gettext has been
+  installed here since 2026-10-10, so `scripts/update-po.sh` runs — but `scripts/update-pot.sh`
+  must **not** be used: measured on this fork it rewrites the template so that one
+  `// Translators:` hint disappears (`extension.js:1534`, the `%s` single-request-limit
+  sentence) and 43 entries per locale become orphans, which puts five repository guards red.
+  `test/repo.test.js` therefore still asserts that every `_()` literal appears in
+  `messages.pot` **and** in each of de/es/nl, that no catalog carries a msgid the template has
+  lost, that no catalog defines one msgid twice (obsolete `#~` included — see the packaging
+  bullet in `MAINTENANCE.md` §10), and that every `// Translators:` hint reaches all four files
+  as a `#.` comment. The D-021 part-of-speech msgids are live strings
+  (`extension.js:102-103`); they used to be inert because no `.mo` existed at all, and now they
+  are compiled but still untranslated, so they render as the English source either way.
+- What is still owed on `po/`: **entries the sources no longer request** — and the honest count
+  is smaller than the 74 recorded here for a month, because `schemas/*.gschema.xml` is a second
+  translatable source (`<summary>`/`<description>`, same gettext-domain) that the earlier tally
+  counted as dead. Print both sets instead of trusting either number:
+  `xgettext --from-code=UTF-8 --add-comments=Translators -o - -- *.js schemas/*.xml | grep -c '^msgid '`
+  is what gettext says the sources ask for, and diffing that template against `po/messages.pot`
+  with `msgcomm` lists exactly what a regeneration would retire. Deleting those entries means
+  editing what three named translators wrote, so it waits for the maintainer. Their `#:`
+  references are also upstream-era line numbers: measured per locale on 2026-10-10, 38 of the
+  reference tokens on *live* JS strings point somewhere other than the actual `_()` call, across
+  27 entries, and 28 more sit on the gschema entries. The template itself is clean (119 tokens on
+  live entries, 0 stale), because the fork recomputed refs wherever it added or changed an entry
+  and left the translator's lines alone.
+- **The `.mo` ships less than the catalog appears to hold.** `msgfmt` writes only entries whose
+  `msgstr` is non-empty *and* not `#, fuzzy`, so the translated rows each locale really ships is
+  the `translated` figure of
+  `msgfmt --statistics -c -o /dev/null po/de.po` — and the fuzzy ones (10 in de/nl, 29 in es) stay
+  invisible until a translator clears the flag. Nothing here decides that; it is translation work.
 
 ## 4. A guard that does not guard the branch production runs
 
@@ -141,15 +158,25 @@ not worth its cost, reopen only with new evidence.
   real algorithm rather than a regex, and would flag deliberate rewordings; (2) has no ground
   truth to compare against unless every count is generated from the file it describes.
 - **What the packaging guard still cannot answer.** `test/repo.test.js` ("the packaging list ships
-  exactly what the repo has", D-052) pins the *shape and order* of `scripts/pack.sh`'s list, and the
-  four names `gnome-extensions pack` includes by itself were read off a throwaway tree. What nobody
-  has ever done here is unpack a zip this repo produced, because none has ever been produced on this
-  machine — gettext is absent, so the script stops at its own check (D-051). So these stay unproven:
-  that `--extra-source=icons` really carries every file under `icons/`, that the compiled
-  `schemas/gschemas.compiled` survives into the package, that a built zip installs and loads, and
-  that `docs/`, `test/` and `scripts/` are genuinely absent from the artifact rather than merely
-  absent from the copy list. **Blocked on the environment**, not on code: it needs gettext installed
-  *(maintainer's call)*.
+  exactly what the repo has", D-052) pins the *shape and order* of `scripts/pack.sh`'s list. Since
+  2026-10-10 a zip has actually been built from this repo and unpacked, and that closed three of
+  the four questions it used to leave open: `--extra-source=icons` does carry every file under
+  `icons/` (18 in, 18 out, byte-identical), the shipped root files are byte-identical to the repo,
+  and `docs/`, `test/`, `scripts/` and the root `*.md` really are absent from the artifact. It also
+  settled `schemas/gschemas.compiled`: the tool **never** packs it, even when it sits in the staging
+  tree (measured with a control), and the installed extensions on this machine each have a compiled
+  file whose mtime is far later than their `.xml` — so it is generated locally, not shipped. Still
+  unproven, and none of it is code: that a built zip **installs and loads** (`gnome-extensions
+  install` is forbidden from this directory because this repo *is* the live extension dir), and that
+  the compiled `.mo` actually renders translated text in a real session — no `de`/`es`/`nl` locale is
+  generated here (`locale -a` answers zero of them), so a German UI cannot be observed on this box
+  *(maintainer's call: generate a locale, or leave the claim open)*.
+- **`scripts/pack.sh` cannot exit 0 on this machine.** Its last step installs `shexli` (0.2.1) in a
+  repo-local `venv/` and runs it under Python 3.14.4, which **segfaults** (`Segmentation fault (core
+  dumped)`, exit 139) on a zip that unpacks perfectly — reproduced twice, once inside the script and
+  once standalone. So a non-zero exit from `pack.sh` currently means nothing about the artifact; read
+  the `✅ Packaging complete:` line and inspect the zip. Untouched so far because changing it is a
+  dependency decision, not a bug fix.
 - **What the L2 reader still cannot answer.** Our own prefs window has been read off a live session
   for **all four** providers (`gjs -m test/l2-prefs-dump.mjs`, D-049/D-050 — group titles, the four
   disclosure sentences, restore rows counting 4/2/3/3 vs 3, the masked secret field), so the old

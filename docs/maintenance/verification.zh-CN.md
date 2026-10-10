@@ -108,6 +108,7 @@ libadwaita 的 typelib，所以只是本地桌面门，被刻意留在 CI 之外
 | 弹窗的几何常量仍与它镜像的 CSS 一致 | 卡片宽度 / padding / border / spacing / divider / actions margin 变了，而 JS 里的算术没跟上 | `width: 650px`→`700px`；深色 `border: 1px`→`2px`；`spacing: 16px`→`12px`。控制组：往同一条规则加 `min-width: 600px` 不应变红 |
 | 出厂默认值守得住设置文案许下的承诺 | `notifications` 默认又回到 false（后台模式失败既无卡片也无通知）、`floating-background-toast` 默认回到 true（它那一行写的是"静默"）、或 Escape 键的默认值里不再有 `Escape`（那个开关就会写错绑定） | 三处逐条单独改工作树里的 schema：`notifications` true→false（`expected: true / actual: false`）、`floating-background-toast` false→true、CDATA `[['Escape']]`→`[['']]`。控制组：不改 → 绿。每次改完都按字节还原，`git status` 显示 schema 是干净的 |
 | 翻译目录覆盖了代码请求翻译的串 | `extension.js` / `prefs.js` / `translation-helper.js` 里某个 `_()` 字面量不在 `po/messages.pot` **或**不在 de/es/nl 任一份里；某份目录带着模板已经不认识的 msgid；源码里某条 `// Translators:` 注释没有以 `#.` 落到条目上；目录里的提示与源码写的不是一回事；或抽取正则失效（下限：msgid 要 > 50，提示要 ≥ 10） | 目录覆盖：把 `po/messages.pot` 里一条 msgid 改名 → 红，随后还原。locale 覆盖与提示落地：这两条是**在目录同步之前**写的，所以自己就红了（`13 "Translators:" comment(s) never reached po/messages.pot`，外加每个 locale 各一条），条目和提示补齐后转绿。防空转：把**未经修改的同一份守卡**跑在一个三处源文件为空壳的临时目录树上 → 红，报 `only 0 msgid(s) extracted — the _() matcher stopped working, so this guard is checking nothing` |
+| 任何目录都不许把同一条 msgid 定义两遍（obsolete 也算） | `po/messages.pot` / de / es / nl 里任何一条 msgid 出现两次——**包括以 obsolete `#~ msgid` 出现的那次**——因为 `msgfmt` 会判 `duplicate message definition` 并 exit 1，而 `gnome-extensions pack --podir=po` 和 `msgmerge` 跑的都是它（下限：每份至少解析出 180 条 msgid，解析器坏了不许过关） | 先写守卡、再对着真实缺陷跑红：`3 duplicate msgid(s) — msgfmt will exit 1 on each of these files: po/de.po: "License" at :500 and :961`（es/nl 同样一对），行号与 msgfmt 自己打印的完全一致。控制组：把三份里那对 obsolete 删掉即转绿（40 条断言），而那三份里**仍然留着 125 条不冲突的 obsolete 条目**（47/31/47），可见这条守卡不是见 `#~` 就判红 |
 | 打包清单发的就是仓库里有的 | 某个根级 `.js`/`.css` 不在 `scripts/pack.sh` 的暂存行里；或被暂存了却没有 `--extra-source=` 行（也不属于 `gnome-extensions pack` 自带的四个文件名）；或脚本点名的路径仓库里已经没有；或 `mkdir -p`/`cp -r` 排在了 `rm -rf /tmp/fast-translate-pack` 之前；或 `command -v msgfmt` 检查被挪到 `rm -f *.zip` 之后（下限：暂存名 ≥ 10、extra-source ≥ 6、根级源文件 ≥ 7） | 八份 `tar` 副本、每份只改一件事，另有一份未修改的对照副本保持绿色：新增根级 `newmod.js` → "被暂存"和"被点名"两条同时红；只暂存不加 `--extra-source` → "被点名"；往 `cp -r` 行加一条 `ghostmodule.js` → "已经离开的仓库"；删掉 `rm -rf`、以及把它换到 `mkdir -p` 之后 → "先清空再填"；msgfmt 检查块挪到 `rm -f *.zip` 下面、以及整块删除 → "在上一个 zip 被删之前"；把该行改成 `cp -a` → 下限红，而且**这一轮有两条内容守卡仍是绿的**，这正是下限存在的理由 |
 | 文档约定成立 | 双语对在某节数量或顺序上漂移，或某份被跟踪的 markdown 用了任务复选框 | ——（配对规则放宽到全目录时已经确立） |
 | probe 只把设置库当哈希读 | 仓库里任何 `.sh`/`.js`/`.mjs`/`.cjs` 跑了 `dconf dump`/`dconf read` 或 `gsettings get`/`list`，也就是打印设置**值**（本 schema 的 6 个字符串键每一个都可能装着服务商凭据）；或扫描不再覆盖 `test/integration.sh` 与 `test/perf-probe.sh`（下限：这两个文件必须在扫描里，可执行文件 ≥ 10） | 在仓库的一次性副本里（`tar` 过去、不带 `.git`、入口模块是真文件）：往 `test/integration.sh` 追加一条**可执行的** `dconf dump /org/gnome/shell/extensions/fast-translate/` → `not ok — test/integration.sh reads a settings value…`；另在 `test/perf-probe.sh` 里放一条 `gsettings get … apikey` → 同一条消息点名那个文件。控制组：**同样这两行**前面加 `#` 变注释必须保持绿（33 pass / 0 fail），还原后的树也是绿 |
@@ -146,6 +147,12 @@ libadwaita 的 typelib，所以只是本地桌面门，被刻意留在 CI 之外
   **逐字复制**；改完之后重新数一遍（`msgid`、`msgstr`、`#:`、`#.`），而且模式**必须转义**——
   grep 里不转义的 `^#. ` 会把每一条 `#: ` 也算进去，这正是有一份正确的目录短暂被读成"有 317
   条提示"的原因。
+- **gettext 装上之后，就用它数，别再拿 grep 数。** 目录的权威计数来自 `msgfmt --statistics`、
+  `msguniq`、`msgcomm`、`msgunfmt`。我自己写的按行读取器会少数，因为长 msgid/msgstr 会续行：
+  一份 189 条的目录被读成 181 条；`grep -c '^msgstr "[^"]'` 说 es 有 56 条译文，而 gettext 说
+  是 63 条（34 translated + 29 fuzzy）——D-044 记的就是那个 grep 的数，差的正好是那些跨行条目。
+  另外两件事只有工具会告诉你：`.mo` 会把空 msgstr **和** fuzzy 两类都排除在外；`msgfmt` 会把
+  obsolete 的 `#~ msgid` 与活条目算成重复。
 - **取证手段本身可能就是错的仪器。** 零写入这条性质一向用 `sha256sum ~/.config/dconf/user`
   前后对比，而且必须在断言它的那一条命令里成对取证。本轮有一对临时前后对照打印的是设置库的
   *内容*而不是它的摘要——这个方法会把这个 schema 的 6 个字符串键（`apikey`、

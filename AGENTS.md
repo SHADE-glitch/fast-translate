@@ -91,14 +91,25 @@ handbook: operational knowledge lives behind the router in
 
 - **Safe Packaging**: Run `bash scripts/pack.sh`. It compiles the GSettings schemas, then
   hands `po/` to `gnome-extensions pack --podir=po`, which shells out to `msgfmt` — gettext
-  is **not installed on this machine**, so the script now stops at a `command -v msgfmt`
-  check *before* touching anything instead of exiting 2 after deleting the previous zip and
-  leaving `/tmp/fast-translate-pack` half-filled. It copies an **explicit list**, so
-  `docs/`, `test/`, `scripts/` and the root `*.md` never enter the zip — adding
-  documentation costs nothing in what ships. `test/repo.test.js` ("the packaging list ships
-  exactly what the repo has") pins that list and both orderings, because a root-level module
-  without a `--extra-source=` line is silently missing from the zip. It also creates `venv/`
-  **inside the repo**; that name is in the same guard's skip set, so do not remove it.
+  is **installed on this machine since 2026-10-10** (`msgfmt 0.23.2`), and the script has
+  produced a complete zip from the repo directory (unpacked and verified). The
+  `command -v msgfmt` check stays at the top of the script and still does real work on any
+  other box: without gettext the old run exited 2 *after* deleting the previous zip and
+  leaving `/tmp/fast-translate-pack` half-filled. Two things it cannot do yet: the list is
+  hand-copied — `test/repo.test.js` ("the packaging list ships exactly what the repo has")
+  pins it and both orderings, because a root-level module without a `--extra-source=` line is
+  silently missing from the zip — and its last step, `shexli`, **segfaults** here
+  (exit 139, core dumped), so the script reports failure even though the zip is fine. It
+  copies an **explicit list**, so `docs/`, `test/`, `scripts/` and the root `*.md` never enter
+  the zip — adding documentation costs nothing in what ships (confirmed against the built
+  artifact, not just the list). It also creates `venv/` **inside the repo**; that name is in
+  the same guard's skip set, so do not remove it.
+- **A catalog that no other guard likes can still break the build.** `msgfmt` treats an
+  obsolete `#~ msgid` as a duplicate of a live one and exits 1, which fails both
+  `pack --podir` and `msgmerge`; `test/repo.test.js` ("no catalog defines the same msgid
+  twice, obsolete entries included") is the gate. When a string upstream obsoleted comes back
+  in this fork's sources, delete the `#~` pair — reviving upstream's translation into the live
+  entry is a translation decision, and `msguniq` would make it silently.
 - **Extension Reload**: Run `bash scripts/reload.sh` (executes disable/enable). Measured:
   on GNOME 50 this **does not re-import edited ES modules**, so it can never verify a
   code change — restart the shell, which on Wayland means logging out and in again.

@@ -89,13 +89,22 @@ disable/enable 不会重新 import 改过的 ES 模块。
   第 3 节"打包清单发的就是仓库里有的"那一行。
 - `pack.sh` 拷的是一份**显式清单**，所以 `docs/`、`test/`、`scripts/` 和根目录的
   `*.md` 永远进不了 zip。往仓库里加维护文档，对发什么东西没有任何影响。
-- **本机没有 `msgfmt`/`xgettext`**，所以只要 `po/` 存在，`gnome-extensions pack`
-  就会硬失败。仓库里没有 `locale/` 也没有 `.mo`，因此翻译从未加载过：每个 `_()`
-  都直接返回 msgid。为将来的打包版修 msgid 仍然有意义，但 `scripts/update-po*.sh`
-  在这台机器上跑不了——**所以目录是手工维护、由 `test/repo.test.js` 保证它诚实**：每个
-  `_()` 字面量都要出现在 `messages.pot` 与 de/es/nl 里，任何目录都不许带着模板已不认识的
-  msgid，源码里每条 `// Translators:` 注释都要以 `#.` 落到这四个文件。也就是说，加一条
-  用户可见的串，就得同时改四处目录，`npm test` 才会绿。还欠什么见
+- **2026-10-10 装了 gettext**（`msgfmt`/`xgettext` 0.23.2），于是 `pack.sh` 现在能走到
+  `gnome-extensions pack` 并真的产出 zip，`scripts/update-po.sh` 也能跑了。第一次装完才看得见的
+  事实：`.mo` 里**只**装有非空且非 fuzzy 的 `msgstr`——所以目录的真实产出要读
+  `msgfmt --statistics` 的 translated 那一行（别用 grep 数），其余界面回落到英文 msgid，而
+  `#, fuzzy` 的行在译者去掉标记之前对用户根本不存在。`locale/` 是打包那一步从 `po/` 生成的，
+  仓库自己仍然没有 `locale/`。
+- **有一类目录缺陷，其余守卡全都喜欢，却能把两条路一起弄坏。** `msgfmt` 会把 obsolete 的
+  `#~ msgid` 与活条目算成重复并 exit 1，于是 `pack --podir` 和 `msgmerge` 一起失败。上游曾作废、
+  本 fork 现在又请求的那条串，两个定义必须去掉一个，而去 `#~` 那一对才是安全的：把上游译文
+  "复活"到活条目上是一个**翻译决定**，而 `msguniq` 会替你静默做掉——所以本轮删掉那一对，把
+  `msgstr ""` 留给译者。守卡是 `test/repo.test.js`（"任何目录都不许把同一条 msgid 定义两遍，
+  obsolete 也算"）。目录仍然是手工维护、由 `test/repo.test.js` 保证它诚实：每个 `_()` 字面量都要
+  出现在 `messages.pot` 与 de/es/nl 里，任何目录都不许带着模板已不认识的 msgid，源码里每条
+  `// Translators:` 注释都要以 `#.` 落到这四个文件。也就是说，加一条用户可见的串，就得同时改四处
+  目录，`npm test` 才会绿。**别指望 `scripts/update-pot.sh`**：在本 fork 上实测它会写成让五条
+  仓库守卡变红的模板形状。还欠什么见
   [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) 第 3 节。
 - `schemas/gschemas.compiled` 被 gitignore。**新克隆在跑过
   `glib-compile-schemas schemas/` 之前是坏的。** 不需要往系统装任何东西：壳会从扩展

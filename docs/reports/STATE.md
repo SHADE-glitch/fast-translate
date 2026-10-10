@@ -17,9 +17,9 @@ PLAN.md describes the batches.
 | Thing | Value | How to re-check |
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
-| Branch state | `master`, ahead of `origin/master` by three commits; **`origin` is now the SSH URL** (`git@github.com:SHADE-glitch/fast-translate.git`) at the maintainer's instruction, so `git push` works from this host without a one-off remote argument | `git remote -v`, `git status -sb` |
-| Unpushed | `origin/master` reads `3f48172` (pushed 2026-10-10 under his authorization for that batch — `2fb769a` pack.sh, `c27c730` the packaging-list guard, `3f48172` docs). Everything since is local only: the catalog fix and its guard, the stale-prose sweep, two record passes, and the schema-catalog batch. **Pushing needs a fresh authorization** — the one that covered `3f48172` is spent, and "提交完成" never implies it | `git log --oneline origin/master..HEAD` |
-| Working tree | `CHANGELOG.md` plus this record pass; everything else (po fix, guard, docs sweep) is committed | `git status --porcelain \| wc -l` |
+| Branch state | `master`, **level with `origin/master`** since 2026-10-10; `origin` is the SSH URL (`git@github.com:SHADE-glitch/fast-translate.git`) at the maintainer's instruction, and `ssh -T git@github.com` answers before the push | `git remote -v`, `git status -sb` |
+| Unpushed | **nothing** — nine commits went up on 2026-10-10 under his authorization (`da52508` catalog fix, `e636e9e` its guard, `b1db09f` the stale-prose sweep, `196fd72`+`27ec203` the reports and record, `65401f5`+`eecf2a1` the schema backfill and its record, `f57c253`+`1678340` the new `AGENTS.md` rule and its entry). The remote was read back with `git ls-remote` and answers `1678340…`; CI run `38025846410` = success. The next push needs a fresh authorization — the last one is spent | `git log --oneline origin/master..HEAD`, `git ls-remote origin refs/heads/master` |
+| Working tree | clean | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
 | Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail\|suites)'` and `node test/docs-lint.mjs` |
 
@@ -160,10 +160,10 @@ table). One thing this did **not** settle: whether the shell compiles an extensi
      confirmation)* — and the real translations for those 15).
    `scripts/update-po.sh` runs since 2026-10-10; `scripts/update-pot.sh` **must not** be used — it
    rewrites the template into a shape that puts five repository guards red.
-2. **Push.** `3f48172` was pushed on 2026-10-10 under your explicit authorization for that batch, and
-   the remote reads it (`git ls-remote origin refs/heads/master`). Everything since — `da52508`,
-   `e636e9e`, `b1db09f` and this record pass — is local only. Authorization is per-push and the last
-   one is spent, so say the word and I push over the SSH remote that is now configured.
+2. **Push.** Done for this batch: nine commits went up on 2026-10-10 under your authorization, the
+   remote was read back with `git ls-remote` (`1678340…`) and CI (`38025846410`) is green on that
+   head. Nothing is queued to push. The next change will need its own authorization — the rule in
+   `AGENTS.md` is per action, and this one is spent.
 3. **Are `docs/reports/` tracked or ignored?** Currently **tracked**, because
    `AGENTS.md` and `MAINTENANCE.md` link `STATE.md` as the session entry point and a
    gitignored target breaks that link in a fresh clone. A sibling fork in this workspace
@@ -180,10 +180,12 @@ table). One thing this did **not** settle: whether the shell compiles an extensi
 
 ## Next step
 
-Nothing is queued in code. The gettext round landed three commits — `da52508` (the duplicate-msgid
-fix that had been failing `pack --podir`), `e636e9e` (the guard that refuses a catalog defining one
-msgid twice), `b1db09f` (the stale-prose sweep) — and this record pass is the remaining documentation
-edit. **Pushing the three is still unauthorized**, so `origin/master` stays at `3f48172`.
+Nothing is queued in code. The gettext round landed `da52508` (the duplicate-msgid fix that had been
+failing `pack --podir`), `e636e9e` (the guard that refuses a catalog defining one msgid twice) and
+`b1db09f` (the stale-prose sweep); the schema batch landed `65401f5` plus its record `eecf2a1`, and
+`f57c253`/`1678340` put the lesson into `AGENTS.md`. All of it is **pushed** — `origin/master` answers
+`1678340…` and CI is green on that head — so what remains is only the human half: the list at the top
+of this section.
 
 The live-session pass began 2026-10-10 07:47. **It got further than the plan assumed**: the shell's
 own D-Bus API reported the extension ACTIVE at `version 16.0` with an empty error list, and once a

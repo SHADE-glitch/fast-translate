@@ -132,10 +132,49 @@ not worth its cost, reopen only with new evidence.
   the XML reader still sees every opening tag (floors and provocations:
   `docs/maintenance/verification.md` §3). Re-measure with
   `xgettext --from-code=UTF-8 -o - -- schemas/*.xml` diffed against `po/messages.pot` through
-  `msgcomm`. **Still owed here:** whether a schema `description` is ever *rendered* translated
-  depends on whoever compiles the schema passing `--gettext-package`, which this machine has not
-  observed *(needs manual confirmation)*; and the 15 rows need actual German/Spanish/Dutch text like
-  the other 187/141/187 untranslated ones do.
+  `msgcomm`.
+- **Whether a schema `description` can ever be *rendered* translated — measured 2026-10-10, in three
+  parts, only one of which is still open.**
+  (a) **The compile-time route is closed on this platform.** `glib-compile-schemas --version` →
+  **2.88.0**; its `--help` lists no gettext option; handing it one is an error —
+  `glib-compile-schemas --gettext-package=foo …` → `Unknown option --gettext-package=foo`, **exit 1**.
+  So neither the shell, nor `gnome-extensions`, nor `scripts/pack.sh` can give the compiler a
+  translation package. The binary still carries the machinery (`dcgettext` is an undefined symbol; the
+  strings `l10n requested, but no gettext domain given` and `.gettext-domain` are in it), so the code
+  path is fed from the XML's declared domain rather than a flag — and what actually lands here is
+  untranslated: the installed `schemas/gschemas.compiled` is **sha256-identical** to a plain
+  `glib-compile-schemas` run over the same `.xml` in this C/en environment, holds no German
+  (`grep -c Dunkles` → 0) and does not even record the domain
+  (`grep -c fast-translate@tazztone.github.io` → 0).
+  (b) **Nothing here could bake it in anyway, and no catalog is reachable at all.**
+  `ls /usr/share/locale/*/LC_MESSAGES/fast-translate@tazztone.github.io.mo` → 0 matches, and the live
+  extension directory has **no `locale/`** — the repo ships `po/`, and the compiled `.mo` files exist
+  only inside the built zip. So the binding both processes do perform
+  (`prefs.js:36` and `extension.js:1389` each call `initTranslations(metadata['gettext-domain'])`, which
+  points the domain at `<extension dir>/locale`) has **nothing to load**. That, not any glib theory, is
+  the first-order reason every L2 readout of the settings window came back English.
+  (c) **The read-time route is unobservable on this box, and that is now a measured limit rather than an
+  unchecked assumption.** libgio links `dcgettext`/`g_dgettext` (5 gettext symbols), so a consumer
+  *could* translate, but every positive control this box allows came back void:
+  `locale -a | grep -c '^de'` → **0**, so even the system's own German catalog cannot be reached —
+  `LANGUAGE=de LC_ALL=C.utf8 gettext -d apt '  Candidate: '` prints `  Candidate:` while
+  `gettext.GNUTranslations('/usr/share/locale/de/LC_MESSAGES/apt.mo').gettext('  Candidate: ')` on the
+  **same file** returns `  Installationskandidat: `. The catalog is fine, the lookup path is not, which
+  is precisely what makes the control void rather than negative. (Getting that pair right cost two false
+  attempts: `apt.mo`'s entry is `#, fuzzy`-free but its msgid carries **two leading spaces**, and a
+  stripped `'Candidate: '` silently looks like "no translation exists".) `/usr/bin/gettext` is glibc's
+  and ignores both `TEXTDOMAINDIR` and `LOCPATH` (four env combinations tried, all returned the msgid),
+  and no `gsettings-desktop-schemas.mo` is installed, so the system-schema form of the test has no
+  catalog to translate with either. Settling (c)
+  for real needs two changes this brief forbids — generating a `de` locale and installing the domain's
+  `.mo` under `/usr/share/locale` *(needs manual confirmation, and it is the maintainer's system, not
+  the extension's)*.
+  What is **not** in question: **our own code never asks for a schema summary or description** —
+  `grep -cE "get_description|describe|summary"` is 0 in `prefs.js` and 0 in `extension.js`, and the
+  settings window renders its own `_()` literals. So on this fork these 48 entries cannot change what a
+  user sees whichever way (c) resolves; they are completeness for translators and for external readers
+  (dconf-editor, `gsettings describe`, a future glib), paid for with an empty `msgstr` row. Translation
+  effort therefore belongs on the **187/141/187 JS strings that do render**, not on these.
 - **The `.mo` ships less than the catalog appears to hold.** `msgfmt` writes only entries whose
   `msgstr` is non-empty *and* not `#, fuzzy`, so the translated rows each locale really ships is
   the `translated` figure of

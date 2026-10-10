@@ -180,6 +180,24 @@ The rules these provocations earned:
   gettext, or join continuations; never search a catalog's raw text for a string. Two further facts only the tools
   tell: `.mo` output excludes empty **and** fuzzy rows, and `msgfmt` counts an obsolete
   `#~ msgid` against a live one.
+- **"This machine cannot observe it" is a claim that needs its own evidence.** When a check comes back
+  negative, first prove the instrument could have seen a positive. Measured 2026-10-10 while asking
+  whether anything ever translates a GSchema `<summary>`/`<description>`: three controls all failed for
+  *instrument* reasons, and each failure is printable — `locale -a | grep -c '^de'` → 0 (so
+  `LANGUAGE=de … gettext -d apt '  Candidate: '` prints the English msgid while `gettext.GNUTranslations`
+  on the **same** `.mo` returns `  Installationskandidat: `: the file is fine, the path is dead),
+  `/usr/bin/gettext` is glibc's and ignores `TEXTDOMAINDIR`/`LOCPATH` (4 combinations, same answer), and
+  no `gsettings-desktop-schemas.mo` is installed at all. A fourth trap: that apt msgid carries **two
+  leading spaces** — query the stripped form and a real translation looks like an absent one.
+- **To read a schema that is not in the system localedir, point glib at it with `XDG_DATA_DIRS`** rather
+  than installing anything: put the `.gschema.xml` plus a `glib-compile-schemas` run under
+  `<tmp>/glib-2.0/schemas/`, then `XDG_DATA_DIRS=<tmp> gsettings describe <schema> <key>` reads it and
+  `gsettings list-keys` proves the source is live. This is the desktop-free, write-nothing-outside-`/tmp`
+  way to inspect schema text (and it is how the answer above was framed: the question itself was about
+  compile-time flags, and `glib-compile-schemas --gettext-package=foo` → `Unknown option`, exit 1, on
+  2.88.0 — while the binary still carries `dcgettext` and the string
+  `l10n requested, but no gettext domain given`, so "the flag is gone" must never be written as
+  "translation is impossible").
 - **A proof method can itself be the wrong instrument.** The zero-write property is proven by
   `sha256sum ~/.config/dconf/user` before and after, in the same command that asserts it. One
   ad-hoc before/after pair this round printed the settings store's *contents* instead of its

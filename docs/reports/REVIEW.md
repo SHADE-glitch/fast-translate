@@ -117,7 +117,13 @@ settings-window behaviour, both of which reach a user on first run. Frozen field
     `schemas/*.gschema.xml` asks gettext for were in no catalog, while the template carried their
     pre-Baidu/Youdao wording — and the reason no guard caught it was that the coverage list held only
     the three JS modules. Closed on request in one change (backfill + three assertions), because a
-    gate alone would have been red. What it still does **not** prove: that a translated schema
-    `description` is ever rendered, which needs whoever compiles the schema to pass
-    `--gettext-package` — never observed here *(needs manual confirmation)*. If you want the 15 rows
-    translated too, that is translation work, not a repo edit.
+    gate alone would have been red. And the follow-up measurement closed the visibility question:
+    `glib-compile-schemas` **2.88.0 has no gettext option** (`--gettext-package=foo` → `Unknown option`,
+    exit 1) and the installed `gschemas.compiled` is sha256-identical to a plain compile with no German
+    and no recorded domain, while our own code never asks for a schema summary or description at all. So
+    these 48 rows cannot change what this fork renders — they are completeness for translators and
+    external readers, bought with an empty `msgstr`. Whether a *runtime* consumer translates them is not
+    observable here, and that is now a printed limitation: three positive controls all came back void
+    (no `de` locale, glibc's `gettext` ignores `TEXTDOMAINDIR`/`LOCPATH`, no
+    `gsettings-desktop-schemas.mo` installed) — see VERIFY.md's GSchema section. If you want the 15 rows
+    translated too, that is translation work with no visible effect on this platform.

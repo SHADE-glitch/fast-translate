@@ -96,9 +96,39 @@
   请求的串少进入任何一份目录即红、`<schemalist>` 的 domain 与 `metadata.json` 不再相等即红、XML
   读到的元素比开标签少即红（下限与逼红记录见 `verification.zh-CN.md` 第 3 节）。自己复测：
   `xgettext --from-code=UTF-8 -o - -- schemas/*.xml` 与 `po/messages.pot` 用 `msgcomm` 对撞。
-  **这里仍欠的**：schema 的 `description` 到底会不会**显示**成译文，取决于编译 schema 的那一方有没有
-  传 `--gettext-package`，这台机器尚未观察到 *(需人工确认)*；而那 15 条和其余 187/141/187 条未译
-  一样，缺的是真正的德/西/荷译文。
+  **schema 的 `description` 到底能不能被*渲染*成译文——2026-10-10 实测，答案分三段，只有最后一段还敞着。**
+  (a) **编译期这条路在本平台是关着的。** `glib-compile-schemas --version` → **2.88.0**；它的 `--help`
+  里没有任何 gettext 选项；硬塞一个就是错误——`glib-compile-schemas --gettext-package=foo …` →
+  `Unknown option --gettext-package=foo`、**exit 1**。所以壳、`gnome-extensions`、`scripts/pack.sh`
+  谁都递不出翻译包。二进制里那套机制还在（`dcgettext` 是未定义符号，串里有
+  `l10n requested, but no gettext domain given` 与 `.gettext-domain`），也就是说代码路径读的是 XML
+  自己声明的域而不是命令行开关——而实际落到盘上的是未翻译的：装机那份 `schemas/gschemas.compiled`
+  与我在同样的 C/en 环境里对同一份 `.xml` 跑一次**普通** `glib-compile-schemas` 的产物
+  **sha256 逐字节相同**，里面没有德语（`grep -c Dunkles` → 0），连 domain 字符串都没记
+  （`grep -c fast-translate@tazztone.github.io` → 0）。
+  (b) **这台机器上根本没有可烘焙的东西，也没有任何可达的目录。**
+  `ls /usr/share/locale/*/LC_MESSAGES/fast-translate@tazztone.github.io.mo` → 0 命中，而 live 扩展目录
+  **没有 `locale/`**——仓库里只有 `po/`，编译好的 `.mo` 只存在于打出来的 zip 里。所以两个进程都确实做了
+  的那次绑定（`prefs.js:36` 与 `extension.js:1389` 各调 `initTranslations(metadata['gettext-domain'])`，
+  把域指向 `<扩展目录>/locale`）**没东西可加载**。设置窗口每次 L2 读数都是英文，第一 order 的原因是这条，
+  不需要任何 glib 层面的推测。
+  (c) **读取期那条路在这台机器上观察不到，而这现在是一条量出来的限制，不再是没检查的假设。** libgio
+  确实链接了 `dcgettext`/`g_dgettext`（5 个 gettext 符号），所以消费方*有可能*翻译，但这台机器能做的
+  正控全部作废：`locale -a | grep -c '^de'` → **0**，连系统自带的德语目录都取不到——
+  `LANGUAGE=de LC_ALL=C.utf8 gettext -d apt '  Candidate: '` 打印的是 `  Candidate:`，而对**同一个文件**
+  用 `gettext.GNUTranslations('/usr/share/locale/de/LC_MESSAGES/apt.mo').gettext('  Candidate: ')`
+  拿到的是 `  Installationskandidat: `。目录没问题，查找路径有问题——这正是它算"废控"而不是"反证"的理由。
+  （为拿对这一对，我白跑了两次：`apt.mo` 里那条不是 `#, fuzzy`，但它的 msgid 带**两个前导空格**，
+  我先前用去掉空格的 `'Candidate: '` 去查，看起来就像"根本没有译文"。）`/usr/bin/gettext` 是 glibc 那个，
+  `TEXTDOMAINDIR` 与 `LOCPATH` 都不认（试过 4 种 env 组合，全部返回 msgid）；而系统里也**没有**
+  `gsettings-desktop-schemas.mo`，所以"拿系统 schema 做同样测试"这一版连可翻译的目录都没有。要把 (c)
+  真正确定下来，需要两个本简报禁止的系统改动——生成 `de` locale，以及把本域的 `.mo` 装进
+  `/usr/share/locale` *(需人工确认，而且那是维护者的系统，不是扩展的)*。
+  **不在怀疑范围内的**是：我们自己的代码从来不问 schema 的 summary/description——
+  `grep -cE "get_description|describe|summary"` 在 `prefs.js` 是 0、在 `extension.js` 也是 0，设置窗口
+  渲染的是自己的 `_()` 字面量。所以无论 (c) 最后朝哪边收，这 48 条在本 fork 都改变不了用户看到的界面；
+  它们的身份是给译者与外部读取方（dconf-editor、`gsettings describe`、未来的 glib）的完整性，代价是一行
+  空 `msgstr`。因此**译文的力气应该花在真会渲染的那 187/141/187 条 JS 串上**，不是这里。
 - **`.mo` 发的比目录看起来有的少。** `msgfmt` 只把 `msgstr` 非空**且**不是 `#, fuzzy` 的条目写进去，
   所以每份目录真正随包发布的译文数是
   `msgfmt --statistics -c -o /dev/null po/de.po` 里的 translated 那个数；fuzzy 的那些（de/nl 10 条、

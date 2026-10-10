@@ -434,9 +434,34 @@ the `describe` body ran: it aborted collection, so the file reported `# tests 25
 with a `not ok` on top — a red that also destroyed the rest of the suite's output. Moved into its own
 `it()` case, it now fails one test and leaves 43 collected. Instrument bug, found by running it.
 
-One thing this did **not** establish: whether a translated schema `description` is ever *rendered*,
-which depends on whoever compiles the schema passing `--gettext-package`. Never observed on this
-machine *(needs manual confirmation)*.
+What this left open — whether a translated schema `description` is ever *rendered* — was measured the
+same day, in three parts, in the next section ("Can a GSchema string ever be rendered translated?").
+
+## Can a GSchema string ever be rendered translated? — the open item, measured
+
+The schema batch left one question written as *(needs manual confirmation)*: does anything actually
+translate a `<summary>`/`<description>`? It turned out to be answerable in three parts, and the first
+two needed no session at all.
+
+| Probe | Output | Reading |
+|---|---|---|
+| `glib-compile-schemas --version`; `… --help` | `2.88.0`; options are `--targetdir/--strict/--dry-run/--allow-any-name` only | There is no gettext option to pass |
+| `glib-compile-schemas --gettext-package=foo --targetdir=/tmp /nonexistent` | `Unknown option --gettext-package=foo`, **exit 1** | Compile-time translation cannot be requested by anyone on this box — shell, `gnome-extensions` or `pack.sh` |
+| `strings` + `nm -D --undefined-only` on that binary | `dcgettext` (undefined), and the strings `l10n requested, but no gettext domain given`, `.gettext-domain` | The code path still exists, fed by the XML's declared domain — so "flag gone" ≠ "translation impossible", and the docs must not say that |
+| sha256 of the installed `schemas/gschemas.compiled` vs a fresh plain compile of the same `.xml` into `/tmp` | both `b19c851ae2fe…` (3036 bytes) | The blob on disk **is** plain untranslated compiler output |
+| `grep -c Dunkles` / `grep -c fast-translate@tazztone.github.io` on the blob | 0 / 0 | No German text, and the domain is not even recorded in the cache |
+| `grep -cE "get_description\|describe\|summary" prefs.js extension.js` | `prefs.js:0`, `extension.js:0` | Our own UI never asks for those strings: the settings window renders its own `_()` literals, so the 48 schema entries cannot change what this fork's user sees |
+| `ls /usr/share/locale/*/LC_MESSAGES/fast-translate@tazztone.github.io.mo`; `ls <live extension dir>/locale` | 0 matches; `No such file or directory` | **Nothing is loadable at all right now.** Both processes bind the domain (`prefs.js:36`, `extension.js:1389` → `initTranslations(metadata['gettext-domain'])` → `<ext>/locale`), and there is no `locale/` there — the `.mo` files exist only inside the built zip. This, not glib theory, is why every L2 readout was English |
+| `nm -D --undefined-only libgio…` | `dcgettext`, `bind_textdomain_codeset`, `g_dgettext`, `g_dngettext`, `glib_gettext` | A runtime consumer *could* translate — which is exactly why the next row had to be checked before claiming it doesn't |
+| three positive controls for the runtime route | all void: `locale -a \| grep -c '^de'` → 0, so `LANGUAGE=de LC_ALL=C.utf8 gettext -d apt '  Candidate: '` → `  Candidate:` while `gettext.GNUTranslations` on the **same** `.mo` → `  Installationskandidat: `; `/usr/bin/gettext` ignores `TEXTDOMAINDIR`/`LOCPATH` (4 combinations); no `gsettings-desktop-schemas.mo` installed | The file is fine and the path is dead, so this is **not** evidence that glib doesn't translate — it is evidence that this machine cannot show it. Settling it needs a generated `de` locale plus a catalog in `/usr/share/locale`: two system changes this brief forbids |
+| reading a schema outside the system localedir, without installing anything | `XDG_DATA_DIRS=<tmp>` where `<tmp>/glib-2.0/schemas/` holds the `.xml` + a plain compile → `gsettings list-keys` lists our keys and `gsettings describe … darktheme` returns `Enable dark theme otherwise light theme` under both `LANGUAGE=` and `LANGUAGE=de` | The method works and is desktop-free; the identical output above is the void-control case, not a negative result |
+
+Two instrument mistakes of my own, recorded because both produced a plausible-looking answer:
+the runtime control was first run against `'Candidate: '` when apt's msgid is `'  Candidate: '` **with
+two leading spaces** — a stripped query made a real translation look absent; and the first draft of this
+conclusion read "glib 2.88 cannot translate schemas", which the `dcgettext`/`l10n requested…` strings in
+the same binary refute. What survives is narrower: **nothing on this machine can be shown to translate
+them, and nothing in this fork asks for them.**
 
 ## Not verified
 

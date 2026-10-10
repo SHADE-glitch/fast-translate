@@ -157,6 +157,21 @@ libadwaita 的 typelib，所以只是本地桌面门，被刻意留在 CI 之外
   做成员判断，报出 **21** 条 schema 串"不在目录里"，而会拼续行的读取器和 `msgcomm` 都说 **15** 条——
   多出的 6 条全是 gettext 写成 `msgid ""` 再加续行的长串。要么问 gettext，要么自己把续行拼上，
   **不要拿字符串去搜目录原文**。
+- **"这台机器观察不到"本身也是一条需要证据的说法。** 一个检查返回阴性时，先证明仪器原本看得见阳性。
+  2026-10-10 问"有没有什么东西会翻译 GSchema 的 `<summary>`/`<description>`"时，三个正控全都因为
+  **仪器**原因失效，而每个失效都能打出来：`locale -a | grep -c '^de'` → 0（于是
+  `LANGUAGE=de … gettext -d apt '  Candidate: '` 打印英文 msgid，而对**同一个** `.mo` 用
+  `gettext.GNUTranslations` 拿到的是 `  Installationskandidat: `——文件没问题，路径是死的）；
+  `/usr/bin/gettext` 是 glibc 那个，`TEXTDOMAINDIR` 和 `LOCPATH` 都不认（4 种组合，答案一样）；
+  系统里压根没装 `gsettings-desktop-schemas.mo`。第四个坑：apt 那条 msgid 带**两个前导空格**——
+  拿去掉空格的写法去查，一条真实存在的译文看起来就像不存在。
+- **要读一份不在系统 localedir 里的 schema，用 `XDG_DATA_DIRS` 把 glib 指过去**，而不是往系统装东西：
+  把 `.gschema.xml` 和一次 `glib-compile-schemas` 的产物放在 `<临时目录>/glib-2.0/schemas/`，然后
+  `XDG_DATA_DIRS=<临时目录> gsettings describe <schema> <键>` 就能读到，`gsettings list-keys` 证明这个
+  source 活着。这是不需要桌面、也不往 `/tmp` 之外写任何东西的 schema 文本读法（上面那条问题就是靠它
+  问清楚的：题面问的是编译期开关，而 `glib-compile-schemas --gettext-package=foo` 在 2.88.0 上是
+  `Unknown option`、exit 1——**同时**二进制里还有 `dcgettext` 和
+  `l10n requested, but no gettext domain given` 这条串，所以"开关没了"绝不能写成"翻译不可能"）。
 - **取证手段本身可能就是错的仪器。** 零写入这条性质一向用 `sha256sum ~/.config/dconf/user`
   前后对比，而且必须在断言它的那一条命令里成对取证。本轮有一对临时前后对照打印的是设置库的
   *内容*而不是它的摘要——这个方法会把这个 schema 的 6 个字符串键（`apikey`、

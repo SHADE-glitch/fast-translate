@@ -121,9 +121,14 @@ and three new assertions — schema-string coverage across all four catalogs, th
 equaling `metadata.json`'s, and a tag-count self-check that refuses a reader which silently sees
 fewer elements. Coverage re-measured to zero missing; the guard was run red on the real 15 first and
 then provoked three more ways in `tar` copies against a green control (`verification.md` §3 has the
-table). One thing this did **not** settle: whether the shell compiles an extension's schemas with
-`--gettext-package`, i.e. whether a translated `description` is ever rendered at all —
-*(needs manual confirmation)*.
+table). The question it left — whether a translated schema `description` is ever rendered — is now
+measured rather than assumed: **glib 2.88.0's `glib-compile-schemas` has no gettext option at all**
+(`--gettext-package=foo` → `Unknown option`, exit 1) and the installed `gschemas.compiled` is
+sha256-identical to a plain untranslated compile; and separately, **our own code never reads those
+strings** (`grep -cE "get_description|describe|summary"` → 0 in both `prefs.js` and `extension.js`),
+while the live extension dir has no `locale/` at all, so nothing in this domain is even loadable here.
+Whether some *external* consumer would translate at read time stays unobservable on this box, and the
+three void controls are printed in [VERIFY.md](VERIFY.md).
 
 ## Open decisions for the maintainer
 
@@ -155,9 +160,12 @@ table). One thing this did **not** settle: whether the shell compiles an extensi
      invented and the compiled `.mo` files are **byte-identical** before and after — hence no version
      bump), and now gated by three assertions: coverage over all four catalogs, `<schemalist
      gettext-domain>` equals `metadata.json`'s, and the XML reader must see every opening tag.
-     [open-items.md §3](../maintenance/open-items.md) keeps the re-measure commands and what is still
-     owed (whether the shell compiles schemas with `--gettext-package` at all — *(needs manual
-     confirmation)* — and the real translations for those 15).
+     [open-items.md §3](../maintenance/open-items.md) keeps the re-measure commands. What is owed here is
+     now only the translation text itself — and note the measured priority: these 48 schema entries
+     cannot change what this fork's user sees (the three-part answer is in
+     [open-items.md §3](../maintenance/open-items.md): no gettext option in glib 2.88.0, no `locale/` in
+     the live extension dir, and our code never reads
+     schema summaries), so translator effort belongs on the 187/141/187 JS strings that do render.
    `scripts/update-po.sh` runs since 2026-10-10; `scripts/update-pot.sh` **must not** be used — it
    rewrites the template into a shape that puts five repository guards red.
 2. **Push.** Done for this batch: nine commits went up on 2026-10-10 under your authorization, the

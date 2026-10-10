@@ -551,9 +551,6 @@ msgstr ""
 #~ msgid "For a list of all supporters, please visit"
 #~ msgstr "Para ver una lista de todos los colaboradores, por favor visita"
 
-#~ msgid "License"
-#~ msgstr "Licencia"
-
 #~ msgid "More info"
 #~ msgstr "Mas información"
 

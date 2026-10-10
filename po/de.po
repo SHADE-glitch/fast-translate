@@ -497,9 +497,6 @@ msgstr ""
 #~ msgid "For a list of all supporters, please visit"
 #~ msgstr "Für eine Liste aller Unterstützer, besuchen Sie bitte"
 
-#~ msgid "License"
-#~ msgstr "Lizenz"
-
 #~ msgid "More info"
 #~ msgstr "Mehr Infos"
 

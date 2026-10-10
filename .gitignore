@@ -8,6 +8,14 @@ scratch/
 venv
 .venv
 
+# Machine-wide runtime ignore list (agent-standards/STANDARD.md §7): the
+# virtualenvs are covered just above; this adds Python caches and databases.
+__pycache__/
+*.db
+*.db-wal
+*.db-shm
+.pytest_cache/
+
 # Phase evidence for this maintenance fork: PROFILE/AUDIT/PLAN/VERIFY/STATE/REVIEW
 # under docs/reports/. These quote raw journal lines, live dconf values and resolved
 # temp paths, so they stay local-only. The pattern has no leading slash, so it matches

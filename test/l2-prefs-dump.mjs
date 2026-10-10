@@ -25,7 +25,11 @@ const role = (a) => {
     try { return a.get_role_name(); } catch { return "?"; }
 };
 
-const EDITABLE = /^(entry|password text|password-text)$/;
+// `text` is in the set on purpose: the live window exposes a row's inner editable node with
+// that role name, and today it answers get_name() with the row *title* (measured — the DeepL URL
+// row printed "DeepL API URL", and the key row printed "(value not read)"). That is a property of
+// this GTK build, not a guarantee, so the mask covers the role rather than relying on it.
+const EDITABLE = /^(entry|password text|password-text|text)$/;
 
 function nameOf(a) {
     try { return a.get_name() ?? ""; } catch { return "<unreadable>"; }

@@ -7,3 +7,9 @@ schemas/gschemas.compiled
 scratch/
 venv
 .venv
+
+# Phase evidence for this maintenance fork: PROFILE/AUDIT/PLAN/VERIFY/STATE/REVIEW
+# under docs/reports/. These quote raw journal lines, live dconf values and resolved
+# temp paths, so they stay local-only. The pattern has no leading slash, so it matches
+# the directory at any depth — including docs/reports/.
+reports/

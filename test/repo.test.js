@@ -270,10 +270,12 @@ describe("the shipped defaults keep the promises the settings copy makes", () =>
 });
 
 describe("the translation catalogs cover the strings the code asks to translate", () => {
-    // `_()` is the only path to a translated string, and nothing here regenerates the
-    // catalogs on this machine (gettext is absent — see MAINTENANCE §10). So a msgid can
-    // be added, shipped and simply never appear in po/: the UI stays English silently and
-    // a translator gets an incomplete catalog. This guard is what makes that loud.
+    // `_()` is the only path to a translated string, and the catalogs are still not
+    // generated here: gettext has been installed since 2026-10-10, but
+    // `scripts/update-pot.sh` rewrites the template into a shape that puts five of these
+    // assertions red (measured — see open-items §3), so coverage stays a repository fact.
+    // Otherwise a msgid can be added, shipped and simply never appear in po/: the UI stays
+    // English silently and a translator gets an incomplete catalog. This guard makes that loud.
     const TRANSLATED = ["extension.js", "prefs.js", "translation-helper.js"];
 
     const jsUnescape = (s) => s
@@ -431,6 +433,50 @@ describe("the translation catalogs cover the strings the code asks to translate"
             `${drifted.length} catalog hint(s) disagree with the comment in the source: ` +
             `${drifted.map((h) => `${h.where}: catalog says ${JSON.stringify(potHints.get(h.msgid))}, ` +
                 `source says ${JSON.stringify(h.hint)}`).join(" | ")}`);
+    });
+
+    // Every msgid in a catalog, obsolete ones included, keyed to the line that defines it.
+    // `catalogMsgids()` above deliberately ignores `#~` because coverage is about live
+    // strings; this reader exists because msgfmt does not ignore them.
+    function everyMsgid(rel) {
+        const lines = read(rel).split("\n");
+        const out = [];
+        for (let i = 0; i < lines.length; i++) {
+            const m = lines[i].match(/^(#~\s+)?msgid\s+"((?:[^"\\]|\\.)*)"/);
+            if (!m) continue;
+            let text = m[2];
+            let k = i + 1;
+            while (k < lines.length && /^(#~\s+)?"((?:[^"\\]|\\.)*)"$/.test(lines[k]))
+                text += lines[k++].match(/"((?:[^"\\]|\\.)*)"/)[1];
+            if (text) out.push({ msgid: poUnescape(text), line: i + 1, obsolete: Boolean(m[1]) });
+            i = k - 1;
+        }
+        return out;
+    }
+
+    it("no catalog defines the same msgid twice, obsolete entries included", () => {
+        // msgfmt counts an obsolete `#~ msgid` against a live one and exits 1 with
+        // `duplicate message definition`, and msgfmt is what both `gnome-extensions pack
+        // --podir=po` and `msgmerge` run — so a catalog every other guard here likes can
+        // still make the package unbuildable and the maintenance script unusable. This was
+        // real: D-044 appended `msgid "License"` while upstream's obsolete twin was still in
+        // all three locale files.
+        const dups = [];
+        for (const rel of ["po/messages.pot", "po/de.po", "po/es.po", "po/nl.po"]) {
+            const all = everyMsgid(rel);
+            assert.ok(all.length >= 180,
+                `${rel}: only ${all.length} msgid(s) parsed — that reader stopped working, so ` +
+                `this duplicate check is checking nothing`);
+            const first = new Map();
+            for (const e of all) {
+                if (first.has(e.msgid))
+                    dups.push(`${rel}: ${JSON.stringify(e.msgid)} at :${first.get(e.msgid)} and :${e.line}`);
+                else first.set(e.msgid, e.line);
+            }
+        }
+        assert.deepEqual(dups, [],
+            `${dups.length} duplicate msgid(s) — msgfmt will exit 1 on each of these files:\n  ` +
+            dups.join("\n  "));
     });
 
     for (const rel of ["po/de.po", "po/es.po", "po/nl.po"]) {

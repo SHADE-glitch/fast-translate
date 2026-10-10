@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=20" },
   "scripts": {
     "test": "node test/unit.test.js && node test/teardown-guard.test.js && node test/repo.test.js && node test/docs-lint.mjs && gjs -m test/signing-crosscheck.js && gjs -m test/prefs-validator.js",
     "integration": "bash test/integration.sh",

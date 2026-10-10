@@ -154,7 +154,7 @@ handbook: operational knowledge lives behind the router in
     about rows, subtitles, defaults or reset.
 - The last two steps need `gjs`; `prefs-validator.js` additionally needs a display and the GTK4
   and libadwaita typelibs, so it only runs on a desktop session, not headless.
-- `npm run test:coverage` — Node's built-in coverage (`--experimental-test-coverage`) over the three plain-Node suites (`unit`, `teardown-guard`, `repo`), test files excluded. A **reading, not a gate** (no threshold); it reports `translation-helper.js` only — `extension.js`, `prefs.js` and `signing.js` are shell-bound.
+- `npm run test:coverage` — Node's built-in coverage (`--experimental-test-coverage`) over the three plain-Node suites (`unit`, `teardown-guard`, `repo`). The report also lists the test files; read the `translation-helper.js` row for the product module. A **reading, not a gate** (no threshold); `extension.js`, `prefs.js` and `signing.js` are shell-bound.
 - **Integration / perf probes**: `npm run integration` and `npm run perf` drive a live shell;
   they are not part of `npm test`. Both must write **nothing** outside their temp dir —
   `GSETTINGS_BACKEND=memory` is what guarantees that, and `test/integration.sh` and

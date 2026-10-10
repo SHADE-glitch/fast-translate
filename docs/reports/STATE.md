@@ -171,10 +171,12 @@ three void controls are printed in [VERIFY.md](VERIFY.md).
      schema summaries), so translator effort belongs on the 187/141/187 JS strings that do render.
    `scripts/update-po.sh` runs since 2026-10-10; `scripts/update-pot.sh` **must not** be used — it
    rewrites the template into a shape that puts five repository guards red.
-2. **Push.** Done for this batch: nine commits went up on 2026-10-10 under your authorization, the
-   remote was read back with `git ls-remote` (`1678340…`) and CI (`38025846410`) is green on that
-   head. Nothing is queued to push. The next change will need its own authorization — the rule in
-   `AGENTS.md` is per action, and this one is spent.
+2. **Push.** Nothing is waiting: the remote answers the same sha as `HEAD`
+   (`git ls-remote origin refs/heads/master` vs `git rev-parse HEAD`, which is how this file insists on
+   checking rather than trusting the tracking ref), `git log --oneline origin/master..HEAD` prints
+   nothing, and CI is green on that head. How `origin` is addressed is per-clone config and is
+   deliberately not written here (`AGENTS.md`, D-061). **Authorization is per action** — today's were
+   given batch by batch, and the next push needs a new one.
 3. **Are `docs/reports/` tracked or ignored?** Currently **tracked**, because
    `AGENTS.md` and `MAINTENANCE.md` link `STATE.md` as the session entry point and a
    gitignored target breaks that link in a fresh clone. A sibling fork in this workspace

@@ -81,7 +81,12 @@ disable/enable 不会重新 import 改过的 ES 模块。
 ## 10. 打包与翻译
 
 - `scripts/pack.sh` 在临时目录里构建（唯一安全方式），但它还会创建 `venv/` 并需要
-  联网，且传了 `--podir=po`。
+  联网，且传了 `--podir=po`。那里有两处**实测过的缺陷**已经修掉并被仓库守卡钉住：
+  失败的一次运行过去会把 `/tmp/fast-translate-pack` 留成半满，而往它上面 `cp -r`
+  会保住仓库早已删掉的文件；另一处是这份清单不会自动发现——根级模块少了
+  `--extra-source=` 一行，就静默地不在 zip 里。详见
+  [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)
+  第 3 节"打包清单发的就是仓库里有的"那一行。
 - `pack.sh` 拷的是一份**显式清单**，所以 `docs/`、`test/`、`scripts/` 和根目录的
   `*.md` 永远进不了 zip。往仓库里加维护文档，对发什么东西没有任何影响。
 - **本机没有 `msgfmt`/`xgettext`**，所以只要 `po/` 存在，`gnome-extensions pack`

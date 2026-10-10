@@ -366,3 +366,17 @@ Change   `EDITABLE` 补进 `text`，并把理由写在旁边：遮挡要按**角
 Evidence L2 — 同一个真窗口改前改后各读一次做对撞：改前 1 个节点被遮、1 个 `[text]` 带引号内容；改后 2 个被遮、**0** 个可编辑角色带引号内容；两次输出的差异恰好一行，`[text]` → `[text] (value not read)`。四家的分组差异也在真窗口里读到（不是 mock）：Google 没有 API 分组、没有 Formatting、没有清除行、恢复行只有 3 条且披露句写 `It needs no key.`；Baidu/Youdao 各自有 API 分组与 1 条 `Empties 2 stored fields`，密钥字段以 `password text` 出现并被遮罩；DeepL 独有 `Formality … (DeepL only)`
 Cost     它仍然只读文本与状态，读不到几何与外观：折行观感、深浅两套图标、浮窗定位一概答不了；浮窗本身也从未在 a11y 树上出现过（壳只暴露 window/surface 那些 panel），所以那部分仍归维护者眼看
 Commit   0b74d64
+
+### D-051 · 2026-10-10 · fix · v16
+Symptom  `bash scripts/pack.sh` 在本机从来没有成功过一次，而它失败的方式是破坏性的。`--podir=po` 让 `gnome-extensions pack` 去 shell out `msgfmt`，本机没有 gettext：实测旧版 exit 2、报 GLib-GIO-CRITICAL `Failed to execute child process "msgfmt"`、**一个 zip 都不产出**——而此时 `rm -f *.zip` 已经把上一个可用的包删掉，`/tmp/fast-translate-pack` 也已经填了 12 项留在原地。下一次再跑，`cp -r` 只覆盖同名项，仓库早已删掉的文件仍然躺在那棵树里跟着进包
+Change   两处：`command -v msgfmt` 检查提到脚本最前面，缺 gettext 就 exit 1 并且不碰任何文件；暂存目录改成**先 `rm -rf` 再 `mkdir -p`**，理由写在旁边的注释里。打包语义一个字没改，也不新增依赖——装不装 gettext 由维护者决定
+Evidence L0 — 修复前后都跑过。修复前：`pack_sh_exit=2`，临时树留下 `extension.js prefs.js translation-helper.js signing.js metadata.json stylesheet-base.css stylesheet-light.css stylesheet-dark.css icons po schemas`；污染是另外单独复现的——在一份 tar 副本里连续拷两次，第二次之前从源树删掉的文件在目标树里还在。修复后：`pack_sh_exit=1`，输出点名 msgfmt，临时树**没创建**，仓库里 zip 数量 0→0，`git status` 只有 `scripts/pack.sh` 一处改动
+Cost     这台机器仍然产不出带 `.mo` 的包，所以翻译至今没在真会话里加载过（与 D-044 的 Cost 是同一件事）。要出包就得装 gettext，那是环境改动，不在本轮范围
+Commit   2fb769a
+
+### D-052 · 2026-10-10 · guard · v16
+Symptom  打包清单是手抄的，而 `gnome-extensions pack` 有两个静默方向都没东西拦着：根级模块少了 `--extra-source=` 一行就不在 zip 里；清单点名的路径如果仓库已经没有了，打包**照样 exit 0** 并把那一项直接漏掉。于是新增一个与 `translation-helper.js` 同级的模块、或给某个样式表改个名字，`npm test` 全绿，装到真会话里的包却是残的
+Change   `test/repo.test.js` 新增 describe "the packaging list ships exactly what the repo has"：每个根级 `.js`/`.css` 都要出现在暂存行里，并且要么被 `--extra-source=` 点名、要么属于 `gnome-extensions pack` 自带的那四个名字（`metadata.json`/`extension.js`/`prefs.js`/`stylesheet.css`——这四个是**实测**出来的，不是照文档抄的）；清单点名的每个路径还得在仓库里存在，目录按"底下真的有文件"算；再加两条顺序断言（`rm -rf` < `mkdir -p` < `cp -r`，msgfmt 检查 < `rm -f *.zip`）和一条防空转的下限（暂存名 ≥ 10、extra-source ≥ 6、根级源文件 ≥ 7）
+Evidence L0 — 八份 `tar` 副本、每份只改一件事，另有一份未修改的对照副本保持绿：新增根级 `newmod.js` → "被暂存"+"被点名"两条红；只暂存不点名 → "被点名"红；往 `cp -r` 行塞一个 `ghostmodule.js` → "已经离开的仓库"红；删掉 `rm -rf`、以及把它挪到 `mkdir -p` 之后 → 顺序断言红；msgfmt 块挪到 `rm -f *.zip` 之后、以及整块删除 → 前置检查断言红；把暂存行改成 `cp -a` → 下限红。**最后这一份最值得看**：同一次运行里"被点名"和"还在仓库里"两条守卡**仍是绿的**，因为它们各自在遍历一个已经空掉的集合——下限存在的意义就是把这种假绿变成红灯。`node test/repo.test.js` 从 `# pass 33`（8 describes）变成 `# pass 39`（9 describes），`npm test` 六步 exit 0
+Cost     守的是清单的形状与顺序，不是包的内容：zip 里究竟装了什么、schema 编译产物能不能被识别，仍要等一台装了 gettext 的环境另测。那四个"自带名字"是 GNOME 50 上 `gnome-extensions` 这个二进制的行为，上游哪天改了这张表就得同步改（让它红一次再看，不要提前猜）
+Commit   c27c730

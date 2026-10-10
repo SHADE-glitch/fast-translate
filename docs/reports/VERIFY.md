@@ -363,6 +363,24 @@ states, no geometry), the panel icon's look in light and dark (his `show-panel-i
 floating card itself — the shell exposes only window/surface panels on the bus, and the card has
 never been observed there. The double-copy trigger stays a human step for the clipboard reason above.
 
+## Packaging — the list, and what a failed run used to leave behind
+
+`pack.sh` had never completed on this machine, and the reason turned out to be two separate
+defects rather than one. Both halves are now measured, and both are guarded.
+
+| Probe | Output | Reading |
+|---|---|---|
+| `bash scripts/pack.sh` **before** the fix | `pack_sh_exit=2`, GLib-GIO-CRITICAL `Failed to execute child process "msgfmt"`, and `/tmp/fast-translate-pack` left holding all 12 staged names | `--podir=po` shells out to `msgfmt`; gettext is absent here, so the run died **after** `rm -f *.zip` and **after** staging |
+| the same staging into a reused tree, twice, in a `tar` copy | a file removed from the source tree between the two runs was still present in the staging tree (`pack/removed-later.js`) | `cp -r` overwrites same names only — a helper the repo has dropped keeps riding along into the zip |
+| `bash scripts/pack.sh` **after** the fix | `pack_sh_exit=1`, the message names `msgfmt`, the temp tree is **not created**, zip count 0→0, `git status` shows only `scripts/pack.sh` | the run now stops before it can destroy or contaminate anything |
+| `gnome-extensions pack` in a throwaway tree with this extension's own layout | zip held `metadata.json`, `extension.js`, `prefs.js`, `stylesheet.css` and exactly the two names passed as `--extra-source`; an unlisted root module was absent, and `--extra-source=nope.js` (a name that does not exist) still exited **0** | the auto-include set is four names, not a rule; both silent directions are real, which is what the new guard pins |
+
+The guard (`test/repo.test.js`, "the packaging list ships exactly what the repo has") was provoked
+in eight `tar` copies, one mutation each, against an unmutated control copy that stayed green — the
+rows are in `docs/maintenance/verification.md` §3. The run worth keeping in mind is `cp -a`: the
+staging line reworded by two characters emptied the parsed list, and **two of the content guards
+reported green while measuring nothing**. The anti-vacuity floor is what turned that into a red.
+
 ## Not verified
 
 - **L2 / needs you**: the dictionary card on a real ZH→EN word — this is the first time

@@ -5,9 +5,9 @@
 **Read this first in any new session.** It carries what a fresh context cannot see:
 what is settled, what is committed but unpushed, and what the next step is.
 
-Last updated 2026-10-09, after the privacy-and-settings batch (D-036…D-043), the `po/` locale
-sync, the two `St` measurements, and a final pass that turned one of my own forensic habits into a
-repository guard. PLAN.md describes the batches.
+Last updated 2026-10-10, after the first pass that read the live session (D-048…D-050), the two
+`St` measurements, and a packaging fix that came out of trying to run `scripts/pack.sh` (D-051,
+D-052). PLAN.md describes the batches.
 
 ## Where the repo stands
 
@@ -15,8 +15,8 @@ repository guard. PLAN.md describes the batches.
 |---|---|---|
 | Shipped version | 16 — bumped for the schema defaults and the settings-window behaviour (was 15 at the start of this pass) | `jq -r .version metadata.json` |
 | Branch state | `master`, ahead of `origin/master` | `git status -sb` |
-| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031), C2–C5 (D-032…D-035), the privacy batch (`b4e4c77`, `d2a2266`), and this pass — `9bffcbc` (po), `cffa892` (the two guard batches), `440f56a` (the `St` measurements), `13d40b0` (the record batch), `8b8ae82` (the docs gate + the L2 instrument) and this docs pass. **Nothing was pushed**: no push authorization was given, and "提交完成" does not imply it | `git log --oneline origin/master..HEAD \| wc -l` |
-| Working tree | clean — po, guards, measurement, the version-16 debt, the record batch and the two new tools are all committed | `git status --porcelain \| wc -l` |
+| Unpushed | everything since `b4eefd7`: the phase-A+B docs batch, C1 (D-029/D-030/D-031), C2–C5 (D-032…D-035), the privacy batch (`b4e4c77`, `d2a2266`), and this pass — `9bffcbc` (po), `cffa892` (the two guard batches), `440f56a` (the `St` measurements), `13d40b0` (the record batch), `8b8ae82` (the docs gate + the L2 instrument), `df4b605`/`0b74d64` (that reader's own two defects), `398ea27`/`2f695b0` (records + live readings), `2fb769a` (pack.sh) and `c27c730` (the packaging-list guard). **Nothing was pushed**: no push authorization was given, and "提交完成" does not imply it | `git log --oneline origin/master..HEAD \| wc -l` |
+| Working tree | clean once this record batch is in — po, guards, measurement, the version-16 debt, the record batches, the two new tools, the live readings and the packaging fix are all committed | `git status --porcelain \| wc -l` |
 | Record gate | green; `npm run check:log -- --invariants` prints the recorded fixes from the record | `npm run check:log` |
 | Test suite | green: unit, teardown guard, repo guards, the docs link/anchor gate, signing cross-check, prefs layout rendered for all 4 providers | `npm test`, and the counts print themselves: `node test/repo.test.js 2>&1 \| grep -E '^# (pass\|fail)'` and `node test/docs-lint.mjs` |
 
@@ -151,9 +151,13 @@ the secret field masked, and each disclosure sentence names its own host plus `c
 for the dictionary. `GetExtensionErrors` stayed empty through all four states, and the final read
 back is `'DeepL'`. The walk also found a privacy gap in my own instrument, since fixed (D-050).
 Also still his call, unchanged: the `po/` decisions above, flipping the global theme for the
-light/dark live switch (a system setting this brief must not touch), and task #8's older deferred
-items. What is **no longer** his call: the docs link sweep — it became a gate this pass
-(`test/docs-lint.mjs`, D-048, in `npm test` and in CI), and the L2 reader exists too (D-049).
+light/dark live switch (a system setting this brief must not touch), task #8's older deferred
+items, and — new this pass — **whether to install gettext at all**. Without it `pack.sh` produces
+no zip on this machine by design (D-051), so nothing that carries `.mo` files has ever been built
+here; that is an environment decision, not a code one. What is **no longer** his call: the docs
+link sweep — it became a gate this pass (`test/docs-lint.mjs`, D-048, in `npm test` and in CI),
+the L2 reader exists too (D-049), and the packaging list is now a guard rather than a hand-copy
+(`test/repo.test.js`, D-052).
 
 ## What this pass did not verify
 

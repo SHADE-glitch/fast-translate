@@ -140,6 +140,16 @@ not worth its cost, reopen only with new evidence.
   written earlier can rot). **Deferred**: (1) needs a paragraph-level alignment check, which is a
   real algorithm rather than a regex, and would flag deliberate rewordings; (2) has no ground
   truth to compare against unless every count is generated from the file it describes.
+- **What the packaging guard still cannot answer.** `test/repo.test.js` ("the packaging list ships
+  exactly what the repo has", D-052) pins the *shape and order* of `scripts/pack.sh`'s list, and the
+  four names `gnome-extensions pack` includes by itself were read off a throwaway tree. What nobody
+  has ever done here is unpack a zip this repo produced, because none has ever been produced on this
+  machine — gettext is absent, so the script stops at its own check (D-051). So these stay unproven:
+  that `--extra-source=icons` really carries every file under `icons/`, that the compiled
+  `schemas/gschemas.compiled` survives into the package, that a built zip installs and loads, and
+  that `docs/`, `test/` and `scripts/` are genuinely absent from the artifact rather than merely
+  absent from the copy list. **Blocked on the environment**, not on code: it needs gettext installed
+  *(maintainer's call)*.
 - **What the L2 reader still cannot answer.** Our own prefs window has been read off a live session
   for **all four** providers (`gjs -m test/l2-prefs-dump.mjs`, D-049/D-050 — group titles, the four
   disclosure sentences, restore rows counting 4/2/3/3 vs 3, the masked secret field), so the old

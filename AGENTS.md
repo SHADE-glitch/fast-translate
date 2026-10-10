@@ -89,10 +89,16 @@ handbook: operational knowledge lives behind the router in
 
 ## Dev & Packaging Scripts
 
-- **Safe Packaging**: Run `bash scripts/pack.sh` (compiles schemas, compiles translations, and packs via temporary directory safely). It copies an **explicit list**, so
+- **Safe Packaging**: Run `bash scripts/pack.sh`. It compiles the GSettings schemas, then
+  hands `po/` to `gnome-extensions pack --podir=po`, which shells out to `msgfmt` — gettext
+  is **not installed on this machine**, so the script now stops at a `command -v msgfmt`
+  check *before* touching anything instead of exiting 2 after deleting the previous zip and
+  leaving `/tmp/fast-translate-pack` half-filled. It copies an **explicit list**, so
   `docs/`, `test/`, `scripts/` and the root `*.md` never enter the zip — adding
-  documentation costs nothing in what ships. It also creates `venv/` **inside the repo**;
-  that name is in `test/repo.test.js`'s skip set, so do not remove it.
+  documentation costs nothing in what ships. `test/repo.test.js` ("the packaging list ships
+  exactly what the repo has") pins that list and both orderings, because a root-level module
+  without a `--extra-source=` line is silently missing from the zip. It also creates `venv/`
+  **inside the repo**; that name is in the same guard's skip set, so do not remove it.
 - **Extension Reload**: Run `bash scripts/reload.sh` (executes disable/enable). Measured:
   on GNOME 50 this **does not re-import edited ES modules**, so it can never verify a
   code change — restart the shell, which on Wayland means logging out and in again.

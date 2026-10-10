@@ -90,7 +90,13 @@ GNOME 50 — edited ES modules are not re-imported by a disable/enable cycle.
 ## 10. Packaging and translations
 
 - `scripts/pack.sh` builds in a temporary directory (the only safe way) but also
-  creates `venv/` and needs network, and it passes `--podir=po`.
+  creates `venv/` and needs network, and it passes `--podir=po`. Two measured defects
+  are now fixed there and pinned by a repository guard: a failed run used to leave
+  `/tmp/fast-translate-pack` half-full, and `cp -r` over it kept files the repo had
+  dropped; and the list itself is not discovered — a root-level module with no
+  `--extra-source=` line is simply absent from the zip. See
+  [docs/maintenance/verification.md](docs/maintenance/verification.md) §3, row
+  "the packaging list ships exactly what the repo has".
 - `pack.sh` copies an **explicit list** of paths, so `docs/`, `test/`, `scripts/`
   and the root `*.md` never enter the zip. Adding maintenance documentation to the
   repo has no effect on what ships.

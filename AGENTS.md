@@ -110,6 +110,16 @@ handbook: operational knowledge lives behind the router in
   twice, obsolete entries included") is the gate. When a string upstream obsoleted comes back
   in this fork's sources, delete the `#~` pair — reviving upstream's translation into the live
   entry is a translation decision, and `msguniq` would make it silently.
+- **Every source that declares a `gettext-domain` needs its own coverage guard.** `_()` is not the
+  only thing this extension asks gettext to translate: `<schemalist gettext-domain="…">` in
+  `schemas/*.gschema.xml` makes its 48 `<summary>`/`<description>` strings translatable too, and the
+  `_()`-only guards stayed green while **15 of them were in no catalog** (measured, D-057/D-058).
+  The gate is `test/repo.test.js` ("the catalogs carry every string the schemas ask gettext to
+  translate", "the schema asks gettext in the domain the extension binds", and the reader's
+  tag-count self-check). Another `.gschema.xml` is picked up automatically because the guard globs
+  the tree; any *other* translatable source must be added to that guard in the same change — never
+  assume the `_()` list covers it. The domain comparison is the second half of the rule: if the
+  `<schemalist>` and `metadata.json` ever differ, every schema entry in the catalog is dead weight.
 - **Extension Reload**: Run `bash scripts/reload.sh` (executes disable/enable). Measured:
   on GNOME 50 this **does not re-import edited ES modules**, so it can never verify a
   code change — restart the shell, which on Wayland means logging out and in again.

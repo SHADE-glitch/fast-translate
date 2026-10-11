@@ -259,3 +259,20 @@ handbook: operational knowledge lives behind the router in
   the record must not quote any of it (privacy boundary: `MAINTENANCE.md` §11).
 - A window containing zero entries is a failure, not a pass: either the window starts where real
   deviations exist, or the header says there are none.
+
+## Listed on the GitHub profile
+
+This repo is listed on the owner's profile front page (`SHADE-glitch/SHADE-glitch`). That page lives
+in a **separate repository and never updates itself** — when a fact it states about this repo
+changes, update the profile README in the same round. The profile's own `AGENTS.md` is the
+authoritative rulebook; its guard `scripts/check-profile.mjs` must keep passing.
+
+- **Rename / transfer / delete** — the profile link dies; fix the row.
+- **Purpose drift / upstream identity** — the profile's one-line description and its "a fork of
+  translate-assistant" wording must still be true.
+- **LICENSE change** — the profile's license badge must equal this repo's `LICENSE`.
+- **GNOME target change** — the `GNOME Shell` badge must equal `metadata.json`'s `shell-version`
+  (the profile currently says `45–50`).
+- **Freeze / archive / upstream-frozen** — say so on the profile; never leave a stale "maintained".
+- **Public ↔ private** — a repo that goes private must be **delisted** (only the two whitelisted
+  private apps may stay, and they are not this one).

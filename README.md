@@ -2,7 +2,7 @@
 
 # 🌐 Fast Translate — Local Maintenance Fork
 
-Instant translation from a double copy — Google Translate and DeepL in your GNOME Shell.
+Instant translation from a double copy — Google Translate, DeepL, Baidu and Youdao in your GNOME Shell.
 
 ![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-45--50-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)

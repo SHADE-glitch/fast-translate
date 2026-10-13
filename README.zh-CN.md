@@ -2,7 +2,7 @@
 
 # 🌐 Fast Translate —— 本地维护分支
 
-双击复制，即时翻译 —— 在 GNOME Shell 中直接使用 Google 翻译与 DeepL。
+双击复制，即时翻译 —— 在 GNOME Shell 中直接使用 Google 翻译、DeepL、百度与有道。
 
 ![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-45--50-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)

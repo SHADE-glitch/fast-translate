@@ -4,6 +4,9 @@ Rules for working in this repo, for AI agents and for me. It is a rule list, not
 handbook: operational knowledge lives behind the router in
 [MAINTENANCE.md](MAINTENANCE.md).
 
+> **Dimension.** This repository is dimension **A — open source, strict** in the machine-wide
+> `CONVENTIONS.md` (outside this repository); the detail lives in `STANDARD.md`.
+>
 > **Shared standard.** Root file names, the process-draft location (`docs/reports/`), the
 > `CHANGELOG` entry format, CI version pinning and entry commands, the test entry command, and
 > the runtime ignore list are defined once in the machine-wide `STANDARD.md` (outside this

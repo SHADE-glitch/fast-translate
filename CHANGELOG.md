@@ -450,3 +450,32 @@ Change   Added the five missing entries (`__pycache__/`, `*.db`, `*.db-wal`, `*.
 Evidence L0: `git check-ignore -v .venv/x __pycache__/x.py foo.db .pytest_cache/x` now names `.gitignore` for all four paths; `node test/repo.test.js` 43/43; `npm run check:log` PASS
 Cost     The block is a rule, not a check — only `reports/` is pinned by `test/repo.test.js`, so the full list can still drift. The `venv` / `.venv` lines stay in their original no-slash form (broader than §7's `venv/`), deliberately not narrowed
 Commit   cfeed02
+
+### D-063 · 2026-10-13 · guard · v16
+Symptom  `CONVENTIONS.md` (machine-wide) asks a dimension-A repository's `AGENTS.md` to name its
+         dimension. This one pointed at `STANDARD.md` for the rules and never said which dimension
+         they were, so a reader could not tell A was a floor rather than a shared list. Nothing
+         asserted the finalized root-file layer either: `LICENSE`, the manifest, the `MAINTENANCE`
+         pair, `docs/` and `.github/workflows/` could each be deleted and the whole suite would
+         stay green
+Change   `AGENTS.md` gains one blockquote naming dimension A and pointing at `CONVENTIONS.md` (the
+         "Shared standard" block below it untouched, no rule text restated). `test/repo.test.js`
+         gains `describe("dimension-A layout invariants hold")`, four cases: the root-file layer
+         present at the root, exactly one manifest and it is `package.json`, no `AGENTS.zh-CN.md`
+         (dimension B's shape), the dimension pointer present with none of the standard's own
+         section headings reproduced, and the `STANDARD.md` §7 ignore list in `.gitignore` with no
+         tracked runtime file and nothing tracked under `reports/` or `docs/reports/`. Failures
+         name the file and where it goes
+Evidence L0: `node test/repo.test.js` **47/47** (4 from this block), `node test/unit.test.js` and
+         `node test/teardown-guard.test.js` green, `node test/docs-lint.mjs` green, `npm run
+         check:log` PASS. The two `gjs -m` steps were **not** run — they need a display and the
+         GTK4/libadwaita typelibs. Negative run: `git mv LICENSE /tmp/opencode/provoked-LICENSE`,
+         then the suite — red with `- LICENSE: create this file at the repository root`; restored,
+         `git status --porcelain LICENSE` empty
+Cost     **No new file, on this repository's own rule**: `AGENTS.md` records that CI lists the Node
+         test files explicitly instead of running `npm test`, so adding one means adding it to the
+         workflow too. Extending the already-listed `test/repo.test.js` is the only placement that
+         needs no CI edit. Reads the working tree, so an uncommitted file passes. Presence only, not
+         content. No network and no read of agent-standards — a private repository this CI cannot
+         see, so its rules are restated as assertions here
+Commit   489fea9

@@ -252,8 +252,6 @@ Common CHANGELOG rules: `STANDARD.md` §3.
 - No window titles, no clipboard contents, no translated text, no provider credentials. This repo
   sends user text to third-party providers; the record must not quote any of it (privacy boundary:
   `MAINTENANCE.md` §11).
-- A window with zero entries must either start where real deviations exist, or its header must say
-  there are none.
 
 ## Listed on the GitHub profile
 

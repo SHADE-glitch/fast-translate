@@ -4,18 +4,10 @@ Rules for working in this repo, for AI agents and for me. It is a rule list, not
 handbook: operational knowledge lives behind the router in
 [MAINTENANCE.md](MAINTENANCE.md).
 
-> **Dimension.** This repository is dimension **A — open source, strict** in the machine-wide
-> `CONVENTIONS.md` (outside this repository); the shared rules live in `STANDARD.md` and the
-> dimension-A detail in `~/.agents/standards/dimensions/a.md`.
->
-> **Shared standard.** Root file names, the process-draft location (`docs/reports/`), the
-> `CHANGELOG` entry format and the runtime ignore list are defined once in the machine-wide
-> `STANDARD.md` (outside this repository); the dimension-A rules — the language policy, CI
-> version pinning and entry commands, and the test entry command — live in
+> **Dimension.** A — open source (strict), per `CONVENTIONS.md` §0; the shared rules live once in
+> `~/.agents/standards/STANDARD.md` (§1 root files, §2 process drafts, §3 CHANGELOG entries,
+> §4 runtime ignore list, §6 remotes/pushing, §8 profile listing) and the dimension-A detail in
 > `~/.agents/standards/dimensions/a.md`. Neither is restated here.
->
-> **Push over SSH, never HTTPS.** Verify `git remote get-url --push origin` starts with `git@`
-> before pushing; if it starts with `https://`, fix it first — never push over HTTPS.
 
 ## 0. Start here
 
@@ -30,7 +22,7 @@ handbook: operational knowledge lives behind the router in
   so EGO review rules are reference material, not a gate. No PR templates, no
   contributing guide, no team process — there is one maintainer.
 
-## Critical Rules
+## Hard rules
 
 - **NEVER run `gnome-extensions install` or `gnome-extensions pack` from within this repo directory.** The install tool follows symlinks and will wipe the source directory contents.
 - **Do not load ESModules via legacy `imports`** (e.g. `imports.ui.main` throws SyntaxError in GNOME 45+). Use static `import` or dynamic `await import()`.
@@ -205,7 +197,7 @@ handbook: operational knowledge lives behind the router in
 - Batching several code changes into one bump is the established practice here. Do not
   remember how many bumps happened; list them: `git log --format='%h %s' -- metadata.json`.
 
-## Docs & Commits
+## Docs & commits
 
 - `README.md`/`README.zh-CN.md`, `MAINTENANCE.md`/`.zh-CN.md`,
   `INVARIANTS.md`/`.zh-CN.md` and every `docs/maintenance/*` pair are one document in two
@@ -245,39 +237,29 @@ handbook: operational knowledge lives behind the router in
 
 ## Recording conventions
 
-- Behaviour changes land in `CHANGELOG.md` as `D-###` entries; ids are monotonic and **never
-  reused**, so a gap means an entry was deleted — `check:log` treats that as a failure.
-- `kind` ∈ `fix` | `perf` | `taste` | `guard` | `revert` | `chore`, cut by **who may demand a revert**: dropping it
-  makes a bug → `fix`; dropping it only re-introduces measurable degradation → `perf`; dropping it
-  only annoys me → `taste` (zero obligation; on an upgrade it may
-  be discarded wholesale). A change that is both splits into two entries — done so here: `5843765`
-  is recorded as `D-007` (the height ratchet, a defect) and `D-008` (the 60 % cap, a preference).
-  Withdrawals are recorded too. Cleanup owed nothing either way (dead code, wrong comments,
-  naming) is `chore`; none is recorded here yet, but the checker accepts the value so this fork
-  and its sibling forks share one vocabulary.
+Common CHANGELOG rules: `STANDARD.md` §3.
+
+- Behaviour changes land in `CHANGELOG.md` as `D-###` entries; `check:log` treats a gap as a failure.
+- A change that is two things splits into two entries — done so here: `5843765` is recorded as
+  `D-007` (the height ratchet, a defect) and `D-008` (the 60 % cap, a preference). Withdrawals are
+  recorded too. Cleanup owed nothing either way (dead code, wrong comments, naming) is `chore`;
+  none is recorded here yet, but the checker accepts the value so this fork and its sibling forks
+  share one vocabulary.
 - An entry is an assertion **as of its commit**, not current state: never re-verify an old entry,
   never hand-copy an aggregate count into the file (`check:log` prints both counts).
 - Known-but-not-fixed issues do **not** go in `CHANGELOG.md` — they have no commit. They live in
   [docs/maintenance/open-items.md](docs/maintenance/open-items.md), and only there.
-- `Symptom` names the mechanism, never the session: no window titles, no clipboard contents, no
-  translated text, no provider credentials. This repo sends user text to third-party providers;
-  the record must not quote any of it (privacy boundary: `MAINTENANCE.md` §11).
-- A window containing zero entries is a failure, not a pass: either the window starts where real
-  deviations exist, or the header says there are none.
+- No window titles, no clipboard contents, no translated text, no provider credentials. This repo
+  sends user text to third-party providers; the record must not quote any of it (privacy boundary:
+  `MAINTENANCE.md` §11).
+- A window with zero entries must either start where real deviations exist, or its header must say
+  there are none.
 
 ## Listed on the GitHub profile
 
-This repo is listed on the owner's profile front page (`SHADE-glitch/SHADE-glitch`). That page lives
-in a **separate repository and never updates itself** — when a fact it states about this repo
-changes, update the profile README in the same round. The profile's own `AGENTS.md` is the
-authoritative rulebook; its guard `scripts/check-profile.mjs` must keep passing.
+See `STANDARD.md` §8 for the shared profile-listing triggers. This repo's own additions:
 
-- **Rename / transfer / delete** — the profile link dies; fix the row.
 - **Purpose drift / upstream identity** — the profile's one-line description and its "a fork of
   translate-assistant" wording must still be true.
-- **LICENSE change** — the profile's license badge must equal this repo's `LICENSE`.
 - **GNOME target change** — the `GNOME Shell` badge must equal `metadata.json`'s `shell-version`
   (the profile currently says `45–50`).
-- **Freeze / archive / upstream-frozen** — say so on the profile; never leave a stale "maintained".
-- **Public ↔ private** — a repo that goes private must be **delisted** (only the two whitelisted
-  private apps may stay, and they are not this one).

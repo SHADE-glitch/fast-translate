@@ -9,6 +9,14 @@
 ![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/fast-translate)
 
+**是什么** — 双击复制即时翻译：在浮动弹窗中使用 Google 翻译、DeepL、百度与有道。
+
+**解决什么** — 把扩展收敛为单一专注的工作流——翻译你刚复制的内容——并以 LRU 缓存、请求看门狗与精确的自回声抑制加以强化。
+
+**怎么跑** — 克隆到 `~/.local/share/gnome-shell/extensions/fast-translate@local`，运行 `glib-compile-schemas schemas/` 并编译 `po/*.po` 翻译，再 `gnome-extensions enable fast-translate@local`（Wayland 下需注销重登）。
+
+**去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
+
 ## 📖 项目说明
 
 本仓库是 **Fast Translate** 的**个人维护分支**，而 Fast Translate 本身又是 [Lorenzo Carbonell（atareao）](https://github.com/atareao) 的原始项目 [**translate-assistant**](https://github.com/atareao/translate-assistant) 的现代化分支。

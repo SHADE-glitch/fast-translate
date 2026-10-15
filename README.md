@@ -9,6 +9,14 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 ![Based on: translate-assistant](https://img.shields.io/badge/based%20on-translate--assistant-orange)
 [![Repository](https://img.shields.io/badge/repository-GitHub-black?logo=github)](https://github.com/SHADE-glitch/fast-translate)
 
+**What it is** — Instant translation from a double copy: Google Translate, DeepL, Baidu and Youdao in a floating GNOME Shell popup.
+
+**What it solves** — It narrows the extension to one focused workflow — translate the text you just copied — and hardens it with an LRU cache, a request watchdog and precise self-echo suppression.
+
+**How to run** — Clone into `~/.local/share/gnome-shell/extensions/fast-translate@local`, run `glib-compile-schemas schemas/` and compile the `po/*.po` translations, then `gnome-extensions enable fast-translate@local` (log out and back in on Wayland).
+
+**Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
+
 ## 📖 About
 
 This repository is a **personal maintenance fork** of **Fast Translate**, which is itself a modernized fork of the original [**translate-assistant**](https://github.com/atareao/translate-assistant) by [Lorenzo Carbonell (atareao)](https://github.com/atareao).

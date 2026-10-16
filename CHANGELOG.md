@@ -479,3 +479,15 @@ Cost     **No new file, on this repository's own rule**: `AGENTS.md` records tha
          content. No network and no read of agent-standards — a private repository this CI cannot
          see, so its rules are restated as assertions here
 Commit   489fea9
+
+### D-064 · 2026-10-16 · chore · v16
+Symptom  The pointer in AGENTS.md is followed only by an agent that chooses to; nothing made the
+         standard reach the context, and the section list had drifted — §5 (the conflict rule) was
+         missing.
+Change   End the pointer block with two bare `@` imports (`@~/.agents/standards/STANDARD.md`,
+         `@~/.agents/standards/dimensions/a.md`) and add `opencode.json` naming the same two files in
+         its `instructions` array; add `§5 conflict rule`. Local overlay only — no upstream file moved.
+Evidence 2026-10-16: CodeBuddy CLI with every tool disabled printed the tokens the imports carried;
+         opencode `run` printed the token its `instructions` named, with no tool call.
+Cost     Both hooks name `~/.agents`, absent in another clone, so they are skipped there.
+Commit   5d10dee

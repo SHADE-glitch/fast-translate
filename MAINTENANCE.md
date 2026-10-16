@@ -200,5 +200,5 @@ commit).
 ## 14. Rollback
 
 Moved to [docs/maintenance/verification.md](docs/maintenance/verification.md),
-under commit discipline. In one line: one concern per commit, `type: 中文摘要`,
+under commit discipline. In one line: one concern per commit, `type: <English subject>`,
 and `git push` needs an explicit decision every single time.

@@ -26,11 +26,11 @@
 | 想查什么 | 去哪份文件 |
 |---|---|
 | 哪些东西绝不能被改回去？ | [INVARIANTS.zh-CN.md](INVARIANTS.zh-CN.md) |
-| 向平台要了什么、验证到哪一步？ | [docs/maintenance/compatibility-matrix.zh-CN.md](docs/maintenance/compatibility-matrix.zh-CN.md) |
-| 碰了哪些壳内部接口、升版怎么适配？ | [docs/maintenance/shell-internals.zh-CN.md](docs/maintenance/shell-internals.zh-CN.md) |
-| 该跑什么来证明一个改动、按什么顺序？ | [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md) |
-| CPU/RSS 怎么测才让数字有意义？ | [docs/maintenance/cost-measurement.zh-CN.md](docs/maintenance/cost-measurement.zh-CN.md) |
-| 知道但没修的问题？ | [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) |
+| 向平台要了什么、验证到哪一步？ | [docs/maintenance/compatibility-matrix.md](docs/maintenance/compatibility-matrix.md) |
+| 碰了哪些壳内部接口、升版怎么适配？ | [docs/maintenance/shell-internals.md](docs/maintenance/shell-internals.md) |
+| 该跑什么来证明一个改动、按什么顺序？ | [docs/maintenance/verification.md](docs/maintenance/verification.md) |
+| CPU/RSS 怎么测才让数字有意义？ | [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md) |
+| 知道但没修的问题？ | [docs/maintenance/open-items.md](docs/maintenance/open-items.md) |
 | 逐个提交改了什么、为什么？ | [CHANGELOG.md](CHANGELOG.md)（仅有英文版） |
 | 在本仓工作的规则（给 agent 也给人） | [AGENTS.md](AGENTS.md)（仅有英文版） |
 | 会话状态：版本、未推送、待决 | `docs/reports/STATE.md` —— **本地草稿，不入库**（仅有英文版，clone 下来看不到） |
@@ -44,37 +44,37 @@
 
 ## 3. 依赖
 
-已移到 [docs/maintenance/compatibility-matrix.zh-CN.md](docs/maintenance/compatibility-matrix.zh-CN.md)，
+已移到 [docs/maintenance/compatibility-matrix.md](docs/maintenance/compatibility-matrix.md)，
 那里现在还写明 `shell-version` 含 45 所隐含的 libadwaita API 下限。
 
 ## 4. 测试矩阵
 
-已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)，
+已移到 [docs/maintenance/verification.md](docs/maintenance/verification.md)，
 与 L0/L1/L2 证据层级、以及"新守卫必须先被看到失败"的规则放在一起。
 
 ## 5. 无头 harness
 
-已移到 [docs/maintenance/cost-measurement.zh-CN.md](docs/maintenance/cost-measurement.zh-CN.md)
+已移到 [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md)
 ——隔离配方，以及那些"曾产出看起来正确的错误结果"的陷阱。
 
 ## 6. `test/eval-test.js` 里的脆弱断言
 
-已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)，
+已移到 [docs/maintenance/verification.md](docs/maintenance/verification.md)，
 与请求前置守卫表、以及那条目前守不住生产分支的守卫放在一起。
 
 ## 7. 实测成本基线
 
-已移到 [docs/maintenance/cost-measurement.zh-CN.md](docs/maintenance/cost-measurement.zh-CN.md)，
+已移到 [docs/maintenance/cost-measurement.md](docs/maintenance/cost-measurement.md)，
 与产出它的采样规则同处一份文件。无头的绝对值永远不能换算到真实会话，只有相对结论站得住。
 
 ## 8. 小版本更新的失效面
 
-已移到 [docs/maintenance/shell-internals.zh-CN.md](docs/maintenance/shell-internals.zh-CN.md)，
+已移到 [docs/maintenance/shell-internals.md](docs/maintenance/shell-internals.md)，
 那份文件现在同时是按 file:line 列出的接口清单和升级适配手册。
 
 ## 9. 真机会话验证
 
-已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)。
+已移到 [docs/maintenance/verification.md](docs/maintenance/verification.md)。
 值得在这里重说一遍的那一条：GNOME 50 上 `scripts/reload.sh` 验证不了代码改动——
 disable/enable 不会重新 import 改过的 ES 模块。
 
@@ -85,7 +85,7 @@ disable/enable 不会重新 import 改过的 ES 模块。
   失败的一次运行过去会把 `/tmp/fast-translate-pack` 留成半满，而往它上面 `cp -r`
   会保住仓库早已删掉的文件；另一处是这份清单不会自动发现——根级模块少了
   `--extra-source=` 一行，就静默地不在 zip 里。详见
-  [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)
+  [docs/maintenance/verification.md](docs/maintenance/verification.md)
   第 3 节"打包清单发的就是仓库里有的"那一行。
 - `pack.sh` 拷的是一份**显式清单**，所以 `docs/`、`test/`、`scripts/` 和根目录的
   `*.md` 永远进不了 zip。往仓库里加维护文档，对发什么东西没有任何影响。
@@ -102,12 +102,12 @@ disable/enable 不会重新 import 改过的 ES 模块。
   `msgstr ""` 留给译者。守卡是 `test/repo.test.js`（"任何目录都不许把同一条 msgid 定义两遍，
   obsolete 也算"）。目录仍然是手工维护、由 `test/repo.test.js` 保证它诚实：每个 `_()` 字面量
   **以及 schema 里每条 `<summary>`/`<description>`**（`<schemalist gettext-domain>` 让它成为第二个
-  可翻译来源——见 `docs/maintenance/open-items.zh-CN.md` 第 3 节）都要出现在 `messages.pot` 与
+  可翻译来源——见 `docs/maintenance/open-items.md` 第 3 节）都要出现在 `messages.pot` 与
   de/es/nl 里，任何目录都不许带着模板已不认识的 msgid，源码里每条
   `// Translators:` 注释都要以 `#.` 落到这四个文件。也就是说，加一条用户可见的串，就得同时改四处
   目录，`npm test` 才会绿。**别指望 `scripts/update-pot.sh`**：在本 fork 上实测它会写成让五条
   仓库守卡变红的模板形状。还欠什么见
-  [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md) 第 3 节。
+  [docs/maintenance/open-items.md](docs/maintenance/open-items.md) 第 3 节。
 - `schemas/gschemas.compiled` 被 gitignore。**新克隆在跑过
   `glib-compile-schemas schemas/` 之前是坏的。** 不需要往系统装任何东西：壳会从扩展
   自己的 `schemas/` 目录建私有 schema source。
@@ -166,12 +166,12 @@ disable/enable 不会重新 import 改过的 ES 模块。
 
 ## 13. 待办与未确认
 
-已移到 [docs/maintenance/open-items.zh-CN.md](docs/maintenance/open-items.zh-CN.md)。
+已移到 [docs/maintenance/open-items.md](docs/maintenance/open-items.md)。
 "知道但没修"只写在那一处——不进 `CHANGELOG.md`（未修的东西没有提交可挂），也不进
 `docs/reports/AUDIT.md`（那是它自己那次提交的快照）。
 
 ## 14. 回滚
 
-已移到 [docs/maintenance/verification.zh-CN.md](docs/maintenance/verification.zh-CN.md)
-的提交纪律一节。一行的版本：一次提交只管一件事，格式 `type: 中文摘要`，而 `git push`
+已移到 [docs/maintenance/verification.md](docs/maintenance/verification.md)
+的提交纪律一节。一行的版本：一次提交只管一件事，格式 `type: <English subject>`（提交信息一律英文），而 `git push`
 每一次都需要明确决定。

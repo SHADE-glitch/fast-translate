@@ -635,16 +635,20 @@ describe("the packaging list ships exactly what the repo has", () => {
 });
 
 describe("documentation conventions hold", () => {
-    // House convention across every fork in this workspace: a doc that exists in
-    // two languages is a two-file bilingual pair with mirrored section order,
-    // English first. Heading LINE numbers are reported, not asserted — they cannot
-    // survive prose edits. Section COUNT and order can, and that is the enforceable
-    // version of the same rule.
+    // House convention across every fork in this workspace: the whitelisted pairs —
+    // README, MAINTENANCE and INVARIANTS — are two-file bilingual documents with
+    // mirrored section order, English first. Heading LINE numbers are reported, not
+    // asserted — they cannot survive prose edits. Section COUNT and order can, and
+    // that is the enforceable version of the same rule.
     //
-    // This walks EVERY directory, not just the repo root. The maintenance handbook
-    // used to be one root-level pair; it is now a router plus topic files under
-    // docs/maintenance/, and a Chinese topic file with no English twin, or a pair
-    // whose sections drifted, is exactly the failure this guard exists to catch.
+    // The guard walks EVERY directory and fires wherever a *.zh-CN.md exists: that file
+    // must have an English twin with the same section count and the same
+    // language-switcher opener. docs/maintenance/ is English-only — its Chinese twins
+    // were removed in D-065 — so a *.zh-CN.md there is a defect, not a pair, and
+    // docs/reports/ stays English-only by the same rule. A Chinese doc with no English
+    // twin is a build failure, and that half is what this guard exists to catch. It is
+    // deliberately filesystem-derived rather than whitelist-derived: a stray Chinese doc
+    // in any directory still goes red instead of being silently ignored.
     const pairs = FILES
         .filter(f => f.endsWith(".md"))
         .filter(f => f.endsWith(".zh-CN.md"))

@@ -1,4 +1,4 @@
-<p align="right"><a href="shell-internals.md"><b>English</b></a> | <a href="shell-internals.zh-CN.md">简体中文</a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
+<p align="right"><a href="shell-internals.md"><b>English</b></a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
 
 # Shell internals this extension depends on, and how to adapt
 

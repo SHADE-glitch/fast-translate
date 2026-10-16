@@ -1,4 +1,4 @@
-<p align="right"><a href="open-items.md"><b>English</b></a> | <a href="open-items.zh-CN.md">简体中文</a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
+<p align="right"><a href="open-items.md"><b>English</b></a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
 
 # Open items
 

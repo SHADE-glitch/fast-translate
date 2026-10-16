@@ -147,8 +147,9 @@ handbook: operational knowledge lives behind the router in
   - `node test/teardown-guard.test.js` — source-level gate that `destroy()` is total.
   - `node test/repo.test.js` — repository invariants: every `*.zh-CN.md` in **any**
     directory has an English twin with the same `##` count and the same language-switcher
-    opener, and no doc uses task boxes. The pairing scope is all directories on purpose —
-    `docs/maintenance/` is bilingual, so a topic pair drifting out of step must go red.
+    opener, and no doc uses task boxes. The only whitelisted pairs are `README`,
+    `MAINTENANCE` and `INVARIANTS`; `docs/maintenance/` is **English-only**, so a Chinese
+    topic file there is a defect, not a pair.
   - `gjs -m test/signing-crosscheck.js` — GLib signing primitives vs the `node:crypto` vectors.
   - `gjs -m test/prefs-validator.js` — `prefs.js` layout under Gtk/Adw. Its settings mock
     implements only `get_key`, `get_range`, `get_enum`, `set_enum`, `connect`, `bind`,
@@ -204,11 +205,11 @@ handbook: operational knowledge lives behind the router in
 
 ## Docs & commits
 
-- `README.md`/`README.zh-CN.md`, `MAINTENANCE.md`/`.zh-CN.md`,
-  `INVARIANTS.md`/`.zh-CN.md` and every `docs/maintenance/*` pair are one document in two
-  languages. `test/repo.test.js` enforces the pairing across all directories; a doc with no
-  `*.zh-CN.md` sibling is allowed to be English-only (that is how `docs/reports/` stays), but
-  a `*.zh-CN.md` with no English twin is a build failure.
+- `README.md`/`README.zh-CN.md`, `MAINTENANCE.md`/`.zh-CN.md` and
+  `INVARIANTS.md`/`.zh-CN.md` are one document in two languages; `docs/maintenance/` is
+  **English-only**. `test/repo.test.js` enforces the pairing wherever a `*.zh-CN.md` exists; a
+  doc with no `*.zh-CN.md` sibling is allowed to be English-only (that is how `docs/reports/`
+  and `docs/maintenance/` stay), but a `*.zh-CN.md` with no English twin is a build failure.
 - Operational knowledge has exactly one owner. `MAINTENANCE.md` is a router: it points, and
   keeps inline only what has no other home — the read-first section, packaging/translations,
   the privacy boundary and the platform facts. Never copy a fact from `docs/maintenance/*`

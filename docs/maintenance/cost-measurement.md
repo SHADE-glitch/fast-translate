@@ -1,4 +1,4 @@
-<p align="right"><a href="cost-measurement.md"><b>English</b></a> | <a href="cost-measurement.zh-CN.md">简体中文</a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
+<p align="right"><a href="cost-measurement.md"><b>English</b></a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
 
 # Power and leak measurement, fixed method
 

@@ -1,4 +1,4 @@
-<p align="right"><a href="verification.md"><b>English</b></a> | <a href="verification.zh-CN.md">简体中文</a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
+<p align="right"><a href="verification.md"><b>English</b></a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
 
 # Verification: what to run, and what it does not prove
 
@@ -274,6 +274,6 @@ The rules these provocations earned:
 
 ## 5. Rollback and commit discipline
 
-One concern per commit, `type: <Chinese subject>`. Every step above is a separate commit,
+One concern per commit, `type: <English subject>`. Every step above is a separate commit,
 so `git revert <sha>` undoes exactly one. `git push` requires an explicit
 decision each time; history is never rebased or rewritten.

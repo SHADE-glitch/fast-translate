@@ -1,4 +1,4 @@
-<p align="right"><a href="compatibility-matrix.md"><b>English</b></a> | <a href="compatibility-matrix.zh-CN.md">简体中文</a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
+<p align="right"><a href="compatibility-matrix.md"><b>English</b></a> · <a href="../../MAINTENANCE.md">Handbook</a></p>
 
 # Compatibility matrix
 

@@ -491,3 +491,26 @@ Evidence 2026-10-16: CodeBuddy CLI with every tool disabled printed the tokens t
          opencode `run` printed the token its `instructions` named, with no tool call.
 Cost     Both hooks name `~/.agents`, absent in another clone, so they are skipped there.
 Commit   5d10dee
+
+### D-065 · 2026-10-16 · fix · v16
+Symptom  The language policy had drifted below the standard's floor. docs/maintenance/ carried five
+         Chinese topic files paired with their English siblings, but docs/** is not on the
+         standard's bilingual whitelist (README / MAINTENANCE / INVARIANTS only), so a Chinese
+         docs/**.md is a defect. And the commit-language rule contradicted itself: verification.md
+         §5 and MAINTENANCE.md §14 allowed a Chinese commit subject (`type: <Chinese subject>`),
+         against this repo's own AGENTS.md and the standard, which fix commit messages as English
+Change   Removed the five docs/maintenance/*.zh-CN.md files (their English siblings are
+         self-sufficient and stay), dropped the now-dead Chinese switcher from those five English
+         files, and repointed the MAINTENANCE and INVARIANTS Chinese whitelisted pairs at the
+         English siblings. Rewrote the commit-language line in verification.md §5 and MAINTENANCE.md
+         §14 (with its MAINTENANCE.zh-CN.md twin) to require English. AGENTS.md and the
+         test/repo.test.js pairing-guard comment now say docs/maintenance/ is English-only
+Evidence L0: `npm test` green and `npm run check:log` PASS; docs-lint re-resolves every relative
+         link after the deletion. `grep -rlP '[\x{4e00}-\x{9fff}]' docs --include='*.md'` is empty
+         over the committed tree — the only remaining hits are the untracked docs/reports/ drafts,
+         which quote the maintainer verbatim and are git-ignored
+Cost     The pairing guard is not weakened: its logic stays filesystem-derived, so a Chinese doc in
+         any directory still needs an English twin — only its stale comment changed. The pair was
+         removed because the repo's convention had drifted below the standard's floor, not to force
+         a green. The whitelisted Chinese pairs (MAINTENANCE, INVARIANTS) stay and remain aligned
+Commit   c14628d

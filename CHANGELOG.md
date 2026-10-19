@@ -514,3 +514,12 @@ Cost     The pairing guard is not weakened: its logic stays filesystem-derived, 
          removed because the repo's convention had drifted below the standard's floor, not to force
          a green. The whitelisted Chinese pairs (MAINTENANCE, INVARIANTS) stay and remain aligned
 Commit   c14628d
+
+### D-066 · 2026-10-19 · chore
+
+Symptom  AGENTS.md listed three Node suites plus check:log, but ci.yml also runs
+         node test/docs-lint.mjs and a non-gating npm run test:coverage step.
+Change   The CI list now names all five steps and marks the coverage one as non-gating.
+Evidence 2026-10-19: .github/workflows/ci.yml lines 35-47.
+Cost     None; wording only.
+Commit   5530749

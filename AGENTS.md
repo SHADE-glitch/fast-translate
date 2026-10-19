@@ -171,8 +171,9 @@ handbook: operational knowledge lives behind the router in
 ## CI
 
 - `.github/workflows/ci.yml` runs on every push and pull request (`ubuntu-latest`, Node 20):
-  `node test/unit.test.js`, `node test/teardown-guard.test.js`, `node test/repo.test.js`, then
-  `npm run check:log`.
+  `node test/unit.test.js`, `node test/teardown-guard.test.js`, `node test/repo.test.js`,
+  `node test/docs-lint.mjs`, then `npm run check:log`. A final `npm run test:coverage` step only
+  prints a coverage reading and cannot fail the run.
 - CI is **desktop-free on purpose**: it does not install `gjs`, so the two `gjs -m` steps of
   `npm test` are excluded. `prefs-validator.js` calls `Gtk.init()` and fails without a display,
   so the full `npm test` is a local/desktop gate, not a CI one.
@@ -243,7 +244,7 @@ handbook: operational knowledge lives behind the router in
 
 ## Recording conventions
 
-Common CHANGELOG rules: `STANDARD.md` §3.
+Common CHANGELOG rules: `~/.agents/standards/STANDARD.md` §3.
 
 - Behaviour changes land in `CHANGELOG.md` as `D-###` entries; `check:log` treats a gap as a failure.
 - A change that is two things splits into two entries — done so here: `5843765` is recorded as
@@ -261,7 +262,7 @@ Common CHANGELOG rules: `STANDARD.md` §3.
 
 ## Listed on the GitHub profile
 
-See `STANDARD.md` §8 for the shared profile-listing triggers. This repo's own additions:
+See `~/.agents/standards/STANDARD.md` §8 for the shared profile-listing triggers. This repo's own additions:
 
 - **Purpose drift / upstream identity** — the profile's one-line description and its "a fork of
   translate-assistant" wording must still be true.

@@ -60,6 +60,10 @@ const TRANSLATION_CACHE_MAX_CHARS = 200000;
 // turning a stuck "Cancel" button / "Translating…" placeholder into an
 // explicit timeout error and cancelling the underlying request.
 const SAFETY_TIMEOUT_MS = 12000;
+// Delay before the copy button's clipboard write is read back for
+// verification. One frame would do; 150 ms leaves room for the transfer to
+// settle on a loaded session without the user noticing a retry.
+const CLIPBOARD_VERIFY_MS = 150;
 // Hard deadline for the dismiss fade's destroy(). The animated path is the
 // normal one, but its completion callback depends on the frame clock, and a
 // stalled clock (screen off, suspend) would otherwise keep the full-work-area
@@ -303,17 +307,24 @@ var FastTranslate = GObject.registerClass(
 
         _onSelectionChange(_a, selectionType, _b) {
             if (selectionType !== Meta.SelectionType.SELECTION_CLIPBOARD) return;
-            // Plan B: sequence guard — two rapid get_text callbacks can return
-            // out of order and swallow a double-C. Stale callbacks bail out here.
-            const seq = (this._clipboardSeq = (this._clipboardSeq || 0) + 1);
-
+            // Stamp the EVENT, not the callback: the read is asynchronous and for
+            // a large selection it can take longer than the gap between the two
+            // Ctrl+C presses. The double-copy window has to measure the presses.
             let now = GLib.get_monotonic_time();
 
             Clipboard.get_text(CLIPBOARD_TYPE, (_, text) => {
                 if (this._destroyed) {
                     return;
                 }
-                if (seq !== this._clipboardSeq) return; // superseded by a newer selection event
+                // Ordering guard by EVENT time: a read older than the newest one
+                // already handled is stale and must not move the baseline. This
+                // used to be a "latest event wins" counter that dropped every
+                // read superseded by a newer Ctrl+C. With a slow clipboard — a
+                // whole document copied out of an editor, HTML and text — both
+                // halves of a double-copy could be dropped, and each further
+                // Ctrl+C superseded one more read, so the card never opened at
+                // all however many times the user pressed.
+                if (this._lastClipboardTime !== null && now <= this._lastClipboardTime) return;
                 if (!text || !hasVisibleText(text)) return;
 
                 // Precise self-echo suppression: swallow only the exact text
@@ -329,7 +340,7 @@ var FastTranslate = GObject.registerClass(
                     return;
                 }
 
-                if (this._lastClipboardTime && this._lastClipboardText !== null) {
+                if (this._lastClipboardTime !== null && this._lastClipboardText !== null) {
                     let diff = now - this._lastClipboardTime;
                     // Trigger only if same content AND within 50ms–2s window.
                     // Identical content means the user pressed Ctrl+C on the same selection.
@@ -1442,6 +1453,9 @@ export default class FastTranslateExtension extends Extension {
 class FloatingTranslationWindow {
     constructor(sourceText, targetText, sourceLang, targetLang, onDestroy, onCopyClicked, settings, opts) {
         this._onDestroy = onDestroy;
+        // Kept on `this` (not only in the click closure) because the verified
+        // copy below may retry from a timer, after this window is destroyed.
+        this._onCopyClicked = onCopyClicked;
         this._settings = settings;
         this._onSwap = opts?.onSwap ?? null;
         this._onRetry = opts?.onRetry ?? null;
@@ -1651,13 +1665,7 @@ class FloatingTranslationWindow {
         
         copyBtn.connect('clicked', () => {
             if (this._loading) return; // belt and braces: button is non-reactive while loading
-            const cur = this._currentTarget;
-            if (onCopyClicked) {
-                onCopyClicked(cur);
-            } else {
-                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, cur);
-            }
-            this._dismiss();
+            this._copyToClipboardAndDismiss(this._currentTarget);
         });
         actions.add_child(copyBtn);
         this._copyBtn = copyBtn;
@@ -1885,6 +1893,53 @@ class FloatingTranslationWindow {
             width: monitor?.width ?? global.stage.width,
             height: monitor?.height ?? global.stage.height,
         };
+    }
+
+    // Copy `text` to the clipboard and close the card.
+    //
+    // Measured 2026-10-21 on GNOME Shell 50.1 / Wayland: clicking the copy
+    // button closed the card but left the clipboard untouched — pasting returned
+    // the source text, and the clipboard manager's own history recorded nothing
+    // — while the identical _copyToClipboard() call from the reply callback
+    // (auto-copy) always landed. No JS error and no GLib critical was logged, so
+    // the write was accepted and silently lost; the call context was the only
+    // difference. Rather than guess at the mechanism, the write is issued from
+    // an idle (outside Clutter's event emission) and then read back: a mismatch
+    // means the write was dropped or taken back, and it is retried once. The
+    // console line records which attempt landed, so a later session can settle
+    // whether the deferral or the retry is what makes this work.
+    //
+    // Cost: a copy the user makes inside those 150 ms would be overwritten by
+    // the retry. That window is the price of not knowing the mechanism; it goes
+    // away if the retry is ever seen to be unnecessary.
+    _copyToClipboardAndDismiss(text) {
+        const write = () => {
+            try {
+                if (this._onCopyClicked)
+                    this._onCopyClicked(text);
+                else
+                    St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
+            } catch (_e) {}
+        };
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            write();
+            return GLib.SOURCE_REMOVE;
+        });
+        // Read back once the write has had a frame to settle. The timer is a
+        // one-shot and holds no window state, so it may outlive destroy() — that
+        // is the point: a lost write must still reach the clipboard.
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, CLIPBOARD_VERIFY_MS, () => {
+            try {
+                St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD,
+                    (_clipboard, back) => {
+                        if (back === text) return;
+                        console.warn('fast-translate: clipboard write did not land — retrying');
+                        write();
+                    });
+            } catch (_e) {}
+            return GLib.SOURCE_REMOVE;
+        });
+        this._dismiss();
     }
 
     _dismiss() {

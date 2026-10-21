@@ -319,7 +319,21 @@ global.testRunnerPromise = (async () => {
                 copiedText = text;
             };
 
+            // The verify step reads the clipboard back and retries on a
+            // mismatch; point the mocked read at what the button is about to
+            // write so a successful copy is not re-sent as a "lost" write.
+            mockClipboardText = "Double Copy Test translated text";
+
             copyBtn.emit('clicked', 0);
+            // The write is issued from an idle, not from inside the Clutter
+            // handler (see _copyToClipboardAndDismiss), so it lands one main-loop
+            // turn after the click.
+            await new Promise(resolve => {
+                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                    resolve();
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
             if (copiedText !== "Double Copy Test translated text") {
                 Clipboard.get_text = originalClipboardGetText;
                 Clipboard.set_text = originalClipboardSetText;
@@ -345,6 +359,55 @@ global.testRunnerPromise = (async () => {
                 Clipboard.set_text = originalClipboardSetText;
                 indicator._translateTextIndependent = originalTranslateTextIndependent;
                 return { success: false, error: "Transient Esc binding was not removed after window closed!" };
+            }
+
+            // Test 8a2: a slow clipboard read must not swallow the double-copy
+            //
+            // Copying a whole document out of an editor (Typora, HTML + text)
+            // makes get_text slower than the gap between the two Ctrl+C presses,
+            // so the first read finishes after the second press. The old
+            // sequence guard discarded it as "superseded", which removed the very
+            // baseline the second read compares against; every further press
+            // discarded one more read, so the card never opened at all. Queue the
+            // reads and flush them in that order to reproduce the shape.
+            {
+                const sharedMockGetText = Clipboard.get_text;
+                const pending = [];
+                Clipboard.get_text = function(type, callback) {
+                    pending.push(callback);
+                };
+                indicator._lastClipboardTime = null;
+                indicator._lastClipboardText = null;
+                indicator._lastTriggeredText = null;
+                indicator._lastTriggeredTime = null;
+                independentCallCount = 0;
+
+                mockClipboardText = "A whole document, copied twice";
+                mockTime = 5000000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+                mockTime = 5300000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+
+                // Both reads land now, oldest first — the normal completion order
+                // for a slow transfer, and the one the old guard broke.
+                while (pending.length > 0)
+                    pending.shift()(Clipboard, mockClipboardText);
+
+                if (independentCallCount !== 1) {
+                    Clipboard.get_text = originalClipboardGetText;
+                    Clipboard.set_text = originalClipboardSetText;
+                    indicator._translateTextIndependent = originalTranslateTextIndependent;
+                    return {
+                        success: false,
+                        error: "A read that completed after the second Ctrl+C swallowed the double-copy: " +
+                            "translation started " + independentCallCount + " time(s), expected 1",
+                    };
+                }
+                if (indicator._floatingWindow) {
+                    indicator._floatingWindow.destroy();
+                    indicator._floatingWindow = null;
+                }
+                Clipboard.get_text = sharedMockGetText;
             }
 
             // Test 8b: Auto Copy functionality for Double-copy

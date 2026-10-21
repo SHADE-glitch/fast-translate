@@ -532,6 +532,14 @@ assert.strictEqual(looksLikeWord("hello world"), false, "two tokens is text");
 assert.strictEqual(looksLikeWord("Hello."), false, "trailing full stop means prose");
 assert.strictEqual(looksLikeWord("你好！"), false, "CJK exclamation means prose");
 assert.strictEqual(looksLikeWord("a;b"), false, "semicolon means prose");
+// Punctuation that is not an apostrophe or a hyphen separates words. The
+// full-width marks matter most: a phrase joined by a Chinese comma used to
+// count as one word, which flipped its translation direction and returned
+// Chinese for English input (measured 2026-10-21).
+assert.strictEqual(looksLikeWord("hello，world"), false, "a full-width comma separates two words");
+assert.strictEqual(looksLikeWord("hello、world"), false, "an ideographic comma separates two words");
+assert.strictEqual(looksLikeWord("你好，世界"), false, "a CJK phrase with a comma is prose");
+assert.strictEqual(looksLikeWord("「hello」"), false, "CJK quotation marks make it prose");
 assert.strictEqual(looksLikeWord(""), false, "empty is not a word");
 assert.strictEqual(looksLikeWord("   "), false, "whitespace only is not a word");
 assert.strictEqual(looksLikeWord(null), false, "null is not a word");
@@ -571,6 +579,11 @@ assert.strictEqual(detectLang("don't"), "EN", "apostrophe is still Latin");
 assert.strictEqual(detectLang("爱"), "ZH");
 assert.strictEqual(detectLang("银行"), "ZH");
 assert.strictEqual(detectLang("hello爱"), "ZH", "Han wins when both scripts appear");
+// Only ideographs are Chinese. Han-script marks and numerals are not words, and
+// counting them made Latin text look Chinese and flip direction.
+assert.strictEqual(detectLang("x〇y"), "EN", "an ideographic zero is not a Chinese character");
+assert.strictEqual(detectLang("〇"), null, "a lone ideographic zero carries no language");
+assert.strictEqual(detectLang("々"), null, "an iteration mark carries no language");
 assert.strictEqual(detectLang("こんにちは"), null, "kana is not one of the two scripts");
 assert.strictEqual(detectLang("123"), null, "digits carry no script");
 assert.strictEqual(detectLang(""), null);
@@ -585,6 +598,8 @@ assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello world"), { source:
     "prose is never flipped");
 assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "你好！"), { source: "ZH", target: "EN-US" },
     "punctuated CJK is prose");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello，world"), { source: "ZH", target: "EN-US" },
+    "an English phrase with a full-width comma is prose and is not flipped into Chinese");
 // AUTO source: the pair has no second member to fall back to, so the flip
 // lands in the only pair detectLang understands (ZH<->EN).
 assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello"), { source: "EN", target: "ZH" },

@@ -385,9 +385,17 @@ export function getProviderById(id) {
 export function looksLikeWord(text) {
     const s = String(text ?? '').trim();
     if (s === '') return false;
-    if (/\s/.test(s)) return false;
+    if (/\s/u.test(s)) return false;
     if (codePointLength(s) > 40) return false;
+    // An apostrophe or a hyphen can sit inside one word ("don't",
+    // "well-known"); any other punctuation means a phrase. Full-width and CJK
+    // marks are the ones that matter: "hello，world" and "你好、世界" are two
+    // words joined by punctuation, and treating them as one word made the
+    // auto-direction flip send an English phrase off to be translated into
+    // Chinese (measured 2026-10-21). The ASCII list below is kept as well so
+    // the common prose cases stay obvious at a glance.
     if (/[.!?。！？;；…]/.test(s)) return false;
+    if (/\p{P}/u.test(s.replace(/['’\-_]/gu, ''))) return false;
     return true;
 }
 
@@ -407,6 +415,14 @@ export function baseLangCode(code) {
 }
 
 /**
+ * Han characters that are actually words. \p{Script=Han} also matches marks
+ * and numerals — 〇 (ideographic zero), 々 (iteration mark), the Kangxi
+ * radicals — so a stray symbol used to make Latin text look Chinese and flip
+ * the translation direction. These ranges are the ideograph blocks only.
+ */
+const HAN_IDEOGRAPH = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{3FFFF}]/u;
+
+/**
  * Which of the two languages this build can tell apart an input belongs to.
  * Deliberately minimal: only Chinese (Han script) and English (Latin letters)
  * are recognised, because those are the only pair the auto-direction feature
@@ -418,7 +434,7 @@ export function baseLangCode(code) {
 export function detectLang(text) {
     const s = String(text ?? '').trim();
     if (s === '') return null;
-    if (/\p{Script=Han}/u.test(s)) return 'ZH';
+    if (HAN_IDEOGRAPH.test(s)) return 'ZH';
     if (/[A-Za-z]/.test(s)) return 'EN';
     return null;
 }

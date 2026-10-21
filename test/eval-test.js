@@ -84,8 +84,7 @@ global.testRunnerPromise = (async () => {
 
         try {
             // Reset state so startup events don't bleed into this test
-            indicator._lastClipboardTime = null;
-            indicator._lastClipboardText = null;
+            indicator._recentCopies = [];
             indicator._lastTriggeredText = null;
             indicator._lastTriggeredTime = null;
             if (indicator._internalCopyTimeoutId) {
@@ -376,8 +375,7 @@ global.testRunnerPromise = (async () => {
                 Clipboard.get_text = function(type, callback) {
                     pending.push(callback);
                 };
-                indicator._lastClipboardTime = null;
-                indicator._lastClipboardText = null;
+                indicator._recentCopies = [];
                 indicator._lastTriggeredText = null;
                 indicator._lastTriggeredTime = null;
                 independentCallCount = 0;
@@ -410,6 +408,93 @@ global.testRunnerPromise = (async () => {
                 Clipboard.get_text = sharedMockGetText;
             }
 
+            // Test 8a3: the same selection may be spelled differently per press
+            //
+            // An editor offering both raw Markdown and rendered text can hand the
+            // clipboard "`paths-ignore`" on the first Ctrl+C and "paths-ignore" on
+            // the second — measured in Typora, where the clipboard manager
+            // recorded both forms. Exact equality never paired them, so the card
+            // never opened. The pair is now keyed on a formatting-insensitive form.
+            {
+                const sharedMockGetText = Clipboard.get_text;
+                const texts = ["**paths-ignore** matters", "paths-ignore matters"];
+                let read = 0;
+                Clipboard.get_text = function(type, callback) {
+                    callback(Clipboard, texts[Math.min(read++, texts.length - 1)]);
+                };
+                indicator._recentCopies = [];
+                indicator._lastTriggeredText = null;
+                indicator._lastTriggeredTime = null;
+                independentCallCount = 0;
+
+                mockTime = 6000000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+                mockTime = 6400000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+
+                if (independentCallCount !== 1) {
+                    Clipboard.get_text = originalClipboardGetText;
+                    Clipboard.set_text = originalClipboardSetText;
+                    indicator._translateTextIndependent = originalTranslateTextIndependent;
+                    return {
+                        success: false,
+                        error: "Two copies of one selection that differ only in Markdown formatting were not paired: " +
+                            "translation started " + independentCallCount + " time(s), expected 1",
+                    };
+                }
+                if (indicator._floatingWindow) {
+                    indicator._floatingWindow.destroy();
+                    indicator._floatingWindow = null;
+                }
+                Clipboard.get_text = sharedMockGetText;
+            }
+
+            // Test 8a4: a large selection is read out of order
+            //
+            // Reading a whole document takes longer than the gap between the two
+            // Ctrl+C presses, so the second read can finish first. Pairing only
+            // against "the latest read" then discarded the half that finished
+            // second, and every further press discarded one more — a full-select
+            // in Typora never opened the card. The pair is now looked up in the
+            // recent-read history instead.
+            {
+                const sharedMockGetText = Clipboard.get_text;
+                const pending = [];
+                Clipboard.get_text = function(type, callback) {
+                    pending.push(callback);
+                };
+                indicator._recentCopies = [];
+                indicator._lastTriggeredText = null;
+                indicator._lastTriggeredTime = null;
+                independentCallCount = 0;
+
+                mockClipboardText = "A whole document, copied twice";
+                mockTime = 7000000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+                mockTime = 7300000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+
+                // The newer read lands first, then the older one.
+                pending[1](Clipboard, mockClipboardText);
+                pending[0](Clipboard, mockClipboardText);
+
+                if (independentCallCount !== 1) {
+                    Clipboard.get_text = originalClipboardGetText;
+                    Clipboard.set_text = originalClipboardSetText;
+                    indicator._translateTextIndependent = originalTranslateTextIndependent;
+                    return {
+                        success: false,
+                        error: "Out-of-order reads of one large selection were not paired: " +
+                            "translation started " + independentCallCount + " time(s), expected 1",
+                    };
+                }
+                if (indicator._floatingWindow) {
+                    indicator._floatingWindow.destroy();
+                    indicator._floatingWindow = null;
+                }
+                Clipboard.get_text = sharedMockGetText;
+            }
+
             // Test 8b: Auto Copy functionality for Double-copy
             const originalAutoCopyState = indicator._settings.get_boolean('floating-auto-copy');
             indicator._settings.set_boolean('floating-auto-copy', true);
@@ -420,8 +505,7 @@ global.testRunnerPromise = (async () => {
                 };
 
                 // Reset state for clean double-copy sequence
-                indicator._lastClipboardTime = null;
-                indicator._lastClipboardText = null;
+                indicator._recentCopies = [];
                 indicator._lastTriggeredText = null;
                 indicator._lastTriggeredTime = null;
                 if (indicator._internalCopyTimeoutId) {
@@ -490,8 +574,7 @@ global.testRunnerPromise = (async () => {
                 };
 
                 // Reset state
-                indicator._lastClipboardTime = null;
-                indicator._lastClipboardText = null;
+                indicator._recentCopies = [];
                 indicator._lastTriggeredText = null;
                 indicator._lastTriggeredTime = null;
                 if (indicator._internalCopyTimeoutId) {
@@ -571,8 +654,7 @@ global.testRunnerPromise = (async () => {
                 };
 
                 // Reset state
-                indicator._lastClipboardTime = null;
-                indicator._lastClipboardText = null;
+                indicator._recentCopies = [];
                 indicator._lastTriggeredText = null;
                 indicator._lastTriggeredTime = null;
                 if (indicator._internalCopyTimeoutId) {
@@ -637,8 +719,7 @@ global.testRunnerPromise = (async () => {
             // Test 8e: Spamming Ctrl+C on the SAME text must trigger only ONCE
             {
                 // Reset state
-                indicator._lastClipboardTime = null;
-                indicator._lastClipboardText = null;
+                indicator._recentCopies = [];
                 indicator._lastTriggeredText = null;
                 indicator._lastTriggeredTime = null;
                 if (indicator._internalCopyTimeoutId) {

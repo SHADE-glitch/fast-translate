@@ -76,6 +76,23 @@ const DISMISS_FALLBACK_MS = 500;
 // triggered, repeated double-copies of the SAME text are ignored for this long.
 const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
 
+// Two presses of Ctrl+C on the same selection must be at least this far apart
+// (one press can emit several clipboard events a few ms apart) and at most this
+// far apart to count as a double-copy.
+const DOUBLE_COPY_MIN_GAP_US = 50000;      // 50ms
+const DOUBLE_COPY_WINDOW_US = 2000000;     // 2s
+
+// Two presses of Ctrl+C on the same selection can hand the clipboard different
+// spellings of it: an editor that offers both raw Markdown and rendered text
+// gives "\u0060paths-ignore\u0060" on one press and "paths-ignore" on the next.
+// Measured in Typora on 2026-10-21 — the clipboard manager recorded both forms
+// as separate entries, so an exact-equality check never saw a pair and the card
+// never opened there. Pair on a formatting-insensitive key instead; the text
+// that gets translated is still the second copy, untouched.
+function pairKey(text) {
+    return String(text ?? '').replace(/[\u0060*_#>~]+/g, '').replace(/\s+/g, ' ').trim();
+}
+
 // Dictionary-card caps. The card is a fixed pool of DICT_MAX_POS part-of-speech
 // rows plus DICT_MAX_EXAMPLES example lines, built once and toggled by
 // visibility; the caps keep it compact inside the 60%-of-work-area clamp.
@@ -240,8 +257,10 @@ var FastTranslate = GObject.registerClass(
             this._safetyTimeoutId = null;
             this._lastTriggeredText = null;
             this._lastTriggeredTime = null;
-            this._lastClipboardTime = null;
-            this._lastClipboardText = null;
+            // Completed reads from the last DOUBLE_COPY_WINDOW_US, oldest first:
+            // [{ t, key }]. Kept as a history because a large selection can be
+            // read out of order (see _onSelectionChange).
+            this._recentCopies = [];
             // LRU cache of translation results (key -> translated text).
             // Memory-only; cleared on destroy. See _makeCacheKey().
             this._translationCache = new Map();
@@ -316,15 +335,6 @@ var FastTranslate = GObject.registerClass(
                 if (this._destroyed) {
                     return;
                 }
-                // Ordering guard by EVENT time: a read older than the newest one
-                // already handled is stale and must not move the baseline. This
-                // used to be a "latest event wins" counter that dropped every
-                // read superseded by a newer Ctrl+C. With a slow clipboard — a
-                // whole document copied out of an editor, HTML and text — both
-                // halves of a double-copy could be dropped, and each further
-                // Ctrl+C superseded one more read, so the card never opened at
-                // all however many times the user pressed.
-                if (this._lastClipboardTime !== null && now <= this._lastClipboardTime) return;
                 if (!text || !hasVisibleText(text)) return;
 
                 // Precise self-echo suppression: swallow only the exact text
@@ -340,39 +350,37 @@ var FastTranslate = GObject.registerClass(
                     return;
                 }
 
-                if (this._lastClipboardTime !== null && this._lastClipboardText !== null) {
-                    let diff = now - this._lastClipboardTime;
-                    // Trigger only if same content AND within 50ms–2s window.
-                    // Identical content means the user pressed Ctrl+C on the same selection.
-                    // Clipboard managers (e.g. GSConnect) always change the content slightly,
-                    // so they won't accidentally trigger the floating window.
-                    if (diff >= 50000 && diff < 2000000 && text === this._lastClipboardText) {
-                        // Same-text cooldown: while it is active, repeated double-copies
-                        // are suppressed. Each suppressed double-copy refreshes the
-                        // timestamp, so continuous Ctrl+C spam keeps extending the
-                        // cooldown and can never open a second window.
-                        if (this._lastTriggeredText === text &&
-                            this._lastTriggeredTime &&
-                            (now - this._lastTriggeredTime) < FLOATING_RETRIGGER_COOLDOWN_US) {
-                            this._lastTriggeredTime = now; // extend cooldown
-                            this._lastClipboardTime = now;
-                            this._lastClipboardText = text;
-                            return;
-                        }
-                        this._lastTriggeredText = text;
-                        this._lastTriggeredTime = now;
-                        // Refresh the baseline (do NOT null it): every copy during
-                        // spam must keep hitting this branch so the cooldown is
-                        // extended on each one.
-                        this._lastClipboardTime = now;
-                        this._lastClipboardText = text;
-                        this._triggerFloatingTranslation(text);
-                        return;
-                    }
-                }
+                // Pair against every read still inside the window, not just the
+                // most recent one. Reading a large selection takes longer than
+                // the gap between the two Ctrl+C presses, so the two reads can
+                // finish out of order — and a "latest read wins" baseline threw
+                // away whichever half finished first, so a whole document copied
+                // twice never paired, however often the user pressed.
+                const key = pairKey(text);
+                // Absolute distance, not now - entry.t: the reads can complete in
+                // either order, so the event being handled may be the older one.
+                this._recentCopies = (this._recentCopies || [])
+                    .filter(entry => Math.abs(now - entry.t) < DOUBLE_COPY_WINDOW_US);
+                const partner = this._recentCopies.some(entry => {
+                    const gap = Math.abs(now - entry.t);
+                    return entry.key === key && gap >= DOUBLE_COPY_MIN_GAP_US;
+                });
+                this._recentCopies.push({ t: now, key });
+                if (!partner) return;
 
-                this._lastClipboardTime = now;
-                this._lastClipboardText = text;
+                // Same-text cooldown: while it is active, repeated double-copies
+                // are suppressed. Each suppressed double-copy refreshes the
+                // timestamp, so continuous Ctrl+C spam keeps extending the
+                // cooldown and can never open a second window.
+                if (this._lastTriggeredText === key &&
+                    this._lastTriggeredTime &&
+                    (now - this._lastTriggeredTime) < FLOATING_RETRIGGER_COOLDOWN_US) {
+                    this._lastTriggeredTime = now; // extend cooldown
+                    return;
+                }
+                this._lastTriggeredText = key;
+                this._lastTriggeredTime = now;
+                this._triggerFloatingTranslation(text);
             });
         }
 

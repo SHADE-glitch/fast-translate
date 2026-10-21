@@ -523,3 +523,41 @@ Change   The CI list now names all five steps and marks the coverage one as non-
 Evidence 2026-10-19: .github/workflows/ci.yml lines 35-47.
 Cost     None; wording only.
 Commit   5530749
+
+### D-067 · 2026-10-21 · fix
+Symptom  Three reports from one session, all on GNOME Shell 50.1 / Wayland. (1) The card's copy
+         button closed the card but left the clipboard untouched — pasting returned the source text
+         and the clipboard manager recorded nothing — while auto-copy, the same `_copyToClipboard()`
+         call issued from the reply callback, always landed; no JS error and no GLib critical was
+         logged. (2) Selecting a large block in Typora and pressing Ctrl+C twice often opened no card,
+         and pressing more times never helped. (3) An English phrase could come back translated into
+         Chinese, with punctuation seeming to decide the language.
+Change   (1) The copy button's write now runs from a GLib idle — outside Clutter's event emission —
+         and is read back 150 ms later, with one retry on a mismatch and a console line saying which
+         attempt landed. (2) The double-copy guard ordered reads by a sequence counter, so a read that
+         finished after the next Ctrl+C was dropped as superseded; that removed the very baseline the
+         next read compares against, and each further press dropped one more read. Ordering is now by
+         event time (the press), and a read older than the newest one already handled is the only one
+         discarded. (3) `looksLikeWord()` allowed any punctuation except a fixed ASCII list, so
+         `hello，world`, `你好，世界` and `「hello」` counted as one word and the auto-direction flip
+         turned the English phrase into a request for Chinese; it now accepts only an apostrophe or a
+         hyphen inside a token and treats every other mark as a separator. `detectLang()` matched
+         `\p{Script=Han}`, which also covers marks and numerals (〇, 々, the Kangxi radicals); it now
+         matches the ideograph blocks only.
+Evidence L0: `npm test` 47/47, including the new assertions, which were first seen red against the
+         previous helper ("a full-width comma separates two words"). L1: `npm run integration` green,
+         including the new slow-read regression test, also seen red against the old guard
+         ("A read that completed after the second Ctrl+C swallowed the double-copy"). DeepL probes
+         with the maintainer's own key: `hello，world` under EN->ZH returns 你好，世界, which is the
+         Chinese output that was reported; an English sentence under ZH->EN-US is echoed unchanged
+         with `detected_source_language: ZH`, so prose was never the source of that output. L2: the
+         card click and the Typora repro still need a real session — a disable/enable does not reload
+         the module on Wayland
+Cost     The copy retry can overwrite a copy the user makes within those 150 ms; that window is the
+         price of not knowing the mechanism and goes away if the retry is ever seen to be unnecessary.
+         Ordering by event time relies on `get_monotonic_time()` advancing between two presses; two
+         reads for the same press are ordered by arrival, which is what the slow case needs. Phrases
+         are no longer flipped, so an English phrase under ZH->EN is echoed rather than translated —
+         the ⇄ button reverses it, and extending the flip to prose is a separate decision, not taken
+         here.
+Commit   d2bd636

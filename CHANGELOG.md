@@ -607,3 +607,30 @@ Cost     Pairing is looser: two different selections that differ only by Markdow
          no longer has to finish inside it. A selection whose two clipboard spellings differ by
          more than punctuation (a table flattened into prose, for example) still will not pair.
 Commit   e31e4eb
+
+### D-070 · 2026-10-21 · fix
+Symptom  Auto-direction covered only Chinese and English, and it covered them badly at the edges.
+         Russian, Japanese and Korean text under a ZH->EN-US pair came back in English (DeepL
+         ignores the wrong source hint), although the maintainer's policy is that anything that is
+         not Chinese or English comes back in Chinese. Japanese and Korean were treated as Chinese
+         because they borrow Han characters. One Han character inside an English sentence made the
+         whole sentence Chinese, so it was translated into English. A selection of digits or
+         punctuation spent a request and opened a card that showed the input back. And the trigger
+         was easy to miss: a second press more than 2s after the first did nothing, and copying the
+         same text again within 2.5s of a previous card was swallowed even after the card was
+         closed.
+Change   `detectLang()` returns null when kana or hangul appear, and otherwise decides by share:
+         Han must be at least 20% of the letters to count as Chinese. `resolveDirection()` sends
+         text it cannot classify but that has letters to `AUTO -> ZH`. A new `hasLetters()` stops
+         letterless selections before any request. The double-copy window is 3s, and the same-text
+         cooldown is cleared when the user dismisses the card.
+Evidence L0: `npm test` 47/47, with new assertions for kana/hangul, the 20% share (both sides),
+         letterless text and the AUTO->ZH fallback. L1: `npm run integration` green, with a new case
+         asserting a letterless double-copy starts no translation. DeepL probes with the maintainer's
+         key: Russian, Japanese and Korean under AUTO->ZH each return Chinese; the same text under
+         ZH->EN-US returns English, which is the behaviour being replaced.
+Cost     The pair no longer describes "what to translate into" for a third language — it is now a
+         two-language switch, and a third language always lands in Chinese. A Chinese sentence with
+         less than 20% Han (heavy English quoting) is treated as English. The 3s window pairs two
+         deliberate copies of similar text slightly more eagerly than 2s did.
+Commit   7af7de2

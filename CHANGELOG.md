@@ -561,3 +561,23 @@ Cost     The copy retry can overwrite a copy the user makes within those 150 ms;
          the ⇄ button reverses it, and extending the flip to prose is a separate decision, not taken
          here.
 Commit   d2bd636
+
+### D-068 · 2026-10-21 · fix
+Symptom  With source Chinese (ZH) and target English American (EN-US), selecting an English
+         paragraph and double-copying returned the English text unchanged. The maintainer read that
+         as "it refuses to translate into Chinese"; the card looked like it had done nothing.
+Change   `resolveDirection()` no longer gates on `looksLikeWord()`: every input length is compared
+         with the configured target and the pair is flipped when the detected language is the
+         target (English text under ZH->EN-US becomes EN->ZH). Prose had been exempt because only
+         words route to Google, where a swap could change the provider — but the request itself is
+         direction-agnostic, so the exemption only produced the echo.
+Evidence L0: `npm test` 47/47, with the prose assertions rewritten (an English paragraph now flips;
+         Chinese prose stays ZH->EN-US). L1: `npm run integration` green; its `_effectiveDirection`
+         block asserts both directions. DeepL probes with the maintainer's key: the reported
+         paragraph under EN->ZH returns a full Chinese translation, and the same paragraph under
+         ZH->EN-US is echoed with `detected_source_language: ZH` — the reported symptom, reproduced.
+Cost     The configured pair no longer means "always translate into the target": it names the two
+         languages the card switches between. Under ZH->EN-US an English paragraph now always comes
+         back in Chinese, and a Chinese one always in English. The ⇄ button still reverses a single
+         card, so a one-off "translate into the target anyway" is one click away.
+Commit   ef7c312

@@ -581,3 +581,29 @@ Cost     The configured pair no longer means "always translate into the target":
          back in Chinese, and a Chinese one always in English. The ⇄ button still reverses a single
          card, so a one-off "translate into the target anyway" is one click away.
 Commit   ef7c312
+
+### D-069 · 2026-10-21 · fix
+Symptom  In Typora the card often refused to open on a double Ctrl+C, and no number of further
+         presses helped. Two shapes were measured. (1) The same selection can hand the clipboard
+         its raw Markdown on one press and its rendered text on the next — the clipboard manager
+         recorded `\u0060paths-ignore\u0060` and then `paths-ignore` for one double copy — so the
+         exact-equality test never saw a pair. (2) A full select of a 23 KB document read the
+         clipboard more slowly than the gap between the presses, so the two reads completed out of
+         order and a "latest read wins" baseline discarded whichever half landed first.
+Change   The pair is keyed on a formatting-insensitive form of the text (Markdown emphasis marks
+         stripped, whitespace collapsed; the translated text is still the second copy untouched),
+         and it is looked up in a short history of completed reads inside the window instead of
+         against a single latest baseline, using the absolute distance between the presses so
+         either completion order works.
+Evidence L0: `npm test` 47/47. L1: `npm run integration` green, with two new cases that were each
+         seen red first — "Two copies of one selection that differ only in Markdown formatting were
+         not paired" and "Out-of-order reads of one large selection were not paired" (the second
+         also caught a real defect in the first draft of the fix: `now - entry.t` is negative when
+         the older read lands last). L2: the maintainer confirmed Typora works for ordinary
+         selections; the 23 KB full-select case was measured from the clipboard manager's history
+         (one entry, so both presses carried the same text) and is covered by the out-of-order test.
+Cost     Pairing is looser: two different selections that differ only by Markdown marks or spacing
+         within the window now count as one. The window is measured on press times, so a slow read
+         no longer has to finish inside it. A selection whose two clipboard spellings differ by
+         more than punctuation (a table flattened into prose, for example) still will not pair.
+Commit   e31e4eb

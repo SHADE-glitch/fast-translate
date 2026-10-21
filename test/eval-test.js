@@ -1171,9 +1171,16 @@ global.testRunnerPromise = (async () => {
                 if (d.source !== "ZH" || d.target !== "EN-US") {
                     return { success: false, error: "Chinese word must keep ZH->EN-US, got " + d.source + "->" + d.target };
                 }
+                // Prose flips too: an English sentence under ZH->EN-US used to be
+                // sent ZH->EN and came back untouched from DeepL, which reads as
+                // "it refuses to translate into Chinese".
                 d = indicator._effectiveDirection("hello world");
+                if (d.source !== "EN" || d.target !== "ZH") {
+                    return { success: false, error: "English prose should flip ZH->EN-US to EN->ZH, got " + d.source + "->" + d.target };
+                }
+                d = indicator._effectiveDirection("今天天气很好，我们出去散步吧。");
                 if (d.source !== "ZH" || d.target !== "EN-US") {
-                    return { success: false, error: "Prose must keep the configured direction, got " + d.source + "->" + d.target };
+                    return { success: false, error: "Chinese prose must keep ZH->EN-US, got " + d.source + "->" + d.target };
                 }
                 // AUTO source: an English word under AUTO->EN would echo, so it
                 // flips to EN->ZH; a Chinese word is left to translate ZH->EN.

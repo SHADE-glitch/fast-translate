@@ -594,12 +594,19 @@ assert.strictEqual(detectLang(null), null);
 assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello"), { source: "EN", target: "ZH" });
 assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "爱"), { source: "ZH", target: "EN-US" },
     "a Chinese word stays ZH -> EN");
-assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello world"), { source: "ZH", target: "EN-US" },
-    "prose is never flipped");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello world"), { source: "EN", target: "ZH" },
+    "prose flips too: an English sentence under ZH->EN is translated into Chinese");
+// The sentence the maintainer reported on 2026-10-21: English prose under a
+// ZH->EN-US pair came back untouched because prose was exempt from the flip.
+assert.deepStrictEqual(
+    resolveDirection("ZH", "EN-US",
+        "That command installs requirements.txt first, which is textual, so the TUI files run there too — they are not a local-only tier."),
+    { source: "EN", target: "ZH" },
+    "an English paragraph under ZH->EN-US is sent EN->ZH, not echoed");
 assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "你好！"), { source: "ZH", target: "EN-US" },
-    "punctuated CJK is prose");
-assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello，world"), { source: "ZH", target: "EN-US" },
-    "an English phrase with a full-width comma is prose and is not flipped into Chinese");
+    "punctuated CJK is prose and stays ZH -> EN");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "hello，world"), { source: "EN", target: "ZH" },
+    "an English phrase with a full-width comma is prose, and prose flips");
 // AUTO source: the pair has no second member to fall back to, so the flip
 // lands in the only pair detectLang understands (ZH<->EN).
 assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello"), { source: "EN", target: "ZH" },
@@ -612,8 +619,8 @@ assert.deepStrictEqual(resolveDirection("AUTO", "ZH", "爱"), { source: "ZH", ta
     "a Chinese word under AUTO->ZH flips to ZH->EN instead of echoing");
 assert.deepStrictEqual(resolveDirection("AUTO", "ES", "hello"), { source: "AUTO", target: "ES" },
     "AUTO flips only within the ZH/EN pair");
-assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello world"), { source: "AUTO", target: "EN-US" },
-    "AUTO never flips prose");
+assert.deepStrictEqual(resolveDirection("AUTO", "EN-US", "hello world"), { source: "EN", target: "ZH" },
+    "AUTO flips prose into the only pair it understands");
 assert.deepStrictEqual(resolveDirection("EN", "EN-US", "hello"), { source: "EN", target: "EN-US" },
     "no self-swap when source and detected already agree");
 assert.deepStrictEqual(resolveDirection("EN", "ZH", "爱"), { source: "ZH", target: "EN" },

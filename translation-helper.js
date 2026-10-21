@@ -443,13 +443,15 @@ export function detectLang(text) {
  * Direction actually used for a request. Pure: it never mutates the configured
  * pair, because extension.js re-derives that from settings on every change.
  *
- * Only single words get auto-direction — they already route to Google, so a
- * swap cannot change which provider serves prose. When the input's detected
+ * Every input length gets auto-direction, prose included: when the detected
  * language equals the configured target, the pair is flipped so the result
- * lands in the other language of the pair (English word while configured
- * ZH->EN-US yields EN->ZH). The new source is the BASE of the old target
- * ('EN', not 'EN-US') so Google never receives a regional source code; the new
- * target is the old source, which the source enum keeps regional-free.
+ * lands in the other language of the pair (English text while configured
+ * ZH->EN-US yields EN->ZH). Prose used to be exempt, which meant an English
+ * sentence under ZH->EN-US was sent as ZH->EN and came back unchanged from
+ * DeepL — the maintainer read that as "it refuses to translate into Chinese".
+ * The new source is the BASE of the old target ('EN', not 'EN-US') so Google
+ * never receives a regional source code; the new target is the old source,
+ * which the source enum keeps regional-free.
  *
  * An AUTO source cannot be promoted into the target slot, so it is handled
  * separately: when the detected language already equals the configured target
@@ -457,8 +459,8 @@ export function detectLang(text) {
  * detectLang understands — ZH<->EN — and the counterpart becomes the target
  * (English word while configured AUTO->EN yields EN->ZH).
  *
- * Left unchanged when: the input is prose, the language is unrecognised, or
- * the pair is already same-language.
+ * Left unchanged when: the language is unrecognised, the detected language is
+ * already the configured source, or the pair is same-language.
  * @param {?string} sourceLang
  * @param {?string} targetLang
  * @param {?string} text
@@ -466,7 +468,6 @@ export function detectLang(text) {
  */
 export function resolveDirection(sourceLang, targetLang, text) {
     const unchanged = { source: sourceLang, target: targetLang };
-    if (!looksLikeWord(text)) return unchanged;
     const detected = detectLang(text);
     if (!detected) return unchanged;
     const tgt = baseLangCode(targetLang);

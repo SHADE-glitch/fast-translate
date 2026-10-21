@@ -1,7 +1,7 @@
 import assert from "assert";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
-import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, baseLangCode, detectLang, resolveDirection, mergeEnrichedDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText } from "../translation-helper.js";
+import { parseCountryCode, buildRequestQuery, getFlagEmoji, formatLanguageLabel, parseLanguageName, buildGoogleRequest, mapDeepLFormality, buildDeepLRequestBody, normalizeDeepLSourceLang, PROVIDERS, getProvider, getProviderById, mapLangCode, youdaoTruncate, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, baseLangCode, detectLang, resolveDirection, mergeEnrichedDict, swapLanguages, safeTruncate, codePointLength, isSameLanguage, hasVisibleText, hasLetters } from "../translation-helper.js";
 
 // Real Google `translate_a/single` replies captured live on 2026-10-09 (see the
 // fixtures' provenance note). They pin parseGoogleDict against the provider's
@@ -578,13 +578,30 @@ assert.strictEqual(detectLang("hello"), "EN");
 assert.strictEqual(detectLang("don't"), "EN", "apostrophe is still Latin");
 assert.strictEqual(detectLang("爱"), "ZH");
 assert.strictEqual(detectLang("银行"), "ZH");
-assert.strictEqual(detectLang("hello爱"), "ZH", "Han wins when both scripts appear");
+// Han no longer wins automatically: one Chinese character inside an English
+// sentence (a quote, a term) used to make the whole sentence Chinese, which
+// sent it off to be translated into English.
+assert.strictEqual(detectLang("hello爱"), "EN", "one Han character in Latin text stays Latin");
+assert.strictEqual(detectLang("the 好 test"), "EN", "a quoted Han character does not hijack an English sentence");
+assert.strictEqual(detectLang("使用 Python 编写脚本"), "ZH", "a Chinese sentence with English terms stays Chinese");
+assert.strictEqual(detectLang("AI模型"), "ZH", "half Han is still Chinese");
 // Only ideographs are Chinese. Han-script marks and numerals are not words, and
 // counting them made Latin text look Chinese and flip direction.
 assert.strictEqual(detectLang("x〇y"), "EN", "an ideographic zero is not a Chinese character");
 assert.strictEqual(detectLang("〇"), null, "a lone ideographic zero carries no language");
 assert.strictEqual(detectLang("々"), null, "an iteration mark carries no language");
 assert.strictEqual(detectLang("こんにちは"), null, "kana is not one of the two scripts");
+// Japanese and Korean borrow Han characters; kana or hangul anywhere means the
+// text is not Chinese, so it must not be treated as the ZH side of the pair.
+assert.strictEqual(detectLang("日本語のテキスト"), null, "kanji plus kana is Japanese, not Chinese");
+assert.strictEqual(detectLang("안녕하세요"), null, "hangul is not one of the two scripts");
+// Selections with no letters at all have nothing to translate.
+assert.strictEqual(hasLetters("12345"), false, "digits carry no letters");
+assert.strictEqual(hasLetters("— … !"), false, "punctuation carries no letters");
+assert.strictEqual(hasLetters("😀"), false, "emoji carry no letters");
+assert.strictEqual(hasLetters("abc"), true);
+assert.strictEqual(hasLetters("中文"), true);
+assert.strictEqual(hasLetters("Привет"), true);
 assert.strictEqual(detectLang("123"), null, "digits carry no script");
 assert.strictEqual(detectLang(""), null);
 assert.strictEqual(detectLang("   "), null);
@@ -626,7 +643,15 @@ assert.deepStrictEqual(resolveDirection("EN", "EN-US", "hello"), { source: "EN",
 assert.deepStrictEqual(resolveDirection("EN", "ZH", "爱"), { source: "ZH", target: "EN" },
     "symmetric: a Chinese word flips EN -> ZH");
 assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "123"), { source: "ZH", target: "EN-US" },
-    "an unrecognised script is left alone");
+    "text with no letters carries no language and is left alone");
+// Everything that is neither Chinese nor English comes back in Chinese: the
+// provider detects the source, the target is pinned to ZH.
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "Привет, как дела?"),
+    { source: "AUTO", target: "ZH" }, "Russian under ZH->EN is translated into Chinese");
+assert.deepStrictEqual(resolveDirection("ZH", "EN-US", "今日はいい天気ですね。"),
+    { source: "AUTO", target: "ZH" }, "Japanese is translated into Chinese, not into English");
+assert.deepStrictEqual(resolveDirection("EN", "ZH", "Привет"),
+    { source: "EN", target: "ZH" }, "with ZH already the target the pair is left alone");
 // Purity: the configured pair is never mutated.
 {
     const s = "ZH", t = "EN-US";

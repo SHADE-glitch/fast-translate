@@ -33,7 +33,7 @@ import Shell from "gi://Shell";
 import Soup from "gi://Soup?version=3.0";
 
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
-import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, mergeEnrichedDict, baseLangCode, safeTruncate, codePointLength, isSameLanguage, hasVisibleText, swapLanguages } from "./translation-helper.js";
+import { parseCountryCode, formatLanguageLabel, buildGoogleRequest, buildDeepLRequestBody, getProvider, getProviderById, buildBaiduRequest, buildYoudaoRequest, parseProviderResponse, parseGoogleDict, looksLikeWord, resolveDirection, mergeEnrichedDict, baseLangCode, safeTruncate, codePointLength, isSameLanguage, hasVisibleText, hasLetters, swapLanguages } from "./translation-helper.js";
 import { hashBundle } from "./signing.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
@@ -80,7 +80,7 @@ const FLOATING_RETRIGGER_COOLDOWN_US = 2500000; // 2.5s
 // (one press can emit several clipboard events a few ms apart) and at most this
 // far apart to count as a double-copy.
 const DOUBLE_COPY_MIN_GAP_US = 50000;      // 50ms
-const DOUBLE_COPY_WINDOW_US = 2000000;     // 2s
+const DOUBLE_COPY_WINDOW_US = 3000000;     // 3s — a slow second press still counts
 
 // Two presses of Ctrl+C on the same selection can hand the clipboard different
 // spellings of it: an editor that offers both raw Markdown and rendered text
@@ -336,6 +336,9 @@ var FastTranslate = GObject.registerClass(
                     return;
                 }
                 if (!text || !hasVisibleText(text)) return;
+                // Digits, punctuation or emoji only: there is nothing to
+                // translate, and a card that shows the input back is noise.
+                if (!hasLetters(text)) return;
 
                 // Precise self-echo suppression: swallow only the exact text
                 // we wrote via _copyToClipboard. A different text arriving
@@ -587,6 +590,14 @@ var FastTranslate = GObject.registerClass(
                             // transient Esc binding dies with the window too.
                             if (this._floatingWindow === win) {
                                 this._floatingWindow = null;
+                            }
+                            // The same-text cooldown exists to absorb Ctrl+C spam
+                            // while the card is open. Once the user closes the card
+                            // on purpose, copying the same text again must open it
+                            // again immediately instead of being swallowed.
+                            if (win && win._userDismissed) {
+                                this._lastTriggeredText = null;
+                                this._lastTriggeredTime = null;
                             }
                             this._unbindEsc();
                         },

@@ -495,6 +495,33 @@ global.testRunnerPromise = (async () => {
                 Clipboard.get_text = sharedMockGetText;
             }
 
+            // Test 8a5: a selection with no letters is not translated
+            //
+            // Digits, punctuation and emoji have nothing to translate; the card
+            // would only show the input back. It used to spend a request on it.
+            {
+                indicator._recentCopies = [];
+                indicator._lastTriggeredText = null;
+                indicator._lastTriggeredTime = null;
+                independentCallCount = 0;
+
+                mockClipboardText = "12345 — !";
+                mockTime = 8000000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+                mockTime = 8400000;
+                indicator._onSelectionChange(null, Meta.SelectionType.SELECTION_CLIPBOARD, null);
+
+                if (independentCallCount !== 0) {
+                    Clipboard.get_text = originalClipboardGetText;
+                    Clipboard.set_text = originalClipboardSetText;
+                    indicator._translateTextIndependent = originalTranslateTextIndependent;
+                    return {
+                        success: false,
+                        error: "A letterless selection was sent for translation " + independentCallCount + " time(s), expected 0",
+                    };
+                }
+            }
+
             // Test 8b: Auto Copy functionality for Double-copy
             const originalAutoCopyState = indicator._settings.get_boolean('floating-auto-copy');
             indicator._settings.set_boolean('floating-auto-copy', true);

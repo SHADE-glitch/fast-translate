@@ -421,6 +421,25 @@ export function baseLangCode(code) {
  * the translation direction. These ranges are the ideograph blocks only.
  */
 const HAN_IDEOGRAPH = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{3FFFF}]/u;
+const HAN_IDEOGRAPH_ALL = new RegExp(HAN_IDEOGRAPH.source, 'gu');
+
+/**
+ * Share of the letters that must be Han before the text counts as Chinese.
+ * 20% keeps "使用 Python 编写脚本" (40%) Chinese while an English sentence
+ * quoting one Chinese word (about 12%) stays English.
+ */
+const HAN_SHARE_FOR_CHINESE = 0.2;
+
+/**
+ * Whether the text has any letter at all, in any script. Selections that are
+ * only digits, punctuation or emoji carry nothing to translate, and the card
+ * that would show the input back unchanged is pure noise.
+ * @param {?string} text
+ * @returns {boolean}
+ */
+export function hasLetters(text) {
+    return /\p{L}/u.test(String(text ?? ''));
+}
 
 /**
  * Which of the two languages this build can tell apart an input belongs to.
@@ -434,9 +453,21 @@ const HAN_IDEOGRAPH = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{3FFF
 export function detectLang(text) {
     const s = String(text ?? '').trim();
     if (s === '') return null;
-    if (HAN_IDEOGRAPH.test(s)) return 'ZH';
-    if (/[A-Za-z]/.test(s)) return 'EN';
-    return null;
+    // Japanese and Korean share Han characters with Chinese but are not Chinese;
+    // kana or hangul anywhere means "some other language", which the caller
+    // sends to Chinese rather than pretending it is Chinese.
+    if (/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(s)) return null;
+    // A single quoted Han character must not turn an English sentence Chinese,
+    // and a couple of English terms must not turn a Chinese sentence English.
+    // Compare how much of the text is Han versus Latin letters instead of
+    // letting the first Han character decide (measured case: an English
+    // sentence quoting one Chinese word used to be translated into English).
+    const han = (s.match(HAN_IDEOGRAPH_ALL) || []).length;
+    const latin = (s.match(/[A-Za-z]/g) || []).length;
+    if (han === 0 && latin === 0) return null;
+    if (han === 0) return 'EN';
+    if (latin === 0) return 'ZH';
+    return han / (han + latin) >= HAN_SHARE_FOR_CHINESE ? 'ZH' : 'EN';
 }
 
 /**
@@ -469,7 +500,15 @@ export function detectLang(text) {
 export function resolveDirection(sourceLang, targetLang, text) {
     const unchanged = { source: sourceLang, target: targetLang };
     const detected = detectLang(text);
-    if (!detected) return unchanged;
+    if (!detected) {
+        // Neither Chinese nor English. The maintainer's policy (2026-10-21) is
+        // that every other language comes back in Chinese, so pin the target to
+        // ZH and let the provider detect the source. Text with no letters at all
+        // (digits, punctuation, emoji) carries no language and is left alone.
+        if (!/\p{L}/u.test(String(text ?? ''))) return unchanged;
+        if (baseLangCode(targetLang) === 'ZH') return unchanged;
+        return { source: 'AUTO', target: 'ZH' };
+    }
     const tgt = baseLangCode(targetLang);
     if (String(sourceLang).toUpperCase() === 'AUTO') {
         // detected is 'ZH' or 'EN', so tgt === detected implies tgt is one of

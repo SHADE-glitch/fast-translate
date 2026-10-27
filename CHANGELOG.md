@@ -634,3 +634,31 @@ Cost     The pair no longer describes "what to translate into" for a third langu
          less than 20% Han (heavy English quoting) is treated as English. The 3s window pairs two
          deliberate copies of similar text slightly more eagerly than 2s did.
 Commit   7af7de2
+
+### D-071 · 2026-10-27 · fix
+Symptom  Every system-wide copy was read into the extension, whether or not the user wanted the
+         double-copy gesture. There was no key to turn it off, so text copied from any source —
+         including a password manager — passed through the `owner-changed` handler and was held in
+         memory as part of the pairing history.
+Change   New `double-copy-enabled` key (default on). `_onSelectionChange()` returns before the
+         clipboard read when it is off, so nothing reaches the process at all. The switch is the
+         first row of the double-copy group in the preferences, and Reset restores it with the
+         other three.
+Evidence L0: `npm test` 47/47, including the catalog-coverage guard that requires the new string
+         and the two schema strings in `messages.pot` and all three locale catalogs. The read path
+         itself needs a live session; not exercised here.
+Cost     One settings read per enable and one boolean per clipboard event. With the switch off the
+         gesture stops working — that is the point — and every other feature is untouched.
+Commit   6280dad
+
+### D-072 · 2026-10-27 · fix
+Symptom  A missing or corrupt `source-lang` / `target-lang` parses to null, and `buildGoogleRequest`
+         turned that into the literal `sl=null&tl=null`. The request could only fail, and it failed
+         as a provider error, which says nothing about the real cause.
+Change   `_buildRequestSpec()` refuses a request whose effective direction has a null side, and
+         reports which setting is broken. This covers all four providers because the check sits
+         before the provider switch.
+Evidence L0: `npm test` 47/47. `isSameLanguage`, `resolveDirection` and `baseLangCode` already
+         tolerated null, so this closes the last path that forwarded it.
+Cost     None on a healthy configuration: both sides are only null when the key is unreadable.
+Commit   6280dad

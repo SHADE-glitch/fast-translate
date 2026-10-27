@@ -19,7 +19,7 @@
 
 ## 📖 项目说明
 
-本仓库是 **Fast Translate** 的**个人维护分支**，而 Fast Translate 本身又是 [Lorenzo Carbonell（atareao）](https://github.com/atareao) 的原始项目 [**translate-assistant**](https://github.com/atareao/translate-assistant) 的现代化分支。
+本仓库是 **Fast Translate** 的**个人维护分支**，而 Fast Translate 本身又是 [Lorenzo Carbonell（atareao）](https://github.com/atareao) 的原始项目 [**translate-assistant**](https://github.com/atareao/translate-assistant) 的现代化分支，冻结在上游 **v10**，以 UUID `fast-translate@local` 在本地维护。
 
 分支脉络：
 
@@ -117,7 +117,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 `npm run integration` 与 `npm run perf` 会起一次性 headless shell；`npm run check:log` 是
 CHANGELOG 覆盖率门。每条命令各自打印自己的条数，本文不抄写。
 
-## 🆚 相对上游的改动
+## 🆚 相对上游的改动（v10）
 
 本分支移除了原面板菜单翻译器与可配置的全局快捷键，仅保留双击复制工作流，并新增可靠性改进。提交数**有意不写死**——`git rev-list --count 420251c..HEAD` 才是权威（`420251c` 是本分支历史的起点，即冻结上游版本的导入提交）。
 
@@ -140,6 +140,7 @@ CHANGELOG 覆盖率门。每条命令各自打印自己的条数，本文不抄�
 
 - **原始上游：** [atareao/translate-assistant](https://github.com/atareao/translate-assistant)，作者 Lorenzo Carbonell Cerezo —— 许可证 **MIT**
 - **现代化上游：** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) —— 许可证 **MIT**
+- **分支基线：** 上游 **v10**（导入于 `420251c`；导入前最后一个上游提交 `8e2e4c5`，2026-08-20）
 - **原始贡献者：** Philipp Kiemle（daPhipz）、Fabrício Müller（fabricio8800）、Heimen Stoffels（Vistaus）、Lorenzo Carbonell（atareao）
 - **上游（本分支之前）引入的功能：** Google 翻译默认后端、`Ctrl+C` `Ctrl+C` 双击即时翻译、后台模式、语言标签中的旗帜 emoji、高 DPI 缩放与集成测试。
 

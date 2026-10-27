@@ -19,7 +19,7 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 
 ## 📖 About
 
-This repository is a **personal maintenance fork** of **Fast Translate**, which is itself a modernized fork of the original [**translate-assistant**](https://github.com/atareao/translate-assistant) by [Lorenzo Carbonell (atareao)](https://github.com/atareao).
+This repository is a **personal maintenance fork** of **Fast Translate**, which is itself a modernized fork of the original [**translate-assistant**](https://github.com/atareao/translate-assistant) by [Lorenzo Carbonell (atareao)](https://github.com/atareao), frozen at upstream **v10** and maintained locally under the UUID `fast-translate@local`.
 
 Fork lineage:
 
@@ -119,7 +119,7 @@ plus the GTK4 / libadwaita typelibs, so it runs on a desktop, not headless.
 gates the CHANGELOG coverage. Each command prints its own count, which is never copied into
 this file.
 
-## 🆚 Changes vs upstream
+## 🆚 Changes vs upstream (v10)
 
 This fork removes the original panel-menu translator and the configurable global keybinding, keeping only the double-copy workflow, and adds reliability work. The count is deliberately not stated — `git rev-list --count 420251c..HEAD` is authoritative (`420251c` is the frozen-upstream import this fork's history starts from).
 
@@ -144,6 +144,7 @@ This extension is a fork of the original **Translate Assistant** by **Lorenzo Ca
 
 - **Original upstream:** [atareao/translate-assistant](https://github.com/atareao/translate-assistant) by Lorenzo Carbonell Cerezo — license **MIT**
 - **Modernized upstream:** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) — license **MIT**
+- **Fork baseline:** upstream **v10** (imported at `420251c`; last upstream commit before import `8e2e4c5`, 2026-08-20)
 - **Original contributors:** Philipp Kiemle (daPhipz), Fabrício Müller (fabricio8800), Heimen Stoffels (Vistaus), Lorenzo Carbonell (atareao)
 - **Features introduced upstream (before this fork):** Google Translate default backend, the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, flag emoji in the language labels, high-DPI scaling and integration tests.
 

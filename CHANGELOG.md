@@ -1,7 +1,7 @@
 # CHANGELOG — fast-translate@local
 
-Personal maintenance fork of Fast Translate (translate-assistant), frozen upstream imported at
-`420251c`. This file records only the deviations I introduced after that import.
+Personal maintenance fork of Fast Translate (translate-assistant), frozen at upstream **v10** and
+imported at `420251c`. This file records only the deviations I introduced after that import.
 
 Coverage: 420251c..HEAD
 Check with `npm run check:log`. Entries are `D-###`, monotonic, never reused.

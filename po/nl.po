@@ -1045,3 +1045,24 @@ msgstr ""
 msgid "Upstream project"
 
 msgstr ""
+
+#: prefs.js
+msgid "Double-Copy Gesture"
+msgstr ""
+
+#: prefs.js
+msgid "Translate when the same text is copied twice. With this off the extension never reads the clipboard."
+msgstr ""
+
+
+#: extension.js
+msgid "The source or target language is unreadable. Choose both again in the settings."
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml
+msgid "Double-copy gesture"
+msgstr ""
+
+#: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml
+msgid "Watch the clipboard for a double copy (Ctrl+C twice) and translate it. With this off the extension does not read the clipboard at all, so copies made by other applications never reach it."
+msgstr ""

@@ -257,6 +257,8 @@ var FastTranslate = GObject.registerClass(
             this._safetyTimeoutId = null;
             this._lastTriggeredText = null;
             this._lastTriggeredTime = null;
+            // Kill switch for the gesture; true until _loadPreferences() reads the key.
+            this._doubleCopyEnabled = true;
             // Completed reads from the last DOUBLE_COPY_WINDOW_US, oldest first:
             // [{ t, key }]. Kept as a history because a large selection can be
             // read out of order (see _onSelectionChange).
@@ -326,6 +328,10 @@ var FastTranslate = GObject.registerClass(
 
         _onSelectionChange(_a, selectionType, _b) {
             if (selectionType !== Meta.SelectionType.SELECTION_CLIPBOARD) return;
+            // The kill switch. Without it every system-wide copy was read into this
+            // process whether or not the gesture was wanted -- including whatever a
+            // password manager put on the clipboard.
+            if (!this._doubleCopyEnabled) return;
             // Stamp the EVENT, not the callback: the read is asynchronous and for
             // a large selection it can take longer than the gap between the two
             // Ctrl+C presses. The double-copy window has to measure the presses.
@@ -457,6 +463,7 @@ var FastTranslate = GObject.registerClass(
             this._youdaoAppid = this._getValue('youdao-appid');
             this._youdaoSecret = this._getValue('youdao-secret');
             this._notifications = this._getValue('notifications');
+            this._doubleCopyEnabled = this._getValue('double-copy-enabled');
             this._darktheme = this._getValue('darktheme');
 
             this._showPanelIcon = this._getValue('show-panel-icon');
@@ -930,6 +937,13 @@ var FastTranslate = GObject.registerClass(
             // pair unchanged — but using effDir uniformly keeps all four branches
             // in one shape.
             const effDir = dir ?? this._effectiveDirection(fromText);
+            // A missing or corrupt language key parses to null, and String(null) would reach
+            // the provider as the literal "null" -- a request that can only fail, reported as
+            // a provider error. Name the real cause instead of sending it.
+            if (effDir.source == null || effDir.target == null) {
+                fail(_('The source or target language is unreadable. Choose both again in the settings.'));
+                return null;
+            }
             try {
                 switch (provider.id) {
                 case 'google': {

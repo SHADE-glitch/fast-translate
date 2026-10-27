@@ -177,6 +177,11 @@
             <summary>Auto copy</summary>
             <description>Copy automatically the content of the output box in the clipboard</description>
         </key>
+          <key name="double-copy-enabled" type="b">
+             <default>true</default>
+             <summary>Double-copy gesture</summary>
+             <description>Watch the clipboard for a double copy (Ctrl+C twice) and translate it. With this off the extension does not read the clipboard at all, so copies made by other applications never reach it.</description>
+         </key>
           <key name="floating-auto-copy" type="b">
              <default>false</default>
              <summary>Floating Auto Copy</summary>

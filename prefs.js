@@ -215,6 +215,15 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         });
         preferencesPage.add(doubleCopyGroup);
 
+        // First in the group on purpose: it is the only switch that stops the extension
+        // from reading the clipboard at all, so it belongs where the gesture is described.
+        const doubleCopyRow = new Adw.SwitchRow({
+            title: _('Double-Copy Gesture'),
+            subtitle: _('Translate when the same text is copied twice. With this off the extension never reads the clipboard.'),
+        });
+        settings.bind('double-copy-enabled', doubleCopyRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        doubleCopyGroup.add(doubleCopyRow);
+
         const floatingAutoCopyRow = new Adw.SwitchRow({
             title: _('Auto Copy (Floating)'),
             subtitle: _('Automatically copy the translated text to the clipboard when using the floating window'),
@@ -450,7 +459,7 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
 
         addResetRow(langGroup, ['translation-service', 'source-lang', 'target-lang', 'formality']);
         addResetRow(formattingGroup, ['split-sentences', 'preserve-formatting']);
-        addResetRow(doubleCopyGroup, ['floating-auto-copy', 'floating-background-mode', 'floating-background-toast']);
+        addResetRow(doubleCopyGroup, ['double-copy-enabled', 'floating-auto-copy', 'floating-background-mode', 'floating-background-toast']);
         addResetRow(systemGroup, ['notifications', 'show-panel-icon', 'darktheme']);
         addClearKeysRow(apiGroup, ['url', 'apikey']);
         addClearKeysRow(baiduGroup, ['baidu-appid', 'baidu-secret']);

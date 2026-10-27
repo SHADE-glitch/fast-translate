@@ -176,7 +176,7 @@ try {
         const sectionSets = [
             ['translation-service', 'source-lang', 'target-lang', 'formality'],
             ['split-sentences', 'preserve-formatting'],
-            ['floating-auto-copy', 'floating-background-mode', 'floating-background-toast'],
+            ['double-copy-enabled', 'floating-auto-copy', 'floating-background-mode', 'floating-background-toast'],
             ['notifications', 'show-panel-icon', 'darktheme'],
         ];
         const keySets = [['url', 'apikey'], ['baidu-appid', 'baidu-secret'], ['youdao-appid', 'youdao-secret']];

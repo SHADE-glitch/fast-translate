@@ -13,6 +13,14 @@
 
 **解决什么** — 把扩展收敛为单一专注的工作流——翻译你刚复制的内容——并以 LRU 缓存、请求看门狗与精确的自回声抑制加以强化。
 
+<p align="center"><img src="screenshots/overview.png" alt="双击复制后弹出的浮动翻译卡片" width="900"></p>
+
+<p align="center"><em><b>翻译卡片</b> —— 刚复制的那段文字的译文，不用离开手头的事。</em></p>
+
+<p align="center"><img src="screenshots/demo.gif" alt="双击复制一句话弹出翻译卡片" width="900"></p>
+
+<p align="center"><em><b>动图内容：</b>编辑器里的文字被选中并连续复制两次。<b>展示的功能：</b>双击复制这个手势——同一段文字连续复制两次之后扩展才去读剪贴板，然后弹出翻译卡片，不需要快捷键、不需要菜单，也不用切换窗口。</em></p>
+
 **怎么跑** — 克隆到 `~/.local/share/gnome-shell/extensions/fast-translate@local`，运行 `glib-compile-schemas schemas/` 并编译 `po/*.po` 翻译，再 `gnome-extensions enable fast-translate@local`（Wayland 下需注销重登）。
 
 **去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
@@ -40,10 +48,6 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 - **健壮性** —— LRU 翻译缓存（50 条）、12 秒请求看门狗、原生 `St.Spinner` 加载态、友好的网络错误提示，以及精确的自回声抑制，确保你自己的复制不会被误判为新输入。
 
 ## 🖌️ 截图
-
-<p align="center"><img src="screenshots/overview.png" alt="双击复制后弹出的浮动翻译卡片" width="900"></p>
-
-<p align="center"><img src="screenshots/demo.gif" alt="双击复制一句话弹出翻译卡片" width="900"></p>
 
 ## 🧰 前置依赖
 
@@ -126,7 +130,6 @@ CHANGELOG 覆盖率门。每条命令各自打印自己的条数，本文不抄�
 ## 🆚 相对上游的改动（v10）
 
 本分支移除了原面板菜单翻译器与可配置的全局快捷键，仅保留双击复制工作流，并新增可靠性改进。提交数**有意不写死**——`git rev-list --count 420251c..HEAD` 才是权威（`420251c` 是本分支历史的起点，即冻结上游版本的导入提交）。
-
 
 下面每一条改动在 [CHANGELOG.md](CHANGELOG.md) 里另有记录：kind（`fix` / `taste` / `guard` / `revert`）、证据层级与对应提交——`D-###` 指向那条记录。`taste` 条目零义务：升级时可以整块丢弃。
 - **移除：** 面板菜单翻译 UI（输入/输出框、翻译按钮、错误标签、语言选择弹层）、全局快捷键（`shortcut-enabled`），以及面板自动粘贴 / 自动翻译 / 自动复制。 （D-002）

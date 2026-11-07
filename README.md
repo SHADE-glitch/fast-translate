@@ -13,6 +13,14 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 
 **What it solves** — It narrows the extension to one focused workflow — translate the text you just copied — and hardens it with an LRU cache, a request watchdog and precise self-echo suppression.
 
+<p align="center"><img src="screenshots/overview.png" alt="The floating translation card opened by a double copy" width="900"></p>
+
+<p align="center"><em><b>The translation card</b> — the text you just copied, translated, without leaving what you were doing.</em></p>
+
+<p align="center"><img src="screenshots/demo.gif" alt="Double-copying a sentence to open the translation card" width="900"></p>
+
+<p align="center"><em><b>In the clip:</b> the text in the editor is selected and copied twice in a row. <b>What it shows:</b> the double-copy gesture — the extension reads the clipboard only after the same text was copied twice, and opens the translation card without a keybinding, a menu or a window switch.</em></p>
+
 **How to run** — Clone into `~/.local/share/gnome-shell/extensions/fast-translate@local`, run `glib-compile-schemas schemas/` and compile the `po/*.po` translations, then `gnome-extensions enable fast-translate@local` (log out and back in on Wayland).
 
 **Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
@@ -40,10 +48,6 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 - **Robustness** — an LRU translation cache (50 entries), a 12-second request watchdog, a native `St.Spinner` loading state, friendly network-error messages, and precise self-echo suppression so your own copies are never mistaken for new input.
 
 ## 🖌️ Screenshots
-
-<p align="center"><img src="screenshots/overview.png" alt="The floating translation card opened by a double copy" width="900"></p>
-
-<p align="center"><img src="screenshots/demo.gif" alt="Double-copying a sentence to open the translation card" width="900"></p>
 
 ## 🧰 Prerequisites
 

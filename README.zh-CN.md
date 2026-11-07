@@ -108,8 +108,8 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - 双击复制行为，包括后台模式与完成提示
 - 格式与主题选项
 
-窗口里的默认值就是本 fork 自己的配置——**DeepL**、**中文 → 美式英语**、不显示面板图标——并在最后
-提供一个 **Restore Defaults** 按钮，一键恢复全部设置且保留已存的 API Key。DeepL 需要 Key：填一个，
+窗口里的默认值就是本 fork 自己的配置——**DeepL**、**中文 → 美式英语**、不显示面板图标——并在第二个
+标签页（**关于**）提供一个 **Restore Defaults** 按钮，一键恢复全部设置且保留已存的 API Key。DeepL 需要 Key：填一个，
 或者把服务切到不需要 Key 的 Google 翻译。
 
 ## 🧪 测试

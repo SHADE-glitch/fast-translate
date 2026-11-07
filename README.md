@@ -109,8 +109,8 @@ Open **GNOME Settings → Extensions → Fast Translate → Settings** to config
 - Formatting and theme options
 
 The window ships with this fork's own values — **DeepL**, **Chinese → American English**, no
-panel icon — and ends with one **Restore Defaults** button that puts every setting back and
-keeps the stored API keys. DeepL needs a key: enter one, or switch the service to Google
+panel icon — and the second tab (**About**) carries one **Restore Defaults** button that puts
+every setting back and keeps the stored API keys. DeepL needs a key: enter one, or switch the service to Google
 Translate, which needs none.
 
 ## 🧪 Testing

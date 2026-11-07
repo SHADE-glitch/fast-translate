@@ -419,6 +419,50 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         coffeeRow.add_suffix(coffeeBtn);
         linksGroup.add(coffeeRow);
 
+        // The whole-window reset. It lives on the second tab, not among the rows of the
+        // first one: the per-section rows above are scoped on purpose, and a global reset
+        // that sits next to them reads like one of them. It keeps the stored credentials,
+        // which no default can reproduce.
+        const defaultsGroup = new Adw.PreferencesGroup({
+            title: _('Defaults'),
+            description: _('The values this fork ships'),
+        });
+        aboutPage.add(defaultsGroup);
+
+        const restoreRow = new Adw.ActionRow({
+            title: _('Restore every default'),
+            subtitle: _('Resets every setting in this window. Stored API keys are kept.'),
+        });
+        const restoreButton = new Gtk.Button({
+            label: _('Restore Defaults'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['destructive-action'],
+        });
+        restoreButton.connect('clicked', () => {
+            const dialog = new Adw.AlertDialog({
+                heading: _('Restore default settings?'),
+                body: _('Language, formatting, double-copy and panel settings all return to the values this fork ships. Stored API keys are kept, so a provider that needs one keeps working. This cannot be undone.'),
+            });
+            dialog.add_response('cancel', _('Cancel'));
+            dialog.add_response('restore', _('Restore Defaults'));
+            dialog.set_response_appearance('restore', Adw.ResponseAppearance.DESTRUCTIVE);
+            dialog.set_default_response('cancel');
+            dialog.set_close_response('cancel');
+            dialog.connect('response', (_dialog, response) => {
+                if (response !== 'restore')
+                    return;
+                resetKeys(settings, RESTORABLE_KEYS);
+                window.add_toast(new Adw.Toast({
+                    title: _('Default settings restored'),
+                    timeout: 3,
+                }));
+            });
+            dialog.present(window);
+        });
+        restoreRow.add_suffix(restoreButton);
+        restoreRow.activatable_widget = restoreButton;
+        defaultsGroup.add(restoreRow);
+
         // Restore-to-defaults. There was no way back from any setting at all, which is the
         // one thing a settings window has to offer: a user who changed several dropdowns
         // could only find the values again by memory. Every reset is scoped to the group
@@ -477,49 +521,6 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
             group.add(row);
             return row;
         }
-
-        // The whole-window reset. The section rows above are scoped on purpose; this one
-        // is the "put everything back" control the dock's prefs already had, and it keeps
-        // the stored credentials, which no default can reproduce.
-        const defaultsGroup = new Adw.PreferencesGroup({
-            title: _('Defaults'),
-            description: _('The values this fork ships'),
-        });
-        preferencesPage.add(defaultsGroup);
-
-        const restoreRow = new Adw.ActionRow({
-            title: _('Restore every default'),
-            subtitle: _('Resets every setting in this window. Stored API keys are kept.'),
-        });
-        const restoreButton = new Gtk.Button({
-            label: _('Restore Defaults'),
-            valign: Gtk.Align.CENTER,
-            css_classes: ['destructive-action'],
-        });
-        restoreButton.connect('clicked', () => {
-            const dialog = new Adw.AlertDialog({
-                heading: _('Restore default settings?'),
-                body: _('Language, formatting, double-copy and panel settings all return to the values this fork ships. Stored API keys are kept, so a provider that needs one keeps working. This cannot be undone.'),
-            });
-            dialog.add_response('cancel', _('Cancel'));
-            dialog.add_response('restore', _('Restore Defaults'));
-            dialog.set_response_appearance('restore', Adw.ResponseAppearance.DESTRUCTIVE);
-            dialog.set_default_response('cancel');
-            dialog.set_close_response('cancel');
-            dialog.connect('response', (_dialog, response) => {
-                if (response !== 'restore')
-                    return;
-                resetKeys(settings, RESTORABLE_KEYS);
-                window.add_toast(new Adw.Toast({
-                    title: _('Default settings restored'),
-                    timeout: 3,
-                }));
-            });
-            dialog.present(window);
-        });
-        restoreRow.add_suffix(restoreButton);
-        restoreRow.activatable_widget = restoreButton;
-        defaultsGroup.add(restoreRow);
 
         addResetRow(langGroup, ['translation-service', 'source-lang', 'target-lang', 'formality']);
         addResetRow(formattingGroup, ['split-sentences', 'preserve-formatting']);

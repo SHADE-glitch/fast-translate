@@ -662,3 +662,37 @@ Evidence L0: `npm test` 47/47. `isSameLanguage`, `resolveDirection` and `baseLan
          tolerated null, so this closes the last path that forwarded it.
 Cost     None on a healthy configuration: both sides are only null when the key is unreadable.
 Commit   6280dad
+
+### D-073 · 2026-11-07 · fix
+Symptom  The seven restore/clear rows in the preferences called `settings.reset_keys(keys)`. That
+         method does not exist on `Gio.Settings` — `gjs -c 'typeof Gio.Settings.prototype.reset_keys'`
+         prints `undefined` — so every one of the rows threw a TypeError on click and no setting was
+         ever restored. The rows looked wired: the mock in `test/prefs-validator.js` implemented
+         `reset_keys` itself, so the guard passed on a method the real binding never had.
+Change   `resetKeys()` in `prefs.js` loops `settings.reset(key)` over the row's own keys, and both
+         the section rows and the credential rows call it. The validator's mock records one entry
+         per key and the assertions compare key by key instead of comparing whole key sets.
+Evidence L0: `npm test` 47/47, including the prefs validator, which now drives the same per-key
+         path the real binding takes. L1: `gjs -c 'typeof Gio.Settings.prototype.reset_keys'` is
+         `undefined` and `typeof Gio.Settings.prototype.reset` is `function`. L2 unverified.
+Cost     The credential rows still arm before they clear a key — a reset cannot re-derive an issued
+         key, so clearing it stays a two-click act.
+Commit   b9e3d12
+
+### D-074 · 2026-11-07 · taste
+Symptom  The shipped defaults were upstream's: source Auto, target Spanish, Google Translate, a
+         panel icon in the top bar and the Super+T switch on. That is not the configuration this
+         fork is run with, and there was no single control that put a window back to it.
+Change   The schema now ships the owner's values — source Chinese (ZH), target English American
+         (EN-US), DeepL, no panel icon, the Super+T switch off — and the window ends with a
+         Defaults group holding one confirmed Restore Defaults button that resets every setting it
+         owns and keeps the five stored API keys. The READMEs say which provider is shipped and that
+         DeepL needs a key, or Google Translate can be chosen instead.
+Evidence L0: `npm test` 47/47, including the catalog guard, which required the eight new strings in
+         `messages.pot` and in all three locale catalogs, and the defaults guard, which reads the
+         schema. L1: `gsettings get` under `GSETTINGS_BACKEND=memory` confirms the five defaults.
+         L2 unverified.
+Cost     A fresh install starts in Chinese to American English with DeepL selected, so it needs a
+         key before it can translate. The provider and the keys are the one thing the restore button
+         deliberately leaves alone.
+Commit   b9e3d12

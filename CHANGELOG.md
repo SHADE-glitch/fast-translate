@@ -708,3 +708,16 @@ Evidence L0: `npm test` 47/47; the prefs validator walks the whole window and st
          L1 unverified (no live window opened in this session). L2 unverified.
 Cost     None: the same keys are reset, only the tab the control sits on changed.
 Commit   a4248f9
+
+### D-076 · 2026-11-07 · taste
+Symptom   The README pair ran eleven sections with no table of contents, on a document that carries the
+          fork notice, the four providers, the cache and the watchdog — the reader scrolled to find the
+          one thing they came for.
+Change    A generated table of contents on both sides, under the four-part lead, with the fork section
+          order. The protected `Changes vs upstream` and `Credits & Attribution` sections keep their text
+          and their place before the licence.
+Evidence  L0 2026-11-07 `npm test` green — which includes the repository's own docs gate, all 122
+          relative links and anchors over 19 markdown files — and `npm run check:log` PASS; the layout
+          audit reports this repository compliant.
+Cost      Fourteen lines per side.
+Commit    b244037

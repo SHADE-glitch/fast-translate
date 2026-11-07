@@ -41,7 +41,9 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 
 ## 🖌️ Screenshots
 
-![Floating translation window triggered by the double-copy shortcut](screenshots/CTRLCC.webp)
+<p align="center"><img src="screenshots/overview.png" alt="The floating translation card opened by a double copy" width="900"></p>
+
+<p align="center"><img src="screenshots/demo.gif" alt="Double-copying a sentence to open the translation card" width="900"></p>
 
 ## 🧰 Prerequisites
 

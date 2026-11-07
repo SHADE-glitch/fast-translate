@@ -41,7 +41,9 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 
 ## 🖌️ 截图
 
-![双击复制快捷键触发的浮动翻译窗口](screenshots/CTRLCC.webp)
+<p align="center"><img src="screenshots/overview.png" alt="双击复制后弹出的浮动翻译卡片" width="900"></p>
+
+<p align="center"><img src="screenshots/demo.gif" alt="双击复制一句话弹出翻译卡片" width="900"></p>
 
 ## 🧰 前置依赖
 

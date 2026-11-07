@@ -1066,3 +1066,35 @@ msgstr ""
 #: schemas/org.gnome.shell.extensions.fast-translate.gschema.xml
 msgid "Watch the clipboard for a double copy (Ctrl+C twice) and translate it. With this off the extension does not read the clipboard at all, so copies made by other applications never reach it."
 msgstr ""
+
+#: prefs.js
+msgid "Defaults"
+msgstr ""
+
+#: prefs.js
+msgid "The values this fork ships"
+msgstr ""
+
+#: prefs.js
+msgid "Restore every default"
+msgstr ""
+
+#: prefs.js
+msgid "Resets every setting in this window. Stored API keys are kept."
+msgstr ""
+
+#: prefs.js
+msgid "Restore Defaults"
+msgstr ""
+
+#: prefs.js
+msgid "Restore default settings?"
+msgstr ""
+
+#: prefs.js
+msgid "Language, formatting, double-copy and panel settings all return to the values this fork ships. Stored API keys are kept, so a provider that needs one keeps working. This cannot be undone."
+msgstr ""
+
+#: prefs.js
+msgid "Default settings restored"
+msgstr ""

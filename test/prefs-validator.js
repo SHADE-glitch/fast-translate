@@ -78,10 +78,10 @@ try {
                     // Mirrors the schema default of the url key, which is the endpoint
                     // DeepL discloses: prefs.js reads its host from here.
                     get_string: (k) => (k === 'url' ? 'https://api-free.deepl.com/v2/translate' : ''),
-                    reset: () => {},
                     // Recorded so the driver can prove the restore/clear rows are wired to
-                    // the right key sets, not merely constructed.
-                    reset_keys: (keys) => { RESETS.push(Array.from(keys)); }
+                    // the right key sets, not merely constructed. One entry per key: the
+                    // real binding has reset(key) and no reset_keys(), so prefs.js loops.
+                    reset: (key) => { RESETS.push([key]); }
                 };
             }
         }
@@ -180,8 +180,11 @@ try {
             ['notifications', 'show-panel-icon', 'darktheme'],
         ];
         const keySets = [['url', 'apikey'], ['baidu-appid', 'baidu-secret'], ['youdao-appid', 'youdao-secret']];
-        const same = (a, b) => a.length === b.length && a.every((k, i) => k === b[i]);
-        const countOf = (log, set) => log.filter((got) => same(got, set)).length;
+        // prefs.js resets one key at a time (Gio.Settings has no reset_keys), so a
+        // section counts as reset once when every one of its keys appears exactly once.
+        const hits = (log, key) => log.filter((got) => got.length === 1 && got[0] === key).length;
+        const onceEach = (log, set) => set.every((key) => hits(log, key) === 1);
+        const anyOf = (log, set) => set.some((key) => hits(log, key) > 0);
 
         // First pass: a plain click. The four section rows reset; the three credential
         // rows must only arm, because erasing an issued key on the first click is a loss
@@ -189,10 +192,10 @@ try {
         for (const row of affordances) row.activate();
         let log = mockModule.__resetLog();
         for (const set of sectionSets)
-            if (countOf(log, set) !== 1)
-                throw new Error(`${provider.id}: section ${JSON.stringify(set)} should reset exactly once per click, got ${countOf(log, set)}`);
+            if (!onceEach(log, set))
+                throw new Error(`${provider.id}: section ${JSON.stringify(set)} should reset each of its keys exactly once per click, got ${JSON.stringify(log)}`);
         for (const set of keySets)
-            if (countOf(log, set) !== 0)
+            if (anyOf(log, set))
                 throw new Error(`${provider.id}: the credential row ${JSON.stringify(set)} erased a key on the FIRST click — it must arm first`);
 
         // Second pass: the armed credential rows now act, and only once each.
@@ -200,10 +203,29 @@ try {
         for (const row of affordances) row.activate();
         log = mockModule.__resetLog();
         for (const set of keySets)
-            if (countOf(log, set) !== 1)
-                throw new Error(`${provider.id}: credential row ${JSON.stringify(set)} did not clear exactly once after the confirming click (got ${countOf(log, set)})`);
-        if (log.length !== sectionSets.length + keySets.length)
-            throw new Error(`${provider.id}: second pass recorded ${log.length} resets, expected ${sectionSets.length + keySets.length} — a row acted more than once: ${JSON.stringify(log)}`);
+            if (!onceEach(log, set))
+                throw new Error(`${provider.id}: credential row ${JSON.stringify(set)} did not clear exactly once after the confirming click (got ${JSON.stringify(log)})`);
+        const expectedKeys = sectionSets.flat().length + keySets.flat().length;
+        if (log.length !== expectedKeys)
+            throw new Error(`${provider.id}: second pass recorded ${log.length} key resets, expected ${expectedKeys} — a row acted more than once: ${JSON.stringify(log)}`);
+
+        // The whole-window control exists next to the scoped ones. Its reset runs from a
+        // confirmation dialog, which this headless driver cannot click through, so only
+        // the row's presence and copy are asserted here; the per-key wiring is the same
+        // resetKeys() the section rows above just exercised.
+        const globalRow = (() => {
+            let found = null;
+            const seek = (w) => {
+                for (let c = w.get_first_child(); c && !found; c = c.get_next_sibling()) {
+                    if (c.get_name?.() === 'AdwActionRow' && c.title === 'Restore every default') found = c;
+                    seek(c);
+                }
+            };
+            seek(mockWindow);
+            return found;
+        })();
+        if (!globalRow)
+            throw new Error(`${provider.id}: the window has no "Restore every default" row`);
 
         // The Escape switch is wired by hand (an array of accelerators cannot bind() to a
         // boolean), so both transitions have to be driven: constructed-but-never-toggled

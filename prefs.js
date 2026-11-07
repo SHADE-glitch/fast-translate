@@ -30,6 +30,18 @@ import GObject from "gi://GObject";
 import { ExtensionPreferences, gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 import { getProvider, getProviderById } from "./translation-helper.js";
 
+// Everything the window can set except the five credential fields. A credential is
+// issued by the provider and cannot be re-derived from a default, so "restore
+// defaults" must not be the thing that silently deletes one.
+const RESTORABLE_KEYS = [
+    "translation-service", "source-lang", "target-lang", "formality",
+    "split-sentences", "preserve-formatting",
+    "double-copy-enabled", "floating-auto-copy", "floating-background-mode",
+    "floating-background-toast",
+    "notifications", "show-panel-icon", "darktheme",
+    "url", "keybinding-close-floating-window",
+];
+
 export default class FastTranslatePreferences extends ExtensionPreferences {
     constructor(metadata) {
         super(metadata);
@@ -418,6 +430,15 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
         //
         // Bound widgets (bind()) and the manual `changed::` handlers refresh themselves
         // when the keys reset, so no widget state is tracked here.
+        // Gio.Settings only has reset(key) — there is no reset_keys() in the binding
+        // (checked with `gjs -c 'typeof Gio.Settings.prototype.reset_keys'`, undefined).
+        // The four section rows and the three clear rows called it anyway, so every one
+        // of them threw on click; this loop is what actually returns a key to its default.
+        function resetKeys(settings, keys) {
+            for (const key of keys)
+                settings.reset(key);
+        }
+
         function addResetRow(group, keys) {
             const row = new Adw.ActionRow({
                 // Translators: an action that returns this group's settings to their
@@ -427,7 +448,7 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
                 subtitle: _('Resets %d settings in this section. Keys are never touched.').replace('%d', String(keys.length)),
                 activatable: true,
             });
-            row.connect('activated', () => settings.reset_keys(keys));
+            row.connect('activated', () => resetKeys(settings, keys));
             group.add(row);
             return row;
         }
@@ -450,12 +471,55 @@ export default class FastTranslatePreferences extends ExtensionPreferences {
                     return;
                 }
                 armed = false;
-                settings.reset_keys(keys);
+                resetKeys(settings, keys);
                 row.subtitle = idle;
             });
             group.add(row);
             return row;
         }
+
+        // The whole-window reset. The section rows above are scoped on purpose; this one
+        // is the "put everything back" control the dock's prefs already had, and it keeps
+        // the stored credentials, which no default can reproduce.
+        const defaultsGroup = new Adw.PreferencesGroup({
+            title: _('Defaults'),
+            description: _('The values this fork ships'),
+        });
+        preferencesPage.add(defaultsGroup);
+
+        const restoreRow = new Adw.ActionRow({
+            title: _('Restore every default'),
+            subtitle: _('Resets every setting in this window. Stored API keys are kept.'),
+        });
+        const restoreButton = new Gtk.Button({
+            label: _('Restore Defaults'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['destructive-action'],
+        });
+        restoreButton.connect('clicked', () => {
+            const dialog = new Adw.AlertDialog({
+                heading: _('Restore default settings?'),
+                body: _('Language, formatting, double-copy and panel settings all return to the values this fork ships. Stored API keys are kept, so a provider that needs one keeps working. This cannot be undone.'),
+            });
+            dialog.add_response('cancel', _('Cancel'));
+            dialog.add_response('restore', _('Restore Defaults'));
+            dialog.set_response_appearance('restore', Adw.ResponseAppearance.DESTRUCTIVE);
+            dialog.set_default_response('cancel');
+            dialog.set_close_response('cancel');
+            dialog.connect('response', (_dialog, response) => {
+                if (response !== 'restore')
+                    return;
+                resetKeys(settings, RESTORABLE_KEYS);
+                window.add_toast(new Adw.Toast({
+                    title: _('Default settings restored'),
+                    timeout: 3,
+                }));
+            });
+            dialog.present(window);
+        });
+        restoreRow.add_suffix(restoreButton);
+        restoreRow.activatable_widget = restoreButton;
+        defaultsGroup.add(restoreRow);
 
         addResetRow(langGroup, ['translation-service', 'source-lang', 'target-lang', 'formality']);
         addResetRow(formattingGroup, ['split-sentences', 'preserve-formatting']);

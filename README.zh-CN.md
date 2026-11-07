@@ -108,6 +108,10 @@ rm -rf ~/.local/share/gnome-shell/extensions/fast-translate@local
 - 双击复制行为，包括后台模式与完成提示
 - 格式与主题选项
 
+窗口里的默认值就是本 fork 自己的配置——**DeepL**、**中文 → 美式英语**、不显示面板图标——并在最后
+提供一个 **Restore Defaults** 按钮，一键恢复全部设置且保留已存的 API Key。DeepL 需要 Key：填一个，
+或者把服务切到不需要 Key 的 Google 翻译。
+
 ## 🧪 测试
 
 `npm test` 跑离线套件：纯函数单测（`test/unit.test.js`，纯 Node）、teardown 完整性守卫
@@ -144,7 +148,7 @@ CHANGELOG 覆盖率门。每条命令各自打印自己的条数，本文不抄�
 - **现代化上游：** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) —— 许可证 **MIT**
 - **分支基线：** 上游 **v10**（导入于 `420251c`；导入前最后一个上游提交 `8e2e4c5`，2026-08-20）
 - **原始贡献者：** Philipp Kiemle（daPhipz）、Fabrício Müller（fabricio8800）、Heimen Stoffels（Vistaus）、Lorenzo Carbonell（atareao）
-- **上游（本分支之前）引入的功能：** Google 翻译默认后端、`Ctrl+C` `Ctrl+C` 双击即时翻译、后台模式、语言标签中的旗帜 emoji、高 DPI 缩放与集成测试。
+- **上游（本分支之前）引入的功能：** Google 翻译作为默认后端（本 fork 改为 DeepL）、`Ctrl+C` `Ctrl+C` 双击即时翻译、后台模式、语言标签中的旗帜 emoji、高 DPI 缩放与集成测试。
 
 ## ⚖️ 许可证
 

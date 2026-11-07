@@ -74,19 +74,23 @@
         <value value="3" nick="Youdao Translate"/>
     </enum>
 
+    <!-- Defaults are the values this fork ships: DeepL, Chinese to American English, no panel
+         icon, double-copy as the only entry point. DeepL is the owner's provider and needs a
+         key, so a fresh install either enters one or switches to Google Translate; the
+         preference row says so. Credentials themselves are never defaults (D-073). -->
     <schema path="/org/gnome/shell/extensions/fast-translate/" id="org.gnome.shell.extensions.fast-translate">
         <key name="translation-service" enum="org.gnome.shell.extensions.fast-translate.translation-service">
-            <default>'Google Translate'</default>
+            <default>'DeepL'</default>
             <summary>Translation service</summary>
             <description>The translation service to use (Google Translate, DeepL, Baidu or Youdao)</description>
         </key>
         <key name="source-lang" enum="org.gnome.shell.extensions.fast-translate.source-lang">
-            <default>'Auto (AUTO)'</default>
+            <default>'Chinese (ZH)'</default>
             <summary>Source language</summary>
             <description>Language of the text to be translated</description>
         </key>
         <key name="target-lang" enum="org.gnome.shell.extensions.fast-translate.target-lang">
-            <default>'Spanish (ES)'</default>
+            <default>'English American (EN-US)'</default>
             <summary>Target language</summary>
             <description>The language into which the text should be translated</description>
         </key>
@@ -203,12 +207,12 @@
             <description>Translate automatically the content of the input box and the set the result in the output box</description>
         </key>
         <key name="show-panel-icon" type="b">
-            <default>true</default>
+            <default>false</default>
             <summary>Show panel icon</summary>
             <description>Show the extension icon in the top panel; when disabled, translation via double-copy (Ctrl+C Ctrl+C) and shortcuts still works</description>
         </key>
         <key name="shortcut-enabled" type="b">
-            <default>true</default>
+            <default>false</default>
             <summary>Enable keyboard shortcut</summary>
             <description>Enable or disable the Super+T keyboard shortcut for clipboard translation</description>
         </key>

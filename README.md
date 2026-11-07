@@ -108,6 +108,11 @@ Open **GNOME Settings → Extensions → Fast Translate → Settings** to config
 - Double-copy behavior, including background mode and the completion toast
 - Formatting and theme options
 
+The window ships with this fork's own values — **DeepL**, **Chinese → American English**, no
+panel icon — and ends with one **Restore Defaults** button that puts every setting back and
+keeps the stored API keys. DeepL needs a key: enter one, or switch the service to Google
+Translate, which needs none.
+
 ## 🧪 Testing
 
 `npm test` runs the offline suite: the pure-helper unit tests (`test/unit.test.js`, plain
@@ -148,7 +153,7 @@ This extension is a fork of the original **Translate Assistant** by **Lorenzo Ca
 - **Modernized upstream:** [tazztone/fast-translate](https://github.com/tazztone/fast-translate) — license **MIT**
 - **Fork baseline:** upstream **v10** (imported at `420251c`; last upstream commit before import `8e2e4c5`, 2026-08-20)
 - **Original contributors:** Philipp Kiemle (daPhipz), Fabrício Müller (fabricio8800), Heimen Stoffels (Vistaus), Lorenzo Carbonell (atareao)
-- **Features introduced upstream (before this fork):** Google Translate default backend, the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, flag emoji in the language labels, high-DPI scaling and integration tests.
+- **Features introduced upstream (before this fork):** Google Translate as the default backend (this fork ships DeepL), the `Ctrl+C` `Ctrl+C` double-copy instant translation, background mode, flag emoji in the language labels, high-DPI scaling and integration tests.
 
 ## ⚖️ License
 

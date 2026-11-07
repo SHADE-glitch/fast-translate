@@ -25,6 +25,22 @@
 
 **去哪看** — 见 [AGENTS.md](AGENTS.md) 与 [MAINTENANCE.md](MAINTENANCE.md)。
 
+---
+
+## 📖 目录
+
+- [📖 项目说明](#-项目说明)
+- [✨ 功能特性](#-功能特性)
+- [🖌️ 截图](#️-截图)
+- [🧰 前置依赖](#-前置依赖)
+- [📥 安装](#-安装)
+- [🖱️ 使用](#️-使用)
+- [⚙️ 偏好设置](#️-偏好设置)
+- [🧪 测试](#-测试)
+- [🆚 相对上游的改动（v10）](#-相对上游的改动v10)
+- [🙏 致谢与来源说明](#-致谢与来源说明)
+- [⚖️ 许可证](#️-许可证)
+
 ## 📖 项目说明
 
 本仓库是 **Fast Translate** 的**个人维护分支**，而 Fast Translate 本身又是 [Lorenzo Carbonell（atareao）](https://github.com/atareao) 的原始项目 [**translate-assistant**](https://github.com/atareao/translate-assistant) 的现代化分支，冻结在上游 **v10**，以 UUID `fast-translate@local` 在本地维护。

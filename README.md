@@ -25,6 +25,22 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 
 **Where to look** — See [AGENTS.md](AGENTS.md) and [MAINTENANCE.md](MAINTENANCE.md).
 
+---
+
+## 📖 Table of Contents
+
+- [📖 About](#-about)
+- [✨ Features](#-features)
+- [🖌️ Screenshots](#️-screenshots)
+- [🧰 Prerequisites](#-prerequisites)
+- [📥 Installation](#-installation)
+- [🖱️ Usage](#️-usage)
+- [⚙️ Preferences](#️-preferences)
+- [🧪 Testing](#-testing)
+- [🆚 Changes vs upstream (v10)](#-changes-vs-upstream-v10)
+- [🙏 Credits & Attribution](#-credits--attribution)
+- [⚖️ License](#️-license)
+
 ## 📖 About
 
 This repository is a **personal maintenance fork** of **Fast Translate**, which is itself a modernized fork of the original [**translate-assistant**](https://github.com/atareao/translate-assistant) by [Lorenzo Carbonell (atareao)](https://github.com/atareao), frozen at upstream **v10** and maintained locally under the UUID `fast-translate@local`.

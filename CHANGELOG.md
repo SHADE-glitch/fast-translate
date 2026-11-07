@@ -696,3 +696,15 @@ Cost     A fresh install starts in Chinese to American English with DeepL select
          key before it can translate. The provider and the keys are the one thing the restore button
          deliberately leaves alone.
 Commit   b9e3d12
+
+### D-075 · 2026-11-07 · taste
+Symptom  The whole-window Restore Defaults button sat at the bottom of the first tab, directly
+         below the four per-section "Restore this section's defaults" rows. Two different controls,
+         one wording apart, in the same list — the global one read like a fifth section reset.
+Change   Moved the Defaults group to the second tab, next to the version, the links and the
+         licence. The About tab holds no section rows, so nothing competes with it there, and the
+         per-section rows are now the only "restore" controls on the first tab.
+Evidence L0: `npm test` 47/47; the prefs validator walks the whole window and still finds the row.
+         L1 unverified (no live window opened in this session). L2 unverified.
+Cost     None: the same keys are reset, only the tab the control sits on changed.
+Commit   a4248f9

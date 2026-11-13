@@ -768,3 +768,16 @@ Evidence  `npm test` green (47 pass / 0 fail, `npm run check:log` PASS); the cha
 Cost      The pointer is a local copy of the instruction; the tool-neutral contract is what carries the
           rule text. Whether that text actually reaches a session is a per-tool check, not a
           repository guard.
+
+---
+
+### D-080 · 2026-11-13 · chore
+
+Symptom   The root layer carried an `opencode.json` whose only content was the two standard pointers
+          `AGENTS.md` already lists — one delivery instruction stored twice, with nothing watching the copy.
+Change    Removed it from the root layer; `STANDARD.md` §1 no longer requires the file, and the pointer
+          block plus the machine-level `GLOBAL.md` contract are the whole delivery path.
+Evidence  `bash ~/.agents/scripts/audit.sh` exits 0 (every governed repository passes the layout check);
+          this repository's own guard did not reference the file.
+Cost      No per-assistant config remains to drift, and no local guard can observe an agent that skips
+          the pointer — the same blind spot the removed file had.

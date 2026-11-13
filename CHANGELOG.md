@@ -753,7 +753,7 @@ Cost      The snapshot is still a copy by design (CI cannot read `~/.agents`); d
 Commit    394fe7f
 
 
-### D-079 · 2026-11-12 · docs
+### D-079 · 2026-11-12 · chore
 Symptom   The project-level rules pointer block in AGENTS.md used bare `@~/.agents/standards/...`
           imports to pull in the machine-wide standard. That only delivers the rule text to agents
           that expand `@` imports or read `opencode.json`; an agent that does neither holds the
@@ -770,6 +770,7 @@ Cost      The pointer is a local copy of the instruction; the tool-neutral contr
           repository guard.
 
 ---
+Commit    8c89e39
 
 ### D-080 · 2026-11-13 · chore
 
@@ -782,3 +783,4 @@ Evidence  `bash ~/.agents/scripts/audit.sh` exits 0 (every governed repository p
           this repository's own guard did not reference the file.
 Cost      No per-assistant config remains to drift, and no local guard can observe an agent that skips
           the pointer — the same blind spot the removed file had.
+Commit    60093d2

@@ -13,13 +13,9 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 
 **What it solves** — It narrows the extension to one focused workflow — translate the text you just copied — and hardens it with an LRU cache, a request watchdog and precise self-echo suppression.
 
-<p align="center"><img src="screenshots/overview.png" alt="The floating translation card opened by a double copy" width="900"></p>
+<p align="center"><img src="screenshots/demo.gif" alt="A note double-copied in the text editor, with the floating card returning a Chinese to English translation" width="800"></p>
 
-<p align="center"><em><b>The translation card</b> — the text you just copied, translated, without leaving what you were doing.</em></p>
-
-<p align="center"><img src="screenshots/demo.gif" alt="Double-copying a sentence to open the translation card" width="900"></p>
-
-<p align="center"><em><b>In the clip:</b> the text in the editor is selected and copied twice in a row. <b>What it shows:</b> the double-copy gesture — the extension reads the clipboard only after the same text was copied twice, and opens the translation card without a keybinding, a menu or a window switch.</em></p>
+<p align="center"><em><b>In the clip:</b> a short Chinese note is selected and copied twice; the floating card opens with the language pair already chosen, and the English translation lands under the source text. <b>What it shows:</b> double-copy as the only entry point — no panel icon, no shortcut to learn — and the card's source/result split with its copy and swap buttons.</em></p>
 
 **How to run** — Clone into `~/.local/share/gnome-shell/extensions/fast-translate@local`, run `glib-compile-schemas schemas/` and compile the `po/*.po` translations, then `gnome-extensions enable fast-translate@local` (log out and back in on Wayland).
 
@@ -31,7 +27,6 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 
 - [📖 About](#-about)
 - [✨ Features](#-features)
-- [🖌️ Screenshots](#️-screenshots)
 - [🧰 Prerequisites](#-prerequisites)
 - [📥 Installation](#-installation)
 - [🖱️ Usage](#️-usage)
@@ -62,8 +57,6 @@ It is **not** affiliated with or endorsed by either upstream author. This fork n
 - **Four backends** — **Google Translate** (no API key, works out of the box), **DeepL** (Free and Pro tiers), and **Baidu** / **Youdao** (each with its own credentials).
 - **Inline language selection** — source and target pickers in the preferences; the card header labels both languages with their flag emoji.
 - **Robustness** — an LRU translation cache (50 entries), a 12-second request watchdog, a native `St.Spinner` loading state, friendly network-error messages, and precise self-echo suppression so your own copies are never mistaken for new input.
-
-## 🖌️ Screenshots
 
 ## 🧰 Prerequisites
 

@@ -13,13 +13,9 @@
 
 **解决什么** — 把扩展收敛为单一专注的工作流——翻译你刚复制的内容——并以 LRU 缓存、请求看门狗与精确的自回声抑制加以强化。
 
-<p align="center"><img src="screenshots/overview.png" alt="双击复制后弹出的浮动翻译卡片" width="900"></p>
+<p align="center"><img src="screenshots/demo.gif" alt="在文本编辑器里双击复制一段中文，浮动卡片返回英文译文" width="800"></p>
 
-<p align="center"><em><b>翻译卡片</b> —— 刚复制的那段文字的译文，不用离开手头的事。</em></p>
-
-<p align="center"><img src="screenshots/demo.gif" alt="双击复制一句话弹出翻译卡片" width="900"></p>
-
-<p align="center"><em><b>动图内容：</b>编辑器里的文字被选中并连续复制两次。<b>展示的功能：</b>双击复制这个手势——同一段文字连续复制两次之后扩展才去读剪贴板，然后弹出翻译卡片，不需要快捷键、不需要菜单，也不用切换窗口。</em></p>
+<p align="center"><em><b>动图内容：</b>选中一段中文笔记并双击复制，浮动卡片带着已选好的语言对弹出，英文译文出现在原文下方。<b>展示的功能：</b>双击复制是唯一入口——没有面板图标、没有要记的快捷键——以及卡片的原文/译文分区和复制、交换按钮。</em></p>
 
 **怎么跑** — 克隆到 `~/.local/share/gnome-shell/extensions/fast-translate@local`，运行 `glib-compile-schemas schemas/` 并编译 `po/*.po` 翻译，再 `gnome-extensions enable fast-translate@local`（Wayland 下需注销重登）。
 
@@ -31,7 +27,6 @@
 
 - [📖 项目说明](#-项目说明)
 - [✨ 功能特性](#-功能特性)
-- [🖌️ 截图](#️-截图)
 - [🧰 前置依赖](#-前置依赖)
 - [📥 安装](#-安装)
 - [🖱️ 使用](#️-使用)
@@ -62,8 +57,6 @@ atareao/translate-assistant  →  tazztone/fast-translate  →  本分支 (fast-
 - **四种后端** —— **Google 翻译**（无需 API Key，开箱即用）、**DeepL**（免费版与专业版），以及 **百度** / **有道**（各自需要凭据）。
 - **内联语言选择** —— 偏好设置里是普通下拉行；卡片标题会用旗帜 emoji 标出两种语言。
 - **健壮性** —— LRU 翻译缓存（50 条）、12 秒请求看门狗、原生 `St.Spinner` 加载态、友好的网络错误提示，以及精确的自回声抑制，确保你自己的复制不会被误判为新输入。
-
-## 🖌️ 截图
 
 ## 🧰 前置依赖
 

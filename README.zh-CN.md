@@ -19,7 +19,7 @@
 
 <p align="center"><img src="screenshots/demo.gif" alt="双击复制一句话弹出翻译卡片" width="900"></p>
 
-<p align="center"><em><b>动图内容：</b>编辑器里的文字被选中并连续复制两次。<b>展示的功能：</b>双击复制这个手势——同一段文字连续复制两次之后扩展才去读剪贴板，然后弹出翻译卡片，不需要快捷键、不需要菜单，也不用切换窗口。</em></p>
+<p align="center"><em><b>动图内容：</b>编辑器里的一句话被选中并连续复制两次；浮动翻译卡片随即弹出显示结果，之后收起。<b>展示的功能：</b>双击复制这个手势——同一段文字连续复制两次之后扩展才去读剪贴板，不需要快捷键、菜单，也不用切换窗口。</em></p>
 
 **怎么跑** — 克隆到 `~/.local/share/gnome-shell/extensions/fast-translate@local`，运行 `glib-compile-schemas schemas/` 并编译 `po/*.po` 翻译，再 `gnome-extensions enable fast-translate@local`（Wayland 下需注销重登）。
 

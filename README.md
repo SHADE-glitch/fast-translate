@@ -19,7 +19,7 @@ Instant translation from a double copy — Google Translate, DeepL, Baidu and Yo
 
 <p align="center"><img src="screenshots/demo.gif" alt="Double-copying a sentence to open the translation card" width="900"></p>
 
-<p align="center"><em><b>In the clip:</b> the text in the editor is selected and copied twice in a row. <b>What it shows:</b> the double-copy gesture — the extension reads the clipboard only after the same text was copied twice, and opens the translation card without a keybinding, a menu or a window switch.</em></p>
+<p align="center"><em><b>In the clip:</b> a sentence in the editor is selected and copied twice in a row; a floating translation card opens with the result and then closes. <b>What it shows:</b> the double-copy gesture — the extension reads the clipboard only after the same text is copied twice, and opens the card without a keybinding, a menu or a window switch.</em></p>
 
 **How to run** — Clone into `~/.local/share/gnome-shell/extensions/fast-translate@local`, run `glib-compile-schemas schemas/` and compile the `po/*.po` translations, then `gnome-extensions enable fast-translate@local` (log out and back in on Wayland).
 

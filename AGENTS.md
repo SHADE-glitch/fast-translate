@@ -221,7 +221,7 @@ restructure upstream files.
 - **Do not load ESModules via legacy `imports`** (e.g. `imports.ui.main` throws SyntaxError in GNOME 45+). Use static `import` or dynamic `await import()`.
 - **Do not reassign ESModule exports directly** (e.g. `Main.notify = ...`). Monkeypatch mutable prototypes (e.g. `MessageTray.Source.prototype.addNotification`).
 - **GJS constraint**: No `fetch`/`URLSearchParams` inside the shell process (use `Soup.Session` + `GLib.Bytes` as done in `extension.js`).
-- **No `git push`, rebase, history rewrite, or upstream merge without an explicit decision for that exact action.** Authorizing a push once does not authorize the next one. Never decide this from the local tracking ref — read the remote with `git ls-remote` after.
+- **Finishing a task includes its commit and its push.** The owner has given a standing decision for both: a change is not delivered until it is committed with its `D-###` entry and pushed to `origin`, and a task stops only when `git status` is clean and `origin` holds the new head. Still no `rebase`, no history rewrite, and no upstream merge without a decision for that exact action; `origin` is the only push target, and it is SSH (`git remote get-url --push origin` starts with `git@`). Never decide a push from the local tracking ref — read the remote back with `git ls-remote` after pushing.
 - **`uuid` and `shell-version` in `metadata.json` are frozen.** Do not widen or narrow the declared range to make a document honest.
 - **No new runtime dependency and no build chain.** Nothing here needs `npm install`; the extension runs from source.
 - **Do not delete features.** Dead CSS may go, but only item by item after proving nothing references it. A schema key a user may have set is a feature.

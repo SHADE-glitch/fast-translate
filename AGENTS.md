@@ -328,6 +328,32 @@ restructure upstream files.
   entry. `npm run check:log -- --invariants` prints the recorded `kind: fix` entries so
   `INVARIANTS.md` can stay a pointer file.
 
+## Upstream policy — radar, never merge
+
+This fork is frozen at upstream **v10** (imported as `420251c`; last upstream commit before the
+import was `8e2e4c5`) and is **not** a tracking branch. The policy is **read upstream, never merge
+it**: keep the frozen baseline, and use upstream as an early-warning system for shell-private-API
+changes and provider-API drift.
+
+- **Never** `git merge`, `git rebase`, `git cherry-pick` or `git pull` from `upstream`. This fork
+  deleted the panel translator, the global shortcut and the automation paths; a three-way merge
+  would resurrect exactly the code `INVARIANTS.md` says must not come back.
+- **Run the radar quarterly and before every GNOME major upgrade** (the `upstream` remote exists for
+  exactly this — it is not a merge source):
+  ```sh
+  git fetch --unshallow upstream
+  git log --oneline upstream/main --since=2026-09-22
+  git diff --stat HEAD upstream/main -- extension.js prefs.js translation-helper.js signing.js schemas metadata.json
+  ```
+- **Take by hand, one hunk at a time:** a compatibility fix for a shell-private API or a provider
+  endpoint/response this fork also calls, or an upstream fix for a bug reproduced on this machine.
+  Each one is re-proven at L0, at L1 when it touches the request path, and earns a `D-###` entry.
+- **Do not take:** upstream features and scaffolding, the removed panel/shortcut/automation code,
+  anything that would change the UUID or the settings schema id, and anything this fork has already
+  carried further than upstream did.
+- **Record** each pass (date, upstream head, what was screened out and why) in
+  `docs/reports/STATE.md`; only a change actually taken gets a `CHANGELOG.md` entry.
+
 ## Tests
 
 - **Run the suite**: `npm test`. It chains these checks in order, each failing the run on its own:
